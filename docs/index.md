@@ -1,16 +1,16 @@
-# OpenInstax
+# InstantLink
 
-**OpenInstax** is an open-source Rust CLI and native macOS app for printing to Fujifilm Instax Link printers (Mini, Square, Wide) via Bluetooth Low Energy.
+**InstantLink** is an open-source Rust CLI and native macOS app for printing to Fujifilm Instax Link printers (Mini, Square, Wide) via Bluetooth Low Energy.
 
-The Instax Link BLE protocol has been fully reverse-engineered by the open-source community ([javl/InstaxBLE](https://github.com/javl/InstaxBLE), [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web)). OpenInstax provides a clean, well-engineered Rust implementation.
+The Instax Link BLE protocol has been fully reverse-engineered by the open-source community ([javl/InstaxBLE](https://github.com/javl/InstaxBLE), [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web)). InstantLink provides a clean, well-engineered Rust implementation.
 
 ## Components
 
 | Crate | Description |
 |-------|-------------|
-| **openinstax-core** | BLE protocol, image processing, device communication |
-| **openinstax-cli** | Command-line interface with progress bars and JSON output |
-| **openinstax-ffi** | C FFI bindings for native GUIs (Swift, etc.) |
+| **instantlink-core** | BLE protocol, image processing, device communication |
+| **instantlink-cli** | Command-line interface with progress bars and JSON output |
+| **instantlink-ffi** | C FFI bindings for native GUIs (Swift, etc.) |
 
 ## Supported Printers
 
@@ -34,6 +34,6 @@ The Instax Link BLE protocol has been fully reverse-engineered by the open-sourc
 
 ## Architecture
 
-OpenInstax mirrors the architecture of [StatusLight](https://github.com/wu-hongjun/StatusLight), with the core library providing async BLE communication via btleplug, a CLI that calls core directly, and an FFI layer for the SwiftUI macOS app.
+InstantLink mirrors the architecture of [StatusLight](https://github.com/wu-hongjun/StatusLight), with the core library providing async BLE communication via btleplug, a CLI that calls core directly, and an FFI layer for the SwiftUI macOS app.
 
 Unlike StatusLight, there is no daemon crate. Instax printing is a one-shot operation (connect, print, disconnect) rather than a continuous service.

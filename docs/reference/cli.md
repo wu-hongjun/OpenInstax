@@ -11,26 +11,26 @@
 
 ## Commands
 
-### `openinstax scan`
+### `instantlink scan`
 
 Scan for nearby Instax Link printers via BLE.
 
 ```bash
-openinstax scan
-openinstax scan --json
+instantlink scan
+instantlink scan --json
 ```
 
 **JSON output:** Array of printer name strings.
 
 ---
 
-### `openinstax info`
+### `instantlink info`
 
 Show printer info: battery, film count, model, print history.
 
 ```bash
-openinstax info
-openinstax info --device "INSTAX-12345678"
+instantlink info
+instantlink info --device "INSTAX-12345678"
 ```
 
 **JSON output:**
@@ -47,13 +47,13 @@ openinstax info --device "INSTAX-12345678"
 
 ---
 
-### `openinstax print <IMAGE>`
+### `instantlink print <IMAGE>`
 
 Print an image file to the connected printer.
 
 ```bash
-openinstax print photo.jpg
-openinstax print photo.png --quality 90 --fit contain
+instantlink print photo.jpg
+instantlink print photo.png --quality 90 --fit contain
 ```
 
 | Option | Default | Description |
@@ -71,13 +71,13 @@ The image is automatically resized to the printer's native resolution and JPEG-c
 
 ---
 
-### `openinstax led set <COLOR>`
+### `instantlink led set <COLOR>`
 
 Set the printer's LED to a color and pattern.
 
 ```bash
-openinstax led set "#FF0000"
-openinstax led set "#00FF00" --pattern breathe
+instantlink led set "#FF0000"
+instantlink led set "#00FF00" --pattern breathe
 ```
 
 | Option | Default | Description |
@@ -88,23 +88,23 @@ openinstax led set "#00FF00" --pattern breathe
 
 ---
 
-### `openinstax led off`
+### `instantlink led off`
 
 Turn off the printer's LED.
 
 ```bash
-openinstax led off
+instantlink led off
 ```
 
 ---
 
-### `openinstax status`
+### `instantlink status`
 
 Combined connectivity check and printer info.
 
 ```bash
-openinstax status
-openinstax status --json
+instantlink status
+instantlink status --json
 ```
 
 If no printer is connected, reports `connected: false`.

@@ -1,39 +1,52 @@
 #!/usr/bin/env bash
 #
-# build-app.sh — Build OpenInstax.app bundle and DMG
+# build-app.sh — Build InstantLink.app bundle and DMG
 #
 # Usage: bash scripts/build-app.sh <version>
 #   e.g. bash scripts/build-app.sh 0.1.0
 #
-# Expects release binary at target/release/openinstax.
-# Produces  target/release/OpenInstax.app/  and optionally a DMG.
+# Compiles the Rust workspace (release) and SwiftUI launcher, then
+# assembles the .app bundle. Produces target/release/InstantLink.app/
+# and optionally a DMG.
 
 set -euo pipefail
+
+# Ensure cargo is in PATH (rustup default location)
+if [[ -f "$HOME/.cargo/env" ]]; then
+  source "$HOME/.cargo/env"
+fi
 
 VERSION="${1:?Usage: build-app.sh <version>}"
 # Strip leading 'v' if present for plist version strings
 PLIST_VERSION="${VERSION#v}"
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$REPO_ROOT/target/release/OpenInstax.app"
+APP="$REPO_ROOT/target/release/InstantLink.app"
 CONTENTS="$APP/Contents"
 MACOS_DIR="$CONTENTS/MacOS"
 
-echo "==> Building OpenInstax.app (version ${PLIST_VERSION})"
+echo "==> Building InstantLink.app (version ${PLIST_VERSION})"
 
-# --- Clean previous build ------------------------------------------------
+# --- Build Rust workspace (release) --------------------------------------
+echo "==> Compiling Rust workspace..."
+cargo build --workspace --release
+
+# --- Clean previous app bundle -------------------------------------------
 rm -rf "$APP"
 mkdir -p "$MACOS_DIR"
 
 # --- Copy CLI binary ------------------------------------------------------
-CLI_SRC="$REPO_ROOT/target/release/openinstax"
-if [[ ! -f "$CLI_SRC" ]]; then
-  echo "ERROR: $CLI_SRC not found. Run 'cargo build --workspace --release' first." >&2
-  exit 1
-fi
-# Rename to openinstax-cli inside the bundle to avoid case-insensitive
-# collision with the SwiftUI launcher binary (OpenInstax).
-cp "$CLI_SRC" "$MACOS_DIR/openinstax-cli"
+CLI_SRC="$REPO_ROOT/target/release/instantlink"
+# Rename to instantlink-cli inside the bundle to avoid case-insensitive
+# collision with the SwiftUI launcher binary (InstantLink).
+cp "$CLI_SRC" "$MACOS_DIR/instantlink-cli"
+
+# --- Bundle FFI dylib into Frameworks/ ------------------------------------
+FRAMEWORKS_DIR="$CONTENTS/Frameworks"
+mkdir -p "$FRAMEWORKS_DIR"
+DYLIB_SRC="$REPO_ROOT/target/release/libinstantlink_ffi.dylib"
+cp "$DYLIB_SRC" "$FRAMEWORKS_DIR/"
+install_name_tool -id @rpath/libinstantlink_ffi.dylib "$FRAMEWORKS_DIR/libinstantlink_ffi.dylib"
 
 # --- Info.plist -----------------------------------------------------------
 sed "s/\${VERSION}/${PLIST_VERSION}/g" \
@@ -52,17 +65,19 @@ if [[ -f "$ICON_SRC" ]]; then
   cp "$ICON_SRC" "$RESOURCES_DIR/AppIcon.icns"
 fi
 
-# --- Compile SwiftUI launcher (Contents/MacOS/OpenInstax) -----------------
+# --- Compile SwiftUI launcher (Contents/MacOS/InstantLink) -----------------
 echo "==> Compiling SwiftUI launcher..."
 swiftc \
   -target arm64-apple-macosx13.0 \
   -O \
-  -o "$MACOS_DIR/OpenInstax" \
-  "$REPO_ROOT/macos/OpenInstax/OpenInstaxApp.swift" \
-  "$REPO_ROOT/macos/OpenInstax/OpenInstaxCLI.swift" \
+  -o "$MACOS_DIR/InstantLink" \
+  "$REPO_ROOT/macos/InstantLink/InstantLinkApp.swift" \
+  "$REPO_ROOT/macos/InstantLink/InstantLinkFFI.swift" \
+  "$REPO_ROOT/macos/InstantLink/InstantLinkCLI.swift" \
   -framework SwiftUI \
   -framework AppKit \
   -framework UniformTypeIdentifiers \
+  -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -parse-as-library
 
 # --- Ad-hoc codesign (prevents "damaged" Gatekeeper error) ----------------
@@ -74,7 +89,7 @@ echo "==> App bundle created at: $APP"
 # --- Build DMG (if create-dmg is available) -------------------------------
 if command -v create-dmg &>/dev/null; then
   TAG="v${PLIST_VERSION}"
-  DMG_NAME="OpenInstax-${TAG}-aarch64-apple-darwin.dmg"
+  DMG_NAME="InstantLink-${TAG}-aarch64-apple-darwin.dmg"
   DMG_PATH="$REPO_ROOT/$DMG_NAME"
 
   echo "==> Building DMG: $DMG_NAME"
@@ -88,11 +103,11 @@ if command -v create-dmg &>/dev/null; then
   rm -f "$DMG_PATH"
 
   create-dmg \
-    --volname "OpenInstax ${TAG}" \
+    --volname "InstantLink ${TAG}" \
     --window-size 500 340 \
     --icon-size 80 \
     --app-drop-link 350 120 \
-    --icon "OpenInstax.app" 150 120 \
+    --icon "InstantLink.app" 150 120 \
     --no-internet-enable \
     "$DMG_PATH" \
     "$DMG_STAGE"

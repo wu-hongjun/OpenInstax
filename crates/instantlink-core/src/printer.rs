@@ -3,8 +3,8 @@
 use std::path::Path;
 use std::time::Duration;
 
-use crate::device::{BleInstaxDevice, InstaxDevice, PrinterStatus};
-use crate::error::{InstaxError, Result};
+use crate::device::{BlePrinterDevice, PrinterDevice, PrinterStatus};
+use crate::error::{PrinterError, Result};
 use crate::image::FitMode;
 use crate::transport::{self, BleTransport, DEFAULT_SCAN_DURATION};
 
@@ -40,32 +40,32 @@ pub async fn scan(duration: Option<Duration>) -> Result<Vec<DiscoveredPrinter>> 
 pub async fn connect(
     device_name: &str,
     duration: Option<Duration>,
-) -> Result<Box<dyn InstaxDevice>> {
+) -> Result<Box<dyn PrinterDevice>> {
     let adapter = transport::get_adapter().await?;
     let results = transport::scan(&adapter, duration.unwrap_or(DEFAULT_SCAN_DURATION)).await?;
 
     let (peripheral, name) = results
         .into_iter()
         .find(|(_, name)| name.contains(device_name))
-        .ok_or(InstaxError::PrinterNotFound)?;
+        .ok_or(PrinterError::PrinterNotFound)?;
 
     let transport = BleTransport::connect(peripheral).await?;
-    let device = BleInstaxDevice::new(Box::new(transport), name).await?;
+    let device = BlePrinterDevice::new(Box::new(transport), name).await?;
     Ok(Box::new(device))
 }
 
 /// Connect to the first available Instax printer.
-pub async fn connect_any(duration: Option<Duration>) -> Result<Box<dyn InstaxDevice>> {
+pub async fn connect_any(duration: Option<Duration>) -> Result<Box<dyn PrinterDevice>> {
     let adapter = transport::get_adapter().await?;
     let results = transport::scan(&adapter, duration.unwrap_or(DEFAULT_SCAN_DURATION)).await?;
 
     let (peripheral, name) = results
         .into_iter()
         .next()
-        .ok_or(InstaxError::PrinterNotFound)?;
+        .ok_or(PrinterError::PrinterNotFound)?;
 
     let transport = BleTransport::connect(peripheral).await?;
-    let device = BleInstaxDevice::new(Box::new(transport), name).await?;
+    let device = BlePrinterDevice::new(Box::new(transport), name).await?;
     Ok(Box::new(device))
 }
 
@@ -84,7 +84,7 @@ pub async fn print_file(
         None => connect_any(None).await?,
     };
 
-    device.print_file(path, fit, quality, progress).await?;
+    device.print_file(path, fit, quality, 0, progress).await?;
     device.disconnect().await?;
     Ok(())
 }

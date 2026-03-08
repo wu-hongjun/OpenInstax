@@ -56,9 +56,10 @@ pub enum Command {
     /// Query print history / count.
     HistoryInfo,
     /// Start image download with image size.
-    DownloadStart { image_size: u32 },
-    /// Send an image data chunk.
-    Data { offset: u32, data: Vec<u8> },
+    /// `print_option` controls Rich (0x00) vs Natural (0x01) mode (unconfirmed).
+    DownloadStart { image_size: u32, print_option: u8 },
+    /// Send an image data chunk (index = sequential chunk number 0, 1, 2…).
+    Data { index: u32, data: Vec<u8> },
     /// Signal end of image download.
     DownloadEnd,
     /// Cancel an in-progress download.
@@ -92,11 +93,17 @@ impl Command {
             Command::HistoryInfo => {
                 protocol::build_packet(OP_SUPPORT_FUNCTION_INFO, &[INFO_PRINT_HISTORY])
             }
-            Command::DownloadStart { image_size } => {
-                protocol::build_packet(OP_DOWNLOAD_START, &image_size.to_be_bytes())
+            Command::DownloadStart {
+                image_size,
+                print_option,
+            } => {
+                // Prefix: pictureType=0x02, printOption, printOption2=0x00, zero=0x00
+                let mut payload = vec![0x02, *print_option, 0x00, 0x00];
+                payload.extend_from_slice(&image_size.to_be_bytes());
+                protocol::build_packet(OP_DOWNLOAD_START, &payload)
             }
-            Command::Data { offset, data } => {
-                let mut payload = offset.to_be_bytes().to_vec();
+            Command::Data { index, data } => {
+                let mut payload = index.to_be_bytes().to_vec();
                 payload.extend_from_slice(data);
                 protocol::build_packet(OP_DATA, &payload)
             }
@@ -125,7 +132,7 @@ pub enum Response {
         payload: Vec<u8>,
     },
     /// Battery status.
-    BatteryStatus { level: u8 },
+    BatteryStatus { state: u8, level: u8 },
     /// Printer function info (film remaining, charging).
     PrinterFunctionInfo {
         film_remaining: u8,
@@ -183,8 +190,9 @@ impl Response {
                     }
                     INFO_BATTERY => {
                         // data[0] = battery state, data[1] = battery percentage
+                        let state = data.first().copied().unwrap_or(0);
                         let level = if data.len() >= 2 { data[1] } else { 0 };
-                        Response::BatteryStatus { level }
+                        Response::BatteryStatus { state, level }
                     }
                     INFO_PRINTER_FUNCTION => {
                         // data[0]: bits 0-3 = photos left, bit 7 = charging
@@ -257,36 +265,44 @@ mod tests {
 
     #[test]
     fn encode_download_start() {
-        let cmd = Command::DownloadStart { image_size: 50000 };
+        let cmd = Command::DownloadStart {
+            image_size: 50000,
+            print_option: 0,
+        };
         let pkt = cmd.encode();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DOWNLOAD_START);
-        let size = u32::from_be_bytes([
-            parsed.payload[0],
-            parsed.payload[1],
-            parsed.payload[2],
-            parsed.payload[3],
-        ]);
+        // First 4 bytes: pictureType=0x02, printOption, printOption2, zero
+        assert_eq!(&parsed.payload[0..4], &[0x02, 0x00, 0x00, 0x00]);
+        // Next 4 bytes: image size
+        let size = u32::from_be_bytes(parsed.payload[4..8].try_into().unwrap());
         assert_eq!(size, 50000);
+    }
+
+    #[test]
+    fn encode_download_start_natural_mode() {
+        let cmd = Command::DownloadStart {
+            image_size: 50000,
+            print_option: 1,
+        };
+        let pkt = cmd.encode();
+        let parsed = protocol::parse_packet(&pkt).unwrap();
+        assert_eq!(parsed.opcode, OP_DOWNLOAD_START);
+        assert_eq!(&parsed.payload[0..4], &[0x02, 0x01, 0x00, 0x00]);
     }
 
     #[test]
     fn encode_data_chunk() {
         let data = vec![0xAA, 0xBB, 0xCC];
         let cmd = Command::Data {
-            offset: 100,
+            index: 3,
             data: data.clone(),
         };
         let pkt = cmd.encode();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DATA);
-        let offset = u32::from_be_bytes([
-            parsed.payload[0],
-            parsed.payload[1],
-            parsed.payload[2],
-            parsed.payload[3],
-        ]);
-        assert_eq!(offset, 100);
+        let index = u32::from_be_bytes(parsed.payload[0..4].try_into().unwrap());
+        assert_eq!(index, 3);
         assert_eq!(&parsed.payload[4..], &[0xAA, 0xBB, 0xCC]);
     }
 
@@ -345,7 +361,10 @@ mod tests {
             payload: vec![0x00, INFO_BATTERY, 0x00, 85],
         };
         match Response::decode(&packet) {
-            Response::BatteryStatus { level } => assert_eq!(level, 85),
+            Response::BatteryStatus { state, level } => {
+                assert_eq!(state, 0x00);
+                assert_eq!(level, 85);
+            }
             other => panic!("expected BatteryStatus, got {other:?}"),
         }
     }

@@ -6,7 +6,7 @@ use std::path::Path;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
 
-use crate::error::{InstaxError, Result};
+use crate::error::{PrinterError, Result};
 use crate::models::PrinterModel;
 use crate::protocol::MAX_IMAGE_SIZE;
 
@@ -34,7 +34,7 @@ impl FitMode {
 
 /// Load an image from a file path.
 pub fn load_image(path: &Path) -> Result<DynamicImage> {
-    image::open(path).map_err(|e| InstaxError::Image(format!("failed to load image: {e}")))
+    image::open(path).map_err(|e| PrinterError::Image(format!("failed to load image: {e}")))
 }
 
 /// Resize and fit the image to the printer's dimensions.
@@ -67,39 +67,78 @@ pub fn resize_image(img: &DynamicImage, model: PrinterModel, fit: FitMode) -> Dy
     }
 }
 
-/// Encode an image as JPEG, automatically reducing quality to fit within `MAX_IMAGE_SIZE`.
+/// Encode an image as JPEG, finding the highest quality that fits within `MAX_IMAGE_SIZE`.
 ///
-/// Starts at the given quality and reduces by 5 until the output fits.
+/// Uses binary search to maximize quality while staying under the protocol limit.
 pub fn encode_jpeg(img: &DynamicImage, initial_quality: u8) -> Result<Vec<u8>> {
     let rgb = img.to_rgb8();
-    let mut quality = initial_quality.min(100);
 
-    loop {
+    let encode_at = |q: u8| -> std::result::Result<Vec<u8>, PrinterError> {
         let mut buf = Cursor::new(Vec::new());
-        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, q);
         rgb.write_with_encoder(encoder)
-            .map_err(|e| InstaxError::Image(format!("JPEG encode failed: {e}")))?;
+            .map_err(|e| PrinterError::Image(format!("JPEG encode failed: {e}")))?;
+        Ok(buf.into_inner())
+    };
 
-        let data = buf.into_inner();
-        if data.len() <= MAX_IMAGE_SIZE || quality <= 10 {
-            if data.len() > MAX_IMAGE_SIZE {
-                return Err(InstaxError::ImageTooLarge {
-                    size: data.len(),
-                    max: MAX_IMAGE_SIZE,
-                });
+    // Try the requested quality first — often fits for smaller images.
+    let capped = initial_quality.min(100);
+    let data = encode_at(capped)?;
+    if data.len() <= MAX_IMAGE_SIZE {
+        log::debug!("JPEG encoded: {} bytes at quality {}", data.len(), capped);
+        return Ok(data);
+    }
+
+    // Binary search for the highest quality that fits.
+    let mut low: u8 = 10;
+    let mut high: u8 = capped.saturating_sub(1);
+    let mut best_data: Option<Vec<u8>> = None;
+
+    while low <= high {
+        let mid = low + (high - low) / 2;
+        let attempt = encode_at(mid)?;
+        if attempt.len() <= MAX_IMAGE_SIZE {
+            best_data = Some(attempt);
+            low = mid + 1;
+        } else {
+            if mid == 0 {
+                break;
             }
-            log::debug!("JPEG encoded: {} bytes at quality {}", data.len(), quality);
-            return Ok(data);
+            high = mid - 1;
         }
+    }
 
-        quality = quality.saturating_sub(5).max(10);
+    match best_data {
+        Some(data) => {
+            log::debug!(
+                "JPEG encoded: {} bytes at quality {} (reduced from {})",
+                data.len(),
+                high.min(low.saturating_sub(1)),
+                capped
+            );
+            Ok(data)
+        }
+        None => Err(PrinterError::ImageTooLarge {
+            size: encode_at(10)?.len(),
+            max: MAX_IMAGE_SIZE,
+        }),
     }
 }
 
 /// Split JPEG data into chunks appropriate for the printer model.
+///
+/// The last chunk is zero-padded to the full chunk size, matching the
+/// reference implementation's behavior.
 pub fn chunk_image_data(data: &[u8], model: PrinterModel) -> Vec<Vec<u8>> {
     let chunk_size = model.spec().chunk_size;
-    data.chunks(chunk_size).map(|c| c.to_vec()).collect()
+    let mut chunks: Vec<Vec<u8>> = data.chunks(chunk_size).map(|c| c.to_vec()).collect();
+    // Pad last chunk to full chunk_size with zeros
+    if let Some(last) = chunks.last_mut() {
+        if last.len() < chunk_size {
+            last.resize(chunk_size, 0);
+        }
+    }
+    chunks
 }
 
 /// Complete image preparation pipeline: load → resize → encode → chunk.
@@ -119,7 +158,7 @@ pub fn prepare_image(
 /// Load an image from raw bytes (for use from FFI or other non-file sources).
 pub fn load_image_from_bytes(data: &[u8]) -> Result<DynamicImage> {
     image::load_from_memory(data)
-        .map_err(|e| InstaxError::Image(format!("failed to load image from bytes: {e}")))
+        .map_err(|e| PrinterError::Image(format!("failed to load image from bytes: {e}")))
 }
 
 /// Prepare an image from raw bytes (skip file loading).
@@ -213,7 +252,8 @@ mod tests {
         // 5000 / 900 = 5.55 → 6 chunks
         assert_eq!(chunks.len(), 6);
         assert_eq!(chunks[0].len(), 900);
-        assert_eq!(chunks[5].len(), 500); // remainder
+        // Last chunk is padded to full chunk size
+        assert_eq!(chunks[5].len(), 900);
     }
 
     #[test]
@@ -223,6 +263,8 @@ mod tests {
         // 5000 / 1808 = 2.76 → 3 chunks
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].len(), 1808);
+        // Last chunk is padded to full chunk size
+        assert_eq!(chunks[2].len(), 1808);
     }
 
     #[test]

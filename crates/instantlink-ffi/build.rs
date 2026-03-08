@@ -19,5 +19,5 @@ fn main() {
         )
         .generate()
         .expect("Unable to generate C bindings")
-        .write_to_file(output_dir.join("openinstax.h"));
+        .write_to_file(output_dir.join("instantlink.h"));
 }

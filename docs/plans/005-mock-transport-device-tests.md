@@ -4,7 +4,7 @@
 
 ## Problem
 
-`device.rs` had zero test coverage because `BleInstaxDevice` requires a real BLE transport.
+`device.rs` had zero test coverage because `BlePrinterDevice` requires a real BLE transport.
 
 ## Solution
 

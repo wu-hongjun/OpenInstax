@@ -1,52 +1,52 @@
-# OpenInstax
+# InstantLink
 
-[![CI](https://github.com/wu-hongjun/OpenInstax/actions/workflows/ci.yml/badge.svg)](https://github.com/wu-hongjun/OpenInstax/actions/workflows/ci.yml)
+[![CI](https://github.com/wu-hongjun/InstantLink/actions/workflows/ci.yml/badge.svg)](https://github.com/wu-hongjun/InstantLink/actions/workflows/ci.yml)
 
 Open-source CLI and native macOS app for printing to Fujifilm Instax Link printers via Bluetooth Low Energy. Supports the Instax Mini Link, Square Link, and Wide Link.
 
-The Instax Link BLE protocol was reverse-engineered by the open-source community ([javl/InstaxBLE](https://github.com/javl/InstaxBLE), [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web)). OpenInstax provides a clean Rust implementation.
+The Instax Link BLE protocol was reverse-engineered by the open-source community ([javl/InstaxBLE](https://github.com/javl/InstaxBLE), [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web)). InstantLink provides a clean Rust implementation.
 
 ## What's Included
 
 | Crate | Description |
 |-------|-------------|
-| **openinstax-core** | Core library — BLE protocol, image processing, device communication |
-| **openinstax** (CLI) | Command-line tool to scan, query, and print |
-| **openinstax-ffi** | C FFI bindings for building native GUIs (Swift, etc.) |
+| **instantlink-core** | Core library — BLE protocol, image processing, device communication |
+| **instantlink** (CLI) | Command-line tool to scan, query, and print |
+| **instantlink-ffi** | C FFI bindings for building native GUIs (Swift, etc.) |
 
 ## Install
 
-Pre-built releases will be available on the [Releases](https://github.com/wu-hongjun/OpenInstax/releases) page once tagged.
+Pre-built releases will be available on the [Releases](https://github.com/wu-hongjun/InstantLink/releases) page once tagged.
 
 Build from source:
 
 ```bash
-git clone https://github.com/wu-hongjun/OpenInstax.git
-cd OpenInstax
+git clone https://github.com/wu-hongjun/InstantLink.git
+cd InstantLink
 cargo build --workspace --release
 
 # Install the CLI
-cargo install --path crates/openinstax-cli
+cargo install --path crates/instantlink-cli
 ```
 
 ## Quick Start
 
 ```bash
 # Scan for nearby printers
-openinstax scan
+instantlink scan
 
 # Check printer status
-openinstax status
+instantlink status
 
 # Print an image
-openinstax print photo.jpg
+instantlink print photo.jpg
 
 # Print with specific fit mode and quality
-openinstax print photo.jpg --fit contain --quality 90
+instantlink print photo.jpg --fit contain --quality 90
 
 # Control the LED
-openinstax led set "#FF6600" --pattern breathe
-openinstax led off
+instantlink led set "#FF6600" --pattern breathe
+instantlink led off
 ```
 
 All commands support `--json` for machine-readable output.
@@ -76,16 +76,16 @@ The printer model is auto-detected after connecting.
 ## Project Structure
 
 ```
-OpenInstax/
+InstantLink/
 ├── Cargo.toml                    # Workspace root
 ├── mkdocs.yml                    # Documentation config
 ├── docs/                         # MkDocs source
 ├── crates/
-│   ├── openinstax-core/          # Core library
-│   ├── openinstax-cli/           # CLI binary
-│   └── openinstax-ffi/           # C FFI
+│   ├── instantlink-core/          # Core library
+│   ├── instantlink-cli/           # CLI binary
+│   └── instantlink-ffi/           # C FFI
 └── macos/                        # Native macOS app (SwiftUI)
-    └── OpenInstax/
+    └── InstantLink/
 ```
 
 ## macOS App
@@ -99,7 +99,7 @@ bash scripts/build-app.sh 0.1.0
 
 ## Documentation
 
-Full docs are available at [wu-hongjun.github.io/OpenInstax](https://wu-hongjun.github.io/OpenInstax/).
+Full docs are available at [wu-hongjun.github.io/InstantLink](https://wu-hongjun.github.io/InstantLink/).
 
 ## License
 

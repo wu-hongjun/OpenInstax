@@ -14,7 +14,7 @@ use futures::StreamExt;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::error::{InstaxError, Result};
+use crate::error::{PrinterError, Result};
 use crate::protocol::{self, PacketAssembler};
 
 /// Instax BLE service UUID.
@@ -52,15 +52,15 @@ pub trait Transport: Send + Sync {
 pub async fn get_adapter() -> Result<Adapter> {
     let manager = Manager::new()
         .await
-        .map_err(|e| InstaxError::Ble(format!("failed to create BLE manager: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("failed to create BLE manager: {e}")))?;
     let adapters = manager
         .adapters()
         .await
-        .map_err(|e| InstaxError::Ble(format!("failed to list BLE adapters: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("failed to list BLE adapters: {e}")))?;
     adapters
         .into_iter()
         .next()
-        .ok_or_else(|| InstaxError::Ble("no BLE adapter found".into()))
+        .ok_or_else(|| PrinterError::Ble("no BLE adapter found".into()))
 }
 
 /// Scan for Instax printers.
@@ -75,19 +75,19 @@ pub async fn scan(adapter: &Adapter, duration: Duration) -> Result<Vec<(Peripher
     adapter
         .start_scan(ScanFilter::default())
         .await
-        .map_err(|e| InstaxError::Ble(format!("scan failed: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("scan failed: {e}")))?;
 
     tokio::time::sleep(duration).await;
 
     adapter
         .stop_scan()
         .await
-        .map_err(|e| InstaxError::Ble(format!("stop scan failed: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("stop scan failed: {e}")))?;
 
     let peripherals = adapter
         .peripherals()
         .await
-        .map_err(|e| InstaxError::Ble(format!("failed to list peripherals: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("failed to list peripherals: {e}")))?;
 
     let mut results = Vec::new();
     for p in peripherals {
@@ -117,12 +117,12 @@ impl BleTransport {
         peripheral
             .connect()
             .await
-            .map_err(|e| InstaxError::Ble(format!("connect failed: {e}")))?;
+            .map_err(|e| PrinterError::Ble(format!("connect failed: {e}")))?;
 
         peripheral
             .discover_services()
             .await
-            .map_err(|e| InstaxError::Ble(format!("service discovery failed: {e}")))?;
+            .map_err(|e| PrinterError::Ble(format!("service discovery failed: {e}")))?;
 
         let chars = peripheral.characteristics();
 
@@ -130,13 +130,13 @@ impl BleTransport {
             .iter()
             .find(|c| c.uuid == WRITE_CHAR_UUID)
             .cloned()
-            .ok_or_else(|| InstaxError::Ble("write characteristic not found".into()))?;
+            .ok_or_else(|| PrinterError::Ble("write characteristic not found".into()))?;
 
         let notify_char = chars
             .iter()
             .find(|c| c.uuid == NOTIFY_CHAR_UUID)
             .cloned()
-            .ok_or_else(|| InstaxError::Ble("notify characteristic not found".into()))?;
+            .ok_or_else(|| PrinterError::Ble("notify characteristic not found".into()))?;
 
         // Set up notification channel BEFORE subscribing to avoid race condition
         // where early notifications are lost.
@@ -144,7 +144,7 @@ impl BleTransport {
         let mut notification_stream = peripheral
             .notifications()
             .await
-            .map_err(|e| InstaxError::Ble(format!("notification stream failed: {e}")))?;
+            .map_err(|e| PrinterError::Ble(format!("notification stream failed: {e}")))?;
 
         tokio::spawn(async move {
             log::debug!("Notification listener task started");
@@ -166,7 +166,7 @@ impl BleTransport {
         peripheral
             .subscribe(&notify_char)
             .await
-            .map_err(|e| InstaxError::Ble(format!("notification subscribe failed: {e}")))?;
+            .map_err(|e| PrinterError::Ble(format!("notification subscribe failed: {e}")))?;
 
         // Brief delay to let the BLE connection stabilize
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -193,7 +193,7 @@ impl Transport for BleTransport {
             self.peripheral
                 .write(&self.write_char, &frag, WriteType::WithoutResponse)
                 .await
-                .map_err(|e| InstaxError::Ble(format!("write failed: {e}")))?;
+                .map_err(|e| PrinterError::Ble(format!("write failed: {e}")))?;
         }
         Ok(())
     }
@@ -205,8 +205,8 @@ impl Transport for BleTransport {
         loop {
             let data = tokio::time::timeout(timeout, rx.recv())
                 .await
-                .map_err(|_| InstaxError::Timeout)?
-                .ok_or_else(|| InstaxError::Ble("notification channel closed".into()))?;
+                .map_err(|_| PrinterError::Timeout)?
+                .ok_or_else(|| PrinterError::Ble("notification channel closed".into()))?;
 
             if let Some(packet) = assembler.feed(&data) {
                 return Ok(packet);
@@ -218,7 +218,7 @@ impl Transport for BleTransport {
         self.peripheral
             .disconnect()
             .await
-            .map_err(|e| InstaxError::Ble(format!("disconnect failed: {e}")))?;
+            .map_err(|e| PrinterError::Ble(format!("disconnect failed: {e}")))?;
         Ok(())
     }
 }

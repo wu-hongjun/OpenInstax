@@ -1,14 +1,14 @@
 [package]
-name = "openinstax-cli"
+name = "instantlink-cli"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "openinstax"
+name = "instantlink"
 path = "src/main.rs"
 
 [dependencies]
-openinstax-core = { path = "../openinstax-core" }
+instantlink-core = { path = "../instantlink-core" }
 clap = { workspace = true }
 indicatif = { workspace = true }
 anyhow = { workspace = true }

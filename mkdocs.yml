@@ -1,8 +1,8 @@
-site_name: OpenInstax
+site_name: InstantLink
 site_description: Open-source CLI and macOS app for Fujifilm Instax Link printers via BLE
-site_url: https://openinstax.hongjunwu.com/
-repo_url: https://github.com/wu-hongjun/OpenInstax
-repo_name: wu-hongjun/OpenInstax
+site_url: https://instantlink.hongjunwu.com/
+repo_url: https://github.com/wu-hongjun/InstantLink
+repo_name: wu-hongjun/InstantLink
 
 theme:
   name: material

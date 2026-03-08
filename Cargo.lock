@@ -900,6 +900,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "instantlink-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "env_logger",
+ "indicatif",
+ "instantlink-core",
+ "log",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "instantlink-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "btleplug",
+ "futures",
+ "image",
+ "log",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "instantlink-ffi"
+version = "0.1.0"
+dependencies = [
+ "cbindgen",
+ "env_logger",
+ "instantlink-core",
+ "log",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "interpolate_name"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1257,48 +1300,6 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
-
-[[package]]
-name = "openinstax-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "env_logger",
- "indicatif",
- "log",
- "openinstax-core",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "openinstax-core"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "btleplug",
- "futures",
- "image",
- "log",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "uuid",
-]
-
-[[package]]
-name = "openinstax-ffi"
-version = "0.1.0"
-dependencies = [
- "cbindgen",
- "env_logger",
- "log",
- "openinstax-core",
- "tokio",
-]
 
 [[package]]
 name = "parking_lot_core"

@@ -2,7 +2,7 @@
 
 ## From Releases
 
-Pre-built `.dmg` releases are available for **macOS Apple Silicon** (ARM64) on the [Releases](https://github.com/wu-hongjun/OpenInstax/releases) page. Download, mount, and drag the app to Applications.
+Pre-built `.dmg` releases are available for **macOS Apple Silicon** (ARM64) on the [Releases](https://github.com/wu-hongjun/InstantLink/releases) page. Download, mount, and drag the app to Applications.
 
 ## From Source
 
@@ -14,23 +14,23 @@ Pre-built `.dmg` releases are available for **macOS Apple Silicon** (ARM64) on t
 ### Build
 
 ```bash
-git clone https://github.com/wu-hongjun/OpenInstax.git
-cd OpenInstax
+git clone https://github.com/wu-hongjun/InstantLink.git
+cd InstantLink
 cargo build --workspace --release
 ```
 
-The CLI binary will be at `target/release/openinstax`.
+The CLI binary will be at `target/release/instantlink`.
 
 ### Install CLI
 
 ```bash
-cargo install --path crates/openinstax-cli
+cargo install --path crates/instantlink-cli
 ```
 
 Or copy manually:
 
 ```bash
-cp target/release/openinstax /usr/local/bin/
+cp target/release/instantlink /usr/local/bin/
 ```
 
 ## macOS App
@@ -45,9 +45,9 @@ cargo build --workspace --release
 bash scripts/build-app.sh 0.1.0
 ```
 
-The `.app` bundle is created at `target/release/OpenInstax.app`. The script:
+The `.app` bundle is created at `target/release/InstantLink.app`. The script:
 
-1. Copies the CLI binary into the bundle (renamed `openinstax-cli`)
+1. Copies the CLI binary into the bundle (renamed `instantlink-cli`)
 2. Compiles the SwiftUI launcher with `swiftc`
 3. Generates `Info.plist` with version and BLE permission
 4. Ad-hoc codesigns the bundle
@@ -59,6 +59,6 @@ The `.app` bundle is created at `target/release/OpenInstax.app`. The script:
 ## Verify Installation
 
 ```bash
-openinstax --version
-openinstax scan
+instantlink --version
+instantlink scan
 ```

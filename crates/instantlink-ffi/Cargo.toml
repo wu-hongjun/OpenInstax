@@ -1,17 +1,18 @@
 [package]
-name = "openinstax-ffi"
+name = "instantlink-ffi"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "openinstax_ffi"
+name = "instantlink_ffi"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-openinstax-core = { path = "../openinstax-core" }
+instantlink-core = { path = "../instantlink-core" }
 tokio = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
+serde_json = { workspace = true }
 
 [build-dependencies]
 cbindgen = { workspace = true }

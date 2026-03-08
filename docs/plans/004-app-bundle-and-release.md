@@ -13,10 +13,10 @@ Set up a proper macOS app bundle build using `swiftc` (no Xcode project), matchi
 Rewrote to match StatusLight's approach:
 
 1. Takes a `<version>` argument (e.g., `0.1.0` or `v0.1.0`)
-2. Expects pre-built release binary at `target/release/openinstax`
-3. Creates `OpenInstax.app/Contents/` structure:
-   - `MacOS/openinstax-cli` — CLI binary (renamed to avoid case collision with launcher)
-   - `MacOS/OpenInstax` — SwiftUI launcher compiled with `swiftc`
+2. Expects pre-built release binary at `target/release/instantlink`
+3. Creates `InstantLink.app/Contents/` structure:
+   - `MacOS/instantlink-cli` — CLI binary (renamed to avoid case collision with launcher)
+   - `MacOS/InstantLink` — SwiftUI launcher compiled with `swiftc`
    - `Info.plist` — Generated from template with version substitution
    - `PkgInfo` — Standard `APPL????`
 4. Ad-hoc codesigns the bundle
@@ -24,7 +24,7 @@ Rewrote to match StatusLight's approach:
 
 ### Info.plist.template
 
-- Bundle ID: `com.openinstax.app`
+- Bundle ID: `com.instantlink.app`
 - `LSUIElement: true` (menu bar app, no dock icon by default)
 - `NSBluetoothAlwaysUsageDescription` for BLE permission
 - Minimum macOS 13.0 (Ventura)
@@ -32,7 +32,7 @@ Rewrote to match StatusLight's approach:
 
 ### CLI Binary Naming
 
-The CLI binary is renamed `openinstax-cli` inside the bundle to avoid a case-insensitive filesystem collision with the SwiftUI launcher binary (`OpenInstax`). `OpenInstaxCLI.swift` updated to look for `openinstax-cli`.
+The CLI binary is renamed `instantlink-cli` inside the bundle to avoid a case-insensitive filesystem collision with the SwiftUI launcher binary (`InstantLink`). `InstantLinkCLI.swift` updated to look for `instantlink-cli`.
 
 ### Release Workflow
 
@@ -50,5 +50,5 @@ Updated with CI badge, proper installation instructions, usage examples, project
 ## Key Decisions
 
 1. **No Xcode project**: Use `swiftc` directly, matching StatusLight — simpler, no IDE dependency
-2. **CLI rename in bundle**: `openinstax` → `openinstax-cli` avoids APFS case collision
+2. **CLI rename in bundle**: `instantlink` → `instantlink-cli` avoids APFS case collision
 3. **BLE permission**: `NSBluetoothAlwaysUsageDescription` in Info.plist is required for CoreBluetooth

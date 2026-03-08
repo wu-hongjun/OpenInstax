@@ -19,7 +19,7 @@ Runs on every push to `main` and on pull requests.
 3. Unit tests (`cargo test --workspace`)
 4. Build (`cargo build --workspace`)
 
-**Runner:** `macos-latest` — required because btleplug depends on CoreBluetooth on macOS. Unlike StatusLight which uses `ubuntu-latest` (hidapi has Linux support), OpenInstax needs macOS for BLE compilation.
+**Runner:** `macos-latest` — required because btleplug depends on CoreBluetooth on macOS. Unlike StatusLight which uses `ubuntu-latest` (hidapi has Linux support), InstantLink needs macOS for BLE compilation.
 
 ### Docs (`docs.yml`)
 
@@ -46,8 +46,8 @@ Creates GitHub Releases with pre-built binaries when a version tag is pushed.
 
 **Artifacts:**
 
-- `OpenInstax-CLI-vX.Y.Z.zip` — CLI binary
-- `OpenInstax-FFI-vX.Y.Z.zip` — Static/dynamic library + C header
+- `InstantLink-CLI-vX.Y.Z.zip` — CLI binary
+- `InstantLink-FFI-vX.Y.Z.zip` — Static/dynamic library + C header
 
 **Usage:**
 

@@ -4,16 +4,16 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleName</key>
-  <string>OpenInstax</string>
+  <string>InstantLink</string>
 
   <key>CFBundleDisplayName</key>
-  <string>OpenInstax</string>
+  <string>InstantLink</string>
 
   <key>CFBundleIdentifier</key>
-  <string>com.openinstax.app</string>
+  <string>com.instantlink.app</string>
 
   <key>CFBundleExecutable</key>
-  <string>OpenInstax</string>
+  <string>InstantLink</string>
 
   <key>CFBundlePackageType</key>
   <string>APPL</string>
@@ -37,6 +37,6 @@
   <true/>
 
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>OpenInstax needs Bluetooth to communicate with your Instax Link printer.</string>
+  <string>InstantLink needs Bluetooth to communicate with your Instax Link printer.</string>
 </dict>
 </plist>

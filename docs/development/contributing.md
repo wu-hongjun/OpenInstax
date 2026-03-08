@@ -3,8 +3,8 @@
 ## Development Setup
 
 ```bash
-git clone https://github.com/wu-hongjun/OpenInstax.git
-cd OpenInstax
+git clone https://github.com/wu-hongjun/InstantLink.git
+cd InstantLink
 cargo build --workspace
 cargo test --workspace
 ```
@@ -34,7 +34,7 @@ Use [conventional commits](https://www.conventionalcommits.org/):
 
 ### Error Handling
 
-- **Core crate**: Use `thiserror` with `InstaxError` enum and `Result<T>` alias
+- **Core crate**: Use `thiserror` with `PrinterError` enum and `Result<T>` alias
 - **CLI crate**: Use `anyhow` with `.context()` for user-facing errors
 
 ### Naming
@@ -46,17 +46,17 @@ Use [conventional commits](https://www.conventionalcommits.org/):
 ## Project Structure
 
 ```
-OpenInstax/
+InstantLink/
 ├── Cargo.toml                    # Workspace root
 ├── CLAUDE.md                     # Dev instructions
 ├── mkdocs.yml                    # Documentation config
 ├── docs/                         # MkDocs documentation
 ├── crates/
-│   ├── openinstax-core/          # BLE protocol, image processing, device comms
-│   ├── openinstax-cli/           # CLI binary
-│   └── openinstax-ffi/           # C FFI bindings
+│   ├── instantlink-core/          # BLE protocol, image processing, device comms
+│   ├── instantlink-cli/           # CLI binary
+│   └── instantlink-ffi/           # C FFI bindings
 ├── macos/
-│   └── OpenInstax/               # SwiftUI app
+│   └── InstantLink/               # SwiftUI app
 ├── scripts/
 │   └── build-app.sh              # App bundle build script
 └── references/                   # Cloned reference repos (gitignored)
@@ -84,9 +84,9 @@ Currently 44 unit tests covering:
 BLE transport and end-to-end printing require a real Instax Link printer:
 
 ```bash
-openinstax scan          # Verify printer discovery
-openinstax status        # Verify full communication
-openinstax print test.jpg  # Verify print pipeline
+instantlink scan          # Verify printer discovery
+instantlink status        # Verify full communication
+instantlink print test.jpg  # Verify print pipeline
 ```
 
 ## Documentation

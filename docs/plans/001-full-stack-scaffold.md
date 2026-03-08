@@ -4,11 +4,11 @@
 
 ## Goal
 
-Scaffold the entire OpenInstax project from scratch: workspace, all crates, stub modules, full implementations, and macOS app. Verify compilation, clippy, formatting, and tests.
+Scaffold the entire InstantLink project from scratch: workspace, all crates, stub modules, full implementations, and macOS app. Verify compilation, clippy, formatting, and tests.
 
 ## Context
 
-OpenInstax is a Rust CLI and native macOS app for printing to Fujifilm Instax Link printers via BLE. The architecture mirrors [StatusLight](https://github.com/wu-hongjun/StatusLight), adapted from USB HID to BLE and from sync to async.
+InstantLink is a Rust CLI and native macOS app for printing to Fujifilm Instax Link printers via BLE. The architecture mirrors [StatusLight](https://github.com/wu-hongjun/StatusLight), adapted from USB HID to BLE and from sync to async.
 
 ## Implementation Phases
 
@@ -68,8 +68,8 @@ Implemented the BLE packet protocol and all command opcodes.
 
 **`device.rs`:**
 
-- `InstaxDevice` trait (async: status, battery, film, print, LED)
-- `BleInstaxDevice` with model auto-detection via `IMAGE_SUPPORT_INFO`
+- `PrinterDevice` trait (async: status, battery, film, print, LED)
+- `BlePrinterDevice` with model auto-detection via `IMAGE_SUPPORT_INFO`
 - ACK-based print flow: `DOWNLOAD_START` → `DATA` chunks → `DOWNLOAD_END` → `PRINT_IMAGE`
 - Progress callback support
 
@@ -94,12 +94,12 @@ Implemented the BLE packet protocol and all command opcodes.
 - `Mutex`-protected device handle
 - Functions: `init`, `connect`, `disconnect`, `battery`, `film_remaining`, `print`, `set_led`, `led_off`, `is_connected`
 - `catch_unwind` on all FFI boundaries
-- cbindgen auto-generates `openinstax.h`
+- cbindgen auto-generates `instantlink.h`
 
 **macOS App:**
 
-- `OpenInstaxCLI.swift` — Process wrapper with 15s watchdog, scan/info/print/LED/status
-- `OpenInstaxApp.swift` — SwiftUI with menu bar extra, full window, drag-and-drop print zone
+- `InstantLinkCLI.swift` — Process wrapper with 15s watchdog, scan/info/print/LED/status
+- `InstantLinkApp.swift` — SwiftUI with menu bar extra, full window, drag-and-drop print zone
 - `build-app.sh` — Builds CLI + copies into app bundle
 
 ## Verification

@@ -1,4 +1,4 @@
-# OpenInstax — Project Instructions
+# InstantLink — Project Instructions
 
 ## Plans
 
@@ -14,9 +14,9 @@
 
 ## Architecture
 
-- **openinstax-core**: BLE protocol, image processing, device communication (async with tokio + btleplug)
-- **openinstax-cli**: CLI binary (clap + indicatif), calls core directly
-- **openinstax-ffi**: C FFI for Swift/macOS app (cbindgen), wraps core with global tokio runtime
+- **instantlink-core**: BLE protocol, image processing, device communication (async with tokio + btleplug)
+- **instantlink-cli**: CLI binary (clap + indicatif), calls core directly
+- **instantlink-ffi**: C FFI for Swift/macOS app (cbindgen), wraps core with global tokio runtime
 - **No daemon**: Instax printing is one-shot (connect → print → disconnect)
 
 ## BLE Protocol

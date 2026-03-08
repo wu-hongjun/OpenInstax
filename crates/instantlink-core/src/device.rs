@@ -1,7 +1,7 @@
 //! Instax device abstraction and BLE-backed implementation.
 //!
-//! The [`InstaxDevice`] trait defines the async interface for interacting with
-//! an Instax printer. [`BleInstaxDevice`] provides the btleplug-backed
+//! The [`PrinterDevice`] trait defines the async interface for interacting with
+//! an Instax printer. [`BlePrinterDevice`] provides the btleplug-backed
 //! implementation with ACK-based print flow.
 
 use std::path::Path;
@@ -9,7 +9,7 @@ use std::path::Path;
 use async_trait::async_trait;
 
 use crate::commands::{Command, Response};
-use crate::error::{InstaxError, Result};
+use crate::error::{PrinterError, Result};
 use crate::image::{self, FitMode};
 use crate::models::PrinterModel;
 use crate::transport::{Transport, DEFAULT_TIMEOUT};
@@ -19,6 +19,8 @@ use crate::transport::{Transport, DEFAULT_TIMEOUT};
 pub struct PrinterStatus {
     /// Battery level (0–100).
     pub battery: u8,
+    /// Whether the printer is currently charging.
+    pub is_charging: bool,
     /// Remaining film count.
     pub film_remaining: u8,
     /// Total print count.
@@ -31,15 +33,25 @@ pub struct PrinterStatus {
 
 /// Async trait for controlling an Instax printer. Enables mocking in tests.
 #[async_trait]
-pub trait InstaxDevice: Send + Sync {
+pub trait PrinterDevice: Send + Sync {
     /// Get the printer's current status.
     async fn status(&self) -> Result<PrinterStatus>;
 
     /// Get battery level (0–100).
     async fn battery(&self) -> Result<u8>;
 
+    /// Get remaining film count and charging state.
+    async fn film_and_charging(&self) -> Result<(u8, bool)>;
+
     /// Get remaining film count.
-    async fn film_remaining(&self) -> Result<u8>;
+    async fn film_remaining(&self) -> Result<u8> {
+        self.film_and_charging().await.map(|(f, _)| f)
+    }
+
+    /// Get whether the printer is charging.
+    async fn is_charging(&self) -> Result<bool> {
+        self.film_and_charging().await.map(|(_, c)| c)
+    }
 
     /// Get total print count.
     async fn print_count(&self) -> Result<u16>;
@@ -52,12 +64,14 @@ pub trait InstaxDevice: Send + Sync {
 
     /// Print an image from a file path.
     ///
+    /// `print_option`: 0 = Rich mode (vivid), 1 = Natural mode (classic).
     /// Calls `progress` with (chunks_sent, total_chunks) during transfer.
     async fn print_file(
         &self,
         path: &Path,
         fit: FitMode,
         quality: u8,
+        print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()>;
 
@@ -67,6 +81,7 @@ pub trait InstaxDevice: Send + Sync {
         data: &[u8],
         fit: FitMode,
         quality: u8,
+        print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()>;
 
@@ -83,13 +98,13 @@ pub trait InstaxDevice: Send + Sync {
 }
 
 /// BLE-backed Instax device.
-pub struct BleInstaxDevice {
+pub struct BlePrinterDevice {
     transport: Box<dyn Transport>,
     model: PrinterModel,
     name: String,
 }
 
-impl BleInstaxDevice {
+impl BlePrinterDevice {
     /// Create a new BLE Instax device with a connected transport.
     ///
     /// Auto-detects the printer model by querying IMAGE_SUPPORT_INFO.
@@ -104,7 +119,7 @@ impl BleInstaxDevice {
         let model = match response {
             Response::ImageSupportInfo { width, height, .. } => detect_model(width, height)?,
             _ => {
-                return Err(InstaxError::UnexpectedResponse(
+                return Err(PrinterError::UnexpectedResponse(
                     "expected ImageSupportInfo response".into(),
                 ));
             }
@@ -133,6 +148,7 @@ impl BleInstaxDevice {
         &self,
         jpeg_data: &[u8],
         chunks: &[Vec<u8>],
+        print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()> {
         let total = chunks.len();
@@ -141,45 +157,45 @@ impl BleInstaxDevice {
         let start_resp = self
             .command(&Command::DownloadStart {
                 image_size: jpeg_data.len() as u32,
+                print_option,
             })
             .await?;
         match start_resp {
             Response::DownloadAck { status: 0 } => {}
             Response::DownloadAck { status } => {
-                return Err(InstaxError::PrintRejected(format!(
+                return Err(PrinterError::PrintRejected(format!(
                     "download start rejected with status {status}"
                 )));
             }
-            _ => {
-                return Err(InstaxError::UnexpectedResponse(
-                    "expected DownloadAck for DownloadStart".into(),
-                ));
+            other => {
+                log::error!("DownloadStart got unexpected response: {other:?}");
+                return Err(PrinterError::UnexpectedResponse(format!(
+                    "expected DownloadAck for DownloadStart, got {other:?}"
+                )));
             }
         }
 
         // Send data chunks with ACK per chunk
-        let mut offset: u32 = 0;
         for (i, chunk) in chunks.iter().enumerate() {
             let data_resp = self
                 .command(&Command::Data {
-                    offset,
+                    index: i as u32,
                     data: chunk.clone(),
                 })
                 .await?;
             match data_resp {
                 Response::DownloadAck { status: 0 } => {}
                 Response::DownloadAck { status } => {
-                    return Err(InstaxError::PrintRejected(format!(
+                    return Err(PrinterError::PrintRejected(format!(
                         "data chunk {i} rejected with status {status}"
                     )));
                 }
                 _ => {
-                    return Err(InstaxError::UnexpectedResponse(
+                    return Err(PrinterError::UnexpectedResponse(
                         "expected DownloadAck for Data".into(),
                     ));
                 }
             }
-            offset += chunk.len() as u32;
 
             if let Some(cb) = progress {
                 cb(i + 1, total);
@@ -191,12 +207,12 @@ impl BleInstaxDevice {
         match end_resp {
             Response::DownloadAck { status: 0 } => {}
             Response::DownloadAck { status } => {
-                return Err(InstaxError::PrintRejected(format!(
+                return Err(PrinterError::PrintRejected(format!(
                     "download end rejected with status {status}"
                 )));
             }
             _ => {
-                return Err(InstaxError::UnexpectedResponse(
+                return Err(PrinterError::UnexpectedResponse(
                     "expected DownloadAck for DownloadEnd".into(),
                 ));
             }
@@ -207,16 +223,55 @@ impl BleInstaxDevice {
 }
 
 #[async_trait]
-impl InstaxDevice for BleInstaxDevice {
+impl PrinterDevice for BlePrinterDevice {
     async fn status(&self) -> Result<PrinterStatus> {
-        let battery = self.battery().await?;
-        let film_remaining = self.film_remaining().await?;
-        let print_count = self.print_count().await?;
+        // Pipeline: send all 3 queries back-to-back, then receive all 3 responses.
+        // This overlaps BLE round-trips instead of waiting sequentially.
+        self.transport
+            .send(&Command::BatteryStatus.encode())
+            .await?;
+        self.transport
+            .send(&Command::PrinterFunctionInfo.encode())
+            .await?;
+        self.transport.send(&Command::HistoryInfo.encode()).await?;
+
+        let mut battery = None;
+        let mut film_remaining = None;
+        let mut is_charging = None;
+        let mut print_count = None;
+
+        for _ in 0..3 {
+            let packet = self.transport.receive(DEFAULT_TIMEOUT).await?;
+            match Response::decode(&packet) {
+                Response::BatteryStatus { level, .. } => battery = Some(level),
+                Response::PrinterFunctionInfo {
+                    film_remaining: f,
+                    is_charging: c,
+                } => {
+                    film_remaining = Some(f);
+                    is_charging = Some(c);
+                }
+                Response::HistoryInfo { count } => print_count = Some(count),
+                other => {
+                    return Err(PrinterError::UnexpectedResponse(format!(
+                        "unexpected response during status query: {other:?}"
+                    )));
+                }
+            }
+        }
 
         Ok(PrinterStatus {
-            battery,
-            film_remaining,
-            print_count,
+            battery: battery.ok_or_else(|| {
+                PrinterError::UnexpectedResponse("missing battery response".into())
+            })?,
+            is_charging: is_charging.ok_or_else(|| {
+                PrinterError::UnexpectedResponse("missing charging response".into())
+            })?,
+            film_remaining: film_remaining
+                .ok_or_else(|| PrinterError::UnexpectedResponse("missing film response".into()))?,
+            print_count: print_count.ok_or_else(|| {
+                PrinterError::UnexpectedResponse("missing print count response".into())
+            })?,
             model: self.model,
             name: self.name.clone(),
         })
@@ -224,17 +279,23 @@ impl InstaxDevice for BleInstaxDevice {
 
     async fn battery(&self) -> Result<u8> {
         match self.command(&Command::BatteryStatus).await? {
-            Response::BatteryStatus { level } => Ok(level),
-            _ => Err(InstaxError::UnexpectedResponse(
+            Response::BatteryStatus { state, level } => {
+                log::debug!("battery raw: state={state}, level={level}");
+                Ok(level)
+            }
+            _ => Err(PrinterError::UnexpectedResponse(
                 "expected BatteryStatus".into(),
             )),
         }
     }
 
-    async fn film_remaining(&self) -> Result<u8> {
+    async fn film_and_charging(&self) -> Result<(u8, bool)> {
         match self.command(&Command::PrinterFunctionInfo).await? {
-            Response::PrinterFunctionInfo { film_remaining, .. } => Ok(film_remaining),
-            _ => Err(InstaxError::UnexpectedResponse(
+            Response::PrinterFunctionInfo {
+                film_remaining,
+                is_charging,
+            } => Ok((film_remaining, is_charging)),
+            _ => Err(PrinterError::UnexpectedResponse(
                 "expected PrinterFunctionInfo".into(),
             )),
         }
@@ -243,7 +304,7 @@ impl InstaxDevice for BleInstaxDevice {
     async fn print_count(&self) -> Result<u16> {
         match self.command(&Command::HistoryInfo).await? {
             Response::HistoryInfo { count } => Ok(count),
-            _ => Err(InstaxError::UnexpectedResponse(
+            _ => Err(PrinterError::UnexpectedResponse(
                 "expected HistoryInfo".into(),
             )),
         }
@@ -262,18 +323,20 @@ impl InstaxDevice for BleInstaxDevice {
         path: &Path,
         fit: FitMode,
         quality: u8,
+        print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()> {
         let (jpeg_data, chunks) = image::prepare_image(path, self.model, fit, quality)?;
-        self.send_image_data(&jpeg_data, &chunks, progress).await?;
+        self.send_image_data(&jpeg_data, &chunks, print_option, progress)
+            .await?;
 
         // Trigger print
         match self.command(&Command::PrintImage).await? {
             Response::PrintStatus { status: 0 } => Ok(()),
-            Response::PrintStatus { status } => Err(InstaxError::PrintRejected(format!(
+            Response::PrintStatus { status } => Err(PrinterError::PrintRejected(format!(
                 "print failed with status {status}"
             ))),
-            _ => Err(InstaxError::UnexpectedResponse(
+            _ => Err(PrinterError::UnexpectedResponse(
                 "expected PrintStatus".into(),
             )),
         }
@@ -284,17 +347,19 @@ impl InstaxDevice for BleInstaxDevice {
         data: &[u8],
         fit: FitMode,
         quality: u8,
+        print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()> {
         let (jpeg_data, chunks) = image::prepare_image_from_bytes(data, self.model, fit, quality)?;
-        self.send_image_data(&jpeg_data, &chunks, progress).await?;
+        self.send_image_data(&jpeg_data, &chunks, print_option, progress)
+            .await?;
 
         match self.command(&Command::PrintImage).await? {
             Response::PrintStatus { status: 0 } => Ok(()),
-            Response::PrintStatus { status } => Err(InstaxError::PrintRejected(format!(
+            Response::PrintStatus { status } => Err(PrinterError::PrintRejected(format!(
                 "print failed with status {status}"
             ))),
-            _ => Err(InstaxError::UnexpectedResponse(
+            _ => Err(PrinterError::UnexpectedResponse(
                 "expected PrintStatus".into(),
             )),
         }
@@ -309,7 +374,7 @@ impl InstaxDevice for BleInstaxDevice {
         };
         match self.command(&cmd).await? {
             Response::LedAck => Ok(()),
-            _ => Err(InstaxError::UnexpectedResponse("expected LedAck".into())),
+            _ => Err(PrinterError::UnexpectedResponse("expected LedAck".into())),
         }
     }
 
@@ -326,7 +391,7 @@ fn detect_model(width: u16, height: u16) -> Result<PrinterModel> {
             return Ok(*model);
         }
     }
-    Err(InstaxError::UnexpectedResponse(format!(
+    Err(PrinterError::UnexpectedResponse(format!(
         "unknown printer dimensions: {width}x{height}"
     )))
 }
@@ -383,7 +448,7 @@ mod tests {
                 .unwrap()
                 .responses
                 .pop_front()
-                .unwrap_or(Err(InstaxError::Timeout))
+                .unwrap_or(Err(PrinterError::Timeout))
         }
 
         async fn disconnect(&self) -> Result<()> {
@@ -446,11 +511,11 @@ mod tests {
     async fn make_device(
         model: PrinterModel,
         extra_responses: Vec<Result<protocol::Packet>>,
-    ) -> (BleInstaxDevice, Arc<Mutex<MockState>>) {
+    ) -> (BlePrinterDevice, Arc<Mutex<MockState>>) {
         let mut responses = vec![image_support_info_packet(model)];
         responses.extend(extra_responses);
         let (transport, state) = MockTransport::new(responses);
-        let device = BleInstaxDevice::new(transport, "TestPrinter".into())
+        let device = BlePrinterDevice::new(transport, "TestPrinter".into())
             .await
             .expect("device creation should succeed");
         (device, state)
@@ -484,7 +549,7 @@ mod tests {
         data.extend_from_slice(&999u16.to_be_bytes());
         let packet = support_function_packet(INFO_IMAGE_SUPPORT, &data);
         let (transport, _) = MockTransport::new(vec![packet]);
-        let Err(err) = BleInstaxDevice::new(transport, "Test".into()).await else {
+        let Err(err) = BlePrinterDevice::new(transport, "Test".into()).await else {
             panic!("expected error");
         };
         assert!(err.to_string().contains("unknown printer dimensions"));
@@ -493,7 +558,7 @@ mod tests {
     #[tokio::test]
     async fn detect_model_wrong_response() {
         let (transport, _) = MockTransport::new(vec![battery_packet(50)]);
-        let Err(err) = BleInstaxDevice::new(transport, "Test".into()).await else {
+        let Err(err) = BlePrinterDevice::new(transport, "Test".into()).await else {
             panic!("expected error");
         };
         assert!(err.to_string().contains("expected ImageSupportInfo"));
@@ -533,6 +598,7 @@ mod tests {
         .await;
         let status = device.status().await.unwrap();
         assert_eq!(status.battery, 85);
+        assert!(!status.is_charging);
         assert_eq!(status.film_remaining, 8);
         assert_eq!(status.print_count, 142);
         assert_eq!(status.model, PrinterModel::Mini);
@@ -586,7 +652,7 @@ mod tests {
         )
         .await;
         device
-            .send_image_data(&jpeg_data, &chunks, None)
+            .send_image_data(&jpeg_data, &chunks, 0, None)
             .await
             .unwrap();
     }
@@ -608,7 +674,7 @@ mod tests {
         )
         .await;
         device
-            .send_image_data(&jpeg_data, &chunks, None)
+            .send_image_data(&jpeg_data, &chunks, 0, None)
             .await
             .unwrap();
 
@@ -617,16 +683,16 @@ mod tests {
 
         let pkt0 = protocol::parse_packet(&sent[2]).unwrap();
         assert_eq!(pkt0.opcode, OP_DATA);
-        let offset0 = u32::from_be_bytes(pkt0.payload[0..4].try_into().unwrap());
-        assert_eq!(offset0, 0);
+        let index0 = u32::from_be_bytes(pkt0.payload[0..4].try_into().unwrap());
+        assert_eq!(index0, 0);
 
         let pkt1 = protocol::parse_packet(&sent[3]).unwrap();
-        let offset1 = u32::from_be_bytes(pkt1.payload[0..4].try_into().unwrap());
-        assert_eq!(offset1, 900);
+        let index1 = u32::from_be_bytes(pkt1.payload[0..4].try_into().unwrap());
+        assert_eq!(index1, 1);
 
         let pkt2 = protocol::parse_packet(&sent[4]).unwrap();
-        let offset2 = u32::from_be_bytes(pkt2.payload[0..4].try_into().unwrap());
-        assert_eq!(offset2, 1800);
+        let index2 = u32::from_be_bytes(pkt2.payload[0..4].try_into().unwrap());
+        assert_eq!(index2, 2);
     }
 
     // ── Error Paths ────────────────────────────────────────────────────────
@@ -639,7 +705,7 @@ mod tests {
         )
         .await;
         let result = device
-            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], None)
+            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], 0, None)
             .await;
         assert!(result.is_err());
         assert!(result
@@ -659,7 +725,7 @@ mod tests {
         )
         .await;
         let result = device
-            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], None)
+            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], 0, None)
             .await;
         assert!(result.is_err());
         assert!(result
@@ -680,7 +746,7 @@ mod tests {
         )
         .await;
         let result = device
-            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], None)
+            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], 0, None)
             .await;
         assert!(result.is_err());
         assert!(result
@@ -693,7 +759,7 @@ mod tests {
     async fn unexpected_response_in_download() {
         let (device, _) = make_device(PrinterModel::Mini, vec![battery_packet(50)]).await;
         let result = device
-            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], None)
+            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], 0, None)
             .await;
         assert!(result.is_err());
         assert!(result
@@ -704,8 +770,8 @@ mod tests {
 
     #[tokio::test]
     async fn transport_error_during_new() {
-        let (transport, _) = MockTransport::new(vec![Err(InstaxError::Timeout)]);
-        let result = BleInstaxDevice::new(transport, "Test".into()).await;
+        let (transport, _) = MockTransport::new(vec![Err(PrinterError::Timeout)]);
+        let result = BlePrinterDevice::new(transport, "Test".into()).await;
         assert!(result.is_err());
     }
 
@@ -737,7 +803,7 @@ mod tests {
         };
 
         device
-            .send_image_data(&jpeg_data, &chunks, Some(&cb))
+            .send_image_data(&jpeg_data, &chunks, 0, Some(&cb))
             .await
             .unwrap();
 

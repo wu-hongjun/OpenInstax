@@ -1,8 +1,8 @@
-//! Error types for openinstax-core.
+//! Error types for instantlink-core.
 
-/// All errors that can occur in openinstax-core operations.
+/// All errors that can occur in instantlink-core operations.
 #[derive(Debug, thiserror::Error)]
-pub enum InstaxError {
+pub enum PrinterError {
     /// No printer was found during BLE scanning.
     #[error("no Instax printer found")]
     PrinterNotFound,
@@ -52,5 +52,5 @@ pub enum InstaxError {
     Io(#[from] std::io::Error),
 }
 
-/// A type alias for `Result<T, InstaxError>`.
-pub type Result<T> = std::result::Result<T, InstaxError>;
+/// A type alias for `Result<T, PrinterError>`.
+pub type Result<T> = std::result::Result<T, PrinterError>;

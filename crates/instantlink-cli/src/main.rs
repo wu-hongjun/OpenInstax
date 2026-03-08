@@ -1,4 +1,4 @@
-//! OpenInstax CLI — command-line interface for Instax Link printers.
+//! InstantLink CLI — command-line interface for Instax Link printers.
 
 mod output;
 
@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use openinstax_core::image::FitMode;
-use openinstax_core::printer;
+use instantlink_core::image::FitMode;
+use instantlink_core::printer;
 
 #[derive(Parser)]
 #[command(
-    name = "openinstax",
+    name = "instantlink",
     version,
     about = "Print to Fujifilm Instax Link printers"
 )]
@@ -53,6 +53,9 @@ enum Commands {
         /// How to fit the image: crop, contain, or stretch
         #[arg(long, default_value = "crop")]
         fit: String,
+        /// Color mode: rich (vivid) or natural (classic film look)
+        #[arg(long, default_value = "rich")]
+        color_mode: String,
     },
     /// Control the printer LED
     Led {
@@ -104,12 +107,52 @@ async fn main() -> Result<()> {
         }
 
         Commands::Info { duration } => {
-            let sp = output::spinner("Connecting...");
             let scan_duration = Some(Duration::from_secs(duration));
-            let status = printer::get_status(cli.device.as_deref(), scan_duration)
+
+            if cli.json {
+                eprintln!("progress: Scanning...");
+            } else {
+                eprint!("Scanning... ");
+            }
+
+            let device = match cli.device.as_deref() {
+                Some(name) => printer::connect(name, scan_duration).await,
+                None => printer::connect_any(scan_duration).await,
+            }
+            .context("failed to connect to printer")?;
+
+            if cli.json {
+                eprintln!("progress: Connected to {}", device.name());
+                eprintln!("progress: Detecting model...");
+            } else {
+                eprint!("connected. ");
+            }
+
+            let model = device.model();
+
+            if cli.json {
+                eprintln!("progress: Reading battery...");
+            }
+            let battery = device.battery().await.context("failed to read battery")?;
+            eprintln!("debug: battery={battery}");
+
+            if cli.json {
+                eprintln!("progress: Reading film...");
+            }
+            let (film_remaining, is_charging) = device
+                .film_and_charging()
                 .await
-                .context("failed to get printer status")?;
-            sp.finish_and_clear();
+                .context("failed to read film")?;
+
+            if cli.json {
+                eprintln!("progress: Reading print count...");
+            }
+            let print_count = device
+                .print_count()
+                .await
+                .context("failed to read print count")?;
+
+            device.disconnect().await?;
 
             if cli.json {
                 #[derive(serde::Serialize)]
@@ -117,22 +160,26 @@ async fn main() -> Result<()> {
                     name: String,
                     model: String,
                     battery: u8,
+                    is_charging: bool,
                     film_remaining: u8,
                     print_count: u16,
                 }
                 output::print_json(&Info {
-                    name: status.name,
-                    model: status.model.to_string(),
-                    battery: status.battery,
-                    film_remaining: status.film_remaining,
-                    print_count: status.print_count,
+                    name: device.name().to_string(),
+                    model: model.to_string(),
+                    battery,
+                    is_charging,
+                    film_remaining,
+                    print_count,
                 })?;
             } else {
-                println!("Printer:    {}", status.name);
-                println!("Model:      {}", status.model);
-                println!("Battery:    {}%", status.battery);
-                println!("Film:       {} remaining", status.film_remaining);
-                println!("Prints:     {}", status.print_count);
+                println!();
+                println!("Printer:    {}", device.name());
+                println!("Model:      {}", model);
+                let charging = if is_charging { " (charging)" } else { "" };
+                println!("Battery:    {}%{}", battery, charging);
+                println!("Film:       {} remaining", film_remaining);
+                println!("Prints:     {}", print_count);
             }
         }
 
@@ -140,8 +187,13 @@ async fn main() -> Result<()> {
             image,
             quality,
             fit,
+            color_mode,
         } => {
             let fit_mode = FitMode::from_str_lossy(&fit);
+            let print_option: u8 = match color_mode.to_lowercase().as_str() {
+                "natural" => 1,
+                _ => 0, // rich (default)
+            };
 
             let sp = output::spinner("Connecting to printer...");
             let device = match cli.device.as_deref() {
@@ -151,11 +203,12 @@ async fn main() -> Result<()> {
             sp.finish_and_clear();
 
             let model = device.model();
-            println!("Printing to {} ({})", device.name(), model);
+            let mode_name = if print_option == 0 { "Rich" } else { "Natural" };
+            println!("Printing to {} ({}) [{}]", device.name(), model, mode_name);
 
             // Prepare image to know total chunks for progress bar
             let (_jpeg_data, chunks) =
-                openinstax_core::image::prepare_image(&image, model, fit_mode, quality)
+                instantlink_core::image::prepare_image(&image, model, fit_mode, quality)
                     .context("failed to prepare image")?;
 
             let pb = output::transfer_progress(chunks.len() as u64);
@@ -164,7 +217,7 @@ async fn main() -> Result<()> {
             };
 
             device
-                .print_file(&image, fit_mode, quality, Some(&progress))
+                .print_file(&image, fit_mode, quality, print_option, Some(&progress))
                 .await
                 .context("print failed")?;
 
@@ -219,6 +272,7 @@ async fn main() -> Result<()> {
                             name: String,
                             model: String,
                             battery: u8,
+                            is_charging: bool,
                             film_remaining: u8,
                             print_count: u16,
                         }
@@ -227,6 +281,7 @@ async fn main() -> Result<()> {
                             name: status.name,
                             model: status.model.to_string(),
                             battery: status.battery,
+                            is_charging: status.is_charging,
                             film_remaining: status.film_remaining,
                             print_count: status.print_count,
                         })?;
@@ -234,7 +289,12 @@ async fn main() -> Result<()> {
                         println!("Connected:  yes");
                         println!("Printer:    {}", status.name);
                         println!("Model:      {}", status.model);
-                        println!("Battery:    {}%", status.battery);
+                        let charging = if status.is_charging {
+                            " (charging)"
+                        } else {
+                            ""
+                        };
+                        println!("Battery:    {}%{}", status.battery, charging);
                         println!("Film:       {} remaining", status.film_remaining);
                         println!("Prints:     {}", status.print_count);
                     }
