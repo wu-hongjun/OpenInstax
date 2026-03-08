@@ -3,6 +3,7 @@
 mod output;
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -31,9 +32,17 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Scan for nearby Instax printers
-    Scan,
+    Scan {
+        /// BLE scan duration in seconds
+        #[arg(long, default_value = "5")]
+        duration: u64,
+    },
     /// Show printer info (battery, film, firmware, print count)
-    Info,
+    Info {
+        /// BLE scan duration in seconds
+        #[arg(long, default_value = "5")]
+        duration: u64,
+    },
     /// Print an image
     Print {
         /// Path to the image file
@@ -74,9 +83,11 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Scan => {
+        Commands::Scan { duration } => {
             let sp = output::spinner("Scanning for Instax printers...");
-            let printers = printer::scan(None).await.context("scan failed")?;
+            let printers = printer::scan(Some(Duration::from_secs(duration)))
+                .await
+                .context("scan failed")?;
             sp.finish_and_clear();
 
             if cli.json {
@@ -92,9 +103,10 @@ async fn main() -> Result<()> {
             }
         }
 
-        Commands::Info => {
+        Commands::Info { duration } => {
             let sp = output::spinner("Connecting...");
-            let status = printer::get_status(cli.device.as_deref())
+            let scan_duration = Some(Duration::from_secs(duration));
+            let status = printer::get_status(cli.device.as_deref(), scan_duration)
                 .await
                 .context("failed to get printer status")?;
             sp.finish_and_clear();
@@ -106,7 +118,7 @@ async fn main() -> Result<()> {
                     model: String,
                     battery: u8,
                     film_remaining: u8,
-                    print_count: u32,
+                    print_count: u16,
                 }
                 output::print_json(&Info {
                     name: status.name,
@@ -133,8 +145,8 @@ async fn main() -> Result<()> {
 
             let sp = output::spinner("Connecting to printer...");
             let device = match cli.device.as_deref() {
-                Some(name) => printer::connect(name).await?,
-                None => printer::connect_any().await?,
+                Some(name) => printer::connect(name, None).await?,
+                None => printer::connect_any(None).await?,
             };
             sp.finish_and_clear();
 
@@ -170,8 +182,8 @@ async fn main() -> Result<()> {
                 };
 
                 let device = match cli.device.as_deref() {
-                    Some(name) => printer::connect(name).await?,
-                    None => printer::connect_any().await?,
+                    Some(name) => printer::connect(name, None).await?,
+                    None => printer::connect_any(None).await?,
                 };
 
                 device
@@ -183,8 +195,8 @@ async fn main() -> Result<()> {
             }
             LedAction::Off => {
                 let device = match cli.device.as_deref() {
-                    Some(name) => printer::connect(name).await?,
-                    None => printer::connect_any().await?,
+                    Some(name) => printer::connect(name, None).await?,
+                    None => printer::connect_any(None).await?,
                 };
 
                 device.led_off().await.context("failed to turn off LED")?;
@@ -195,7 +207,7 @@ async fn main() -> Result<()> {
 
         Commands::Status => {
             let sp = output::spinner("Checking printer status...");
-            let status = printer::get_status(cli.device.as_deref()).await;
+            let status = printer::get_status(cli.device.as_deref(), None).await;
             sp.finish_and_clear();
 
             match status {
@@ -208,7 +220,7 @@ async fn main() -> Result<()> {
                             model: String,
                             battery: u8,
                             film_remaining: u8,
-                            print_count: u32,
+                            print_count: u16,
                         }
                         output::print_json(&StatusOutput {
                             connected: true,

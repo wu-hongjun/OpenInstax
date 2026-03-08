@@ -7,15 +7,17 @@
 //! ```
 //!
 //! - Header: always `0x41 0x62`
-//! - Length: 2 bytes big-endian, covers opcode + payload + checksum
+//! - Length: 2 bytes big-endian, total packet size (header + length + opcode + payload + checksum)
 //! - Checksum: `(255 - (sum_of_all_preceding_bytes & 255)) & 255`
 //!
 //! ## MTU Fragmentation
 //!
 //! BLE packets larger than 182 bytes are split into sub-packets for transmission.
 
-/// Packet header bytes.
+/// Request header bytes (client → printer: "Ab").
 pub const HEADER: [u8; 2] = [0x41, 0x62];
+/// Response header bytes (printer → client: "aB").
+pub const RESPONSE_HEADER: [u8; 2] = [0x61, 0x42];
 
 /// Maximum BLE sub-packet size for MTU fragmentation.
 pub const MTU_SIZE: usize = 182;
@@ -38,14 +40,14 @@ pub fn checksum(data: &[u8]) -> u8 {
 ///
 /// Returns the full packet bytes: `[header][length][opcode][payload][checksum]`.
 pub fn build_packet(opcode: u16, payload: &[u8]) -> Vec<u8> {
-    // Length covers: opcode(2) + payload + checksum(1)
-    let length = (2 + payload.len() + 1) as u16;
-    let mut packet = Vec::with_capacity(4 + 2 + payload.len() + 1);
+    // Length = total packet size: header(2) + length(2) + opcode(2) + payload + checksum(1)
+    let total_size = 7 + payload.len();
+    let mut packet = Vec::with_capacity(total_size);
 
     // Header
     packet.extend_from_slice(&HEADER);
-    // Length (big-endian)
-    packet.extend_from_slice(&length.to_be_bytes());
+    // Length (big-endian) — total packet size
+    packet.extend_from_slice(&(total_size as u16).to_be_bytes());
     // Opcode (big-endian)
     packet.extend_from_slice(&opcode.to_be_bytes());
     // Payload
@@ -66,23 +68,28 @@ pub struct Packet {
     pub payload: Vec<u8>,
 }
 
+/// Check if the first two bytes are a valid Instax header (request or response).
+fn is_valid_header(b0: u8, b1: u8) -> bool {
+    (b0 == HEADER[0] && b1 == HEADER[1]) || (b0 == RESPONSE_HEADER[0] && b1 == RESPONSE_HEADER[1])
+}
+
 /// Parse a complete Instax protocol packet from raw bytes.
 ///
 /// Validates header, length, and checksum. Returns `None` if invalid.
+/// Accepts both request header (`0x41 0x62`) and response header (`0x61 0x42`).
 pub fn parse_packet(data: &[u8]) -> Option<Packet> {
     if data.len() < MIN_PACKET_SIZE {
         return None;
     }
 
-    // Check header
-    if data[0] != HEADER[0] || data[1] != HEADER[1] {
+    // Check header (accept both request "Ab" and response "aB")
+    if !is_valid_header(data[0], data[1]) {
         return None;
     }
 
-    // Parse length
-    let length = u16::from_be_bytes([data[2], data[3]]) as usize;
-    let expected_total = 4 + length; // header(2) + len(2) + body(length)
-    if data.len() < expected_total {
+    // Parse length (total packet size)
+    let expected_total = u16::from_be_bytes([data[2], data[3]]) as usize;
+    if expected_total < MIN_PACKET_SIZE || data.len() < expected_total {
         return None;
     }
 
@@ -131,17 +138,16 @@ impl PacketAssembler {
             return None;
         }
 
-        // Check for valid header
-        if self.buffer[0] != HEADER[0] || self.buffer[1] != HEADER[1] {
+        // Check for valid header (accept both request and response headers)
+        if !is_valid_header(self.buffer[0], self.buffer[1]) {
             // Invalid header — clear buffer
             self.buffer.clear();
             return None;
         }
 
-        let length = u16::from_be_bytes([self.buffer[2], self.buffer[3]]) as usize;
-        let expected_total = 4 + length;
+        let expected_total = u16::from_be_bytes([self.buffer[2], self.buffer[3]]) as usize;
 
-        if self.buffer.len() < expected_total {
+        if expected_total < MIN_PACKET_SIZE || self.buffer.len() < expected_total {
             return None; // Need more data
         }
 
@@ -183,8 +189,8 @@ mod tests {
         // header(2) + len(2) + opcode(2) + checksum(1) = 7
         assert_eq!(pkt.len(), 7);
         assert_eq!(&pkt[0..2], &HEADER);
-        // length = opcode(2) + checksum(1) = 3
-        assert_eq!(u16::from_be_bytes([pkt[2], pkt[3]]), 3);
+        // length = total packet size = 7
+        assert_eq!(u16::from_be_bytes([pkt[2], pkt[3]]), 7);
         // opcode
         assert_eq!(u16::from_be_bytes([pkt[4], pkt[5]]), 0x0102);
         // checksum validates
@@ -197,8 +203,8 @@ mod tests {
         let payload = vec![0xAA, 0xBB, 0xCC];
         let pkt = build_packet(0x2010, &payload);
         assert_eq!(pkt.len(), 10); // 7 + 3
-                                   // length = 2 + 3 + 1 = 6
-        assert_eq!(u16::from_be_bytes([pkt[2], pkt[3]]), 6);
+                                   // length = total packet size = 10
+        assert_eq!(u16::from_be_bytes([pkt[2], pkt[3]]), 10);
         assert_eq!(&pkt[6..9], &[0xAA, 0xBB, 0xCC]);
     }
 

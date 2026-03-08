@@ -24,8 +24,8 @@ class OpenInstaxCLI {
     // MARK: - Scanning
 
     /// Scan for nearby Instax printers.
-    func scan() async -> [String] {
-        guard let output = await run(["scan", "--json"]) else { return [] }
+    func scan(duration: Int = 5) async -> [String] {
+        guard let output = await run(["scan", "--json", "--duration", "\(duration)"]) else { return [] }
         guard let data = output.data(using: .utf8),
               let names = try? JSONDecoder().decode([String].self, from: data) else {
             return []
@@ -50,8 +50,8 @@ class OpenInstaxCLI {
     }
 
     /// Get printer info (battery, film, model, print count).
-    func info(device: String? = nil) async -> PrinterInfo? {
-        var args = ["info", "--json"]
+    func info(device: String? = nil, duration: Int = 5) async -> PrinterInfo? {
+        var args = ["info", "--json", "--duration", "\(duration)"]
         if let device = device {
             args += ["--device", device]
         }

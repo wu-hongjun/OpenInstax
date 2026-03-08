@@ -46,6 +46,12 @@ printf 'APPL????' > "$CONTENTS/PkgInfo"
 RESOURCES_DIR="$CONTENTS/Resources"
 mkdir -p "$RESOURCES_DIR"
 
+# Copy app icon if it exists
+ICON_SRC="$REPO_ROOT/macos/Resources/AppIcon.icns"
+if [[ -f "$ICON_SRC" ]]; then
+  cp "$ICON_SRC" "$RESOURCES_DIR/AppIcon.icns"
+fi
+
 # --- Compile SwiftUI launcher (Contents/MacOS/OpenInstax) -----------------
 echo "==> Compiling SwiftUI launcher..."
 swiftc \
@@ -56,6 +62,7 @@ swiftc \
   "$REPO_ROOT/macos/OpenInstax/OpenInstaxCLI.swift" \
   -framework SwiftUI \
   -framework AppKit \
+  -framework UniformTypeIdentifiers \
   -parse-as-library
 
 # --- Ad-hoc codesign (prevents "damaged" Gatekeeper error) ----------------

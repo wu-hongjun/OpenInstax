@@ -22,7 +22,7 @@ pub struct PrinterStatus {
     /// Remaining film count.
     pub film_remaining: u8,
     /// Total print count.
-    pub print_count: u32,
+    pub print_count: u16,
     /// Detected printer model.
     pub model: PrinterModel,
     /// Device name (from BLE advertisement).
@@ -42,7 +42,7 @@ pub trait InstaxDevice: Send + Sync {
     async fn film_remaining(&self) -> Result<u8>;
 
     /// Get total print count.
-    async fn print_count(&self) -> Result<u32>;
+    async fn print_count(&self) -> Result<u16>;
 
     /// Get the detected printer model.
     fn model(&self) -> PrinterModel;
@@ -232,15 +232,15 @@ impl InstaxDevice for BleInstaxDevice {
     }
 
     async fn film_remaining(&self) -> Result<u8> {
-        match self.command(&Command::RemainingInfo).await? {
-            Response::RemainingInfo { remaining } => Ok(remaining),
+        match self.command(&Command::PrinterFunctionInfo).await? {
+            Response::PrinterFunctionInfo { film_remaining, .. } => Ok(film_remaining),
             _ => Err(InstaxError::UnexpectedResponse(
-                "expected RemainingInfo".into(),
+                "expected PrinterFunctionInfo".into(),
             )),
         }
     }
 
-    async fn print_count(&self) -> Result<u32> {
+    async fn print_count(&self) -> Result<u16> {
         match self.command(&Command::HistoryInfo).await? {
             Response::HistoryInfo { count } => Ok(count),
             _ => Err(InstaxError::UnexpectedResponse(
@@ -335,8 +335,8 @@ fn detect_model(width: u16, height: u16) -> Result<PrinterModel> {
 mod tests {
     use super::*;
     use crate::commands::{
-        OP_BATTERY_STATUS_INFO, OP_DATA, OP_DOWNLOAD_END, OP_DOWNLOAD_START, OP_HISTORY_INFO,
-        OP_IMAGE_SUPPORT_INFO, OP_LED_PATTERN_SETTINGS, OP_REMAINING_INFO,
+        INFO_BATTERY, INFO_IMAGE_SUPPORT, INFO_PRINTER_FUNCTION, INFO_PRINT_HISTORY, OP_DATA,
+        OP_DOWNLOAD_END, OP_DOWNLOAD_START, OP_LED_PATTERN_SETTINGS, OP_SUPPORT_FUNCTION_INFO,
     };
     use crate::protocol;
     use async_trait::async_trait;
@@ -393,15 +393,23 @@ mod tests {
 
     // ── Response helpers ───────────────────────────────────────────────────
 
-    fn image_support_info_packet(model: PrinterModel) -> Result<protocol::Packet> {
-        let spec = model.spec();
-        let mut payload = Vec::new();
-        payload.extend_from_slice(&(spec.width as u16).to_be_bytes());
-        payload.extend_from_slice(&(spec.height as u16).to_be_bytes());
+    /// Build a SUPPORT_FUNCTION_INFO response packet.
+    /// Wire format: payload[0]=return_code, payload[1]=info_type, payload[2..]=data
+    fn support_function_packet(info_type: u8, data: &[u8]) -> Result<protocol::Packet> {
+        let mut payload = vec![0x00, info_type]; // return_code=0, info_type
+        payload.extend_from_slice(data);
         Ok(protocol::Packet {
-            opcode: OP_IMAGE_SUPPORT_INFO,
+            opcode: OP_SUPPORT_FUNCTION_INFO,
             payload,
         })
+    }
+
+    fn image_support_info_packet(model: PrinterModel) -> Result<protocol::Packet> {
+        let spec = model.spec();
+        let mut data = Vec::new();
+        data.extend_from_slice(&(spec.width as u16).to_be_bytes());
+        data.extend_from_slice(&(spec.height as u16).to_be_bytes());
+        support_function_packet(INFO_IMAGE_SUPPORT, &data)
     }
 
     fn download_ack_packet(opcode: u16, status: u8) -> Result<protocol::Packet> {
@@ -412,24 +420,18 @@ mod tests {
     }
 
     fn battery_packet(level: u8) -> Result<protocol::Packet> {
-        Ok(protocol::Packet {
-            opcode: OP_BATTERY_STATUS_INFO,
-            payload: vec![level],
-        })
+        // data[0]=battery_state, data[1]=battery_percentage
+        support_function_packet(INFO_BATTERY, &[0x00, level])
     }
 
-    fn remaining_packet(remaining: u8) -> Result<protocol::Packet> {
-        Ok(protocol::Packet {
-            opcode: OP_REMAINING_INFO,
-            payload: vec![remaining],
-        })
+    fn printer_function_packet(film_remaining: u8, is_charging: bool) -> Result<protocol::Packet> {
+        // data byte: bits 0-3 = photos left, bit 7 = charging
+        let byte = film_remaining | if is_charging { 0x80 } else { 0 };
+        support_function_packet(INFO_PRINTER_FUNCTION, &[byte])
     }
 
-    fn history_packet(count: u32) -> Result<protocol::Packet> {
-        Ok(protocol::Packet {
-            opcode: OP_HISTORY_INFO,
-            payload: count.to_be_bytes().to_vec(),
-        })
+    fn history_packet(count: u16) -> Result<protocol::Packet> {
+        support_function_packet(INFO_PRINT_HISTORY, &count.to_be_bytes())
     }
 
     fn led_ack_packet() -> Result<protocol::Packet> {
@@ -476,13 +478,11 @@ mod tests {
 
     #[tokio::test]
     async fn detect_model_unknown() {
-        let mut payload = Vec::new();
-        payload.extend_from_slice(&999u16.to_be_bytes());
-        payload.extend_from_slice(&999u16.to_be_bytes());
-        let packet = Ok(protocol::Packet {
-            opcode: OP_IMAGE_SUPPORT_INFO,
-            payload,
-        });
+        // Unknown dimensions: 999x999
+        let mut data = Vec::new();
+        data.extend_from_slice(&999u16.to_be_bytes());
+        data.extend_from_slice(&999u16.to_be_bytes());
+        let packet = support_function_packet(INFO_IMAGE_SUPPORT, &data);
         let (transport, _) = MockTransport::new(vec![packet]);
         let Err(err) = BleInstaxDevice::new(transport, "Test".into()).await else {
             panic!("expected error");
@@ -509,7 +509,8 @@ mod tests {
 
     #[tokio::test]
     async fn film_remaining() {
-        let (device, _) = make_device(PrinterModel::Mini, vec![remaining_packet(8)]).await;
+        let (device, _) =
+            make_device(PrinterModel::Mini, vec![printer_function_packet(8, false)]).await;
         assert_eq!(device.film_remaining().await.unwrap(), 8);
     }
 
@@ -523,7 +524,11 @@ mod tests {
     async fn status_all() {
         let (device, _) = make_device(
             PrinterModel::Mini,
-            vec![battery_packet(85), remaining_packet(8), history_packet(142)],
+            vec![
+                battery_packet(85),
+                printer_function_packet(8, false),
+                history_packet(142),
+            ],
         )
         .await;
         let status = device.status().await.unwrap();
@@ -536,7 +541,8 @@ mod tests {
 
     #[tokio::test]
     async fn battery_unexpected_response() {
-        let (device, _) = make_device(PrinterModel::Mini, vec![remaining_packet(5)]).await;
+        let (device, _) =
+            make_device(PrinterModel::Mini, vec![printer_function_packet(5, false)]).await;
         let result = device.battery().await;
         assert!(result.is_err());
         assert!(result

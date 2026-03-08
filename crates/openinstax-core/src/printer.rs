@@ -37,9 +37,12 @@ pub async fn scan(duration: Option<Duration>) -> Result<Vec<DiscoveredPrinter>> 
 }
 
 /// Connect to a specific printer by name.
-pub async fn connect(device_name: &str) -> Result<Box<dyn InstaxDevice>> {
+pub async fn connect(
+    device_name: &str,
+    duration: Option<Duration>,
+) -> Result<Box<dyn InstaxDevice>> {
     let adapter = transport::get_adapter().await?;
-    let results = transport::scan(&adapter, DEFAULT_SCAN_DURATION).await?;
+    let results = transport::scan(&adapter, duration.unwrap_or(DEFAULT_SCAN_DURATION)).await?;
 
     let (peripheral, name) = results
         .into_iter()
@@ -52,9 +55,9 @@ pub async fn connect(device_name: &str) -> Result<Box<dyn InstaxDevice>> {
 }
 
 /// Connect to the first available Instax printer.
-pub async fn connect_any() -> Result<Box<dyn InstaxDevice>> {
+pub async fn connect_any(duration: Option<Duration>) -> Result<Box<dyn InstaxDevice>> {
     let adapter = transport::get_adapter().await?;
-    let results = transport::scan(&adapter, DEFAULT_SCAN_DURATION).await?;
+    let results = transport::scan(&adapter, duration.unwrap_or(DEFAULT_SCAN_DURATION)).await?;
 
     let (peripheral, name) = results
         .into_iter()
@@ -77,8 +80,8 @@ pub async fn print_file(
     progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
 ) -> Result<()> {
     let device = match device_name {
-        Some(name) => connect(name).await?,
-        None => connect_any().await?,
+        Some(name) => connect(name, None).await?,
+        None => connect_any(None).await?,
     };
 
     device.print_file(path, fit, quality, progress).await?;
@@ -87,10 +90,13 @@ pub async fn print_file(
 }
 
 /// Get printer status: connect, query, disconnect.
-pub async fn get_status(device_name: Option<&str>) -> Result<PrinterStatus> {
+pub async fn get_status(
+    device_name: Option<&str>,
+    duration: Option<Duration>,
+) -> Result<PrinterStatus> {
     let device = match device_name {
-        Some(name) => connect(name).await?,
-        None => connect_any().await?,
+        Some(name) => connect(name, duration).await?,
+        None => connect_any(duration).await?,
     };
 
     let status = device.status().await?;

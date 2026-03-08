@@ -66,7 +66,7 @@ pub extern "C" fn openinstax_init() {
 pub extern "C" fn openinstax_connect() -> i32 {
     std::panic::catch_unwind(|| {
         let rt = get_runtime();
-        match rt.block_on(openinstax_core::printer::connect_any()) {
+        match rt.block_on(openinstax_core::printer::connect_any(None)) {
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
@@ -99,7 +99,7 @@ pub unsafe extern "C" fn openinstax_connect_named(name: *const c_char) -> i32 {
             Err(_) => return -5,
         };
         let rt = get_runtime();
-        match rt.block_on(openinstax_core::printer::connect(s)) {
+        match rt.block_on(openinstax_core::printer::connect(s, None)) {
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {

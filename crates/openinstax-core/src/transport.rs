@@ -65,13 +65,15 @@ pub async fn get_adapter() -> Result<Adapter> {
 
 /// Scan for Instax printers.
 ///
-/// Returns a list of `(peripheral, local_name)` pairs for devices advertising
-/// the Instax service UUID.
+/// Returns a list of `(peripheral, local_name)` pairs for nearby Instax devices.
+/// Uses name-based matching ("INSTAX") because some printers don't advertise
+/// the service UUID until after connection.
 pub async fn scan(adapter: &Adapter, duration: Duration) -> Result<Vec<(Peripheral, String)>> {
+    // Scan without service UUID filter — some Instax printers don't advertise
+    // the service UUID in their BLE advertisements, only exposing it after
+    // connection during service discovery.
     adapter
-        .start_scan(ScanFilter {
-            services: vec![SERVICE_UUID],
-        })
+        .start_scan(ScanFilter::default())
         .await
         .map_err(|e| InstaxError::Ble(format!("scan failed: {e}")))?;
 
@@ -90,9 +92,11 @@ pub async fn scan(adapter: &Adapter, duration: Duration) -> Result<Vec<(Peripher
     let mut results = Vec::new();
     for p in peripherals {
         if let Ok(Some(props)) = p.properties().await {
-            if props.services.contains(&SERVICE_UUID) {
-                let name = props.local_name.unwrap_or_else(|| "Unknown Instax".into());
-                results.push((p, name));
+            if let Some(ref name) = props.local_name {
+                // Match by name prefix or by advertised service UUID
+                if name.starts_with("INSTAX") || props.services.contains(&SERVICE_UUID) {
+                    results.push((p, name.clone()));
+                }
             }
         }
     }
@@ -134,13 +138,8 @@ impl BleTransport {
             .cloned()
             .ok_or_else(|| InstaxError::Ble("notify characteristic not found".into()))?;
 
-        // Subscribe to notifications
-        peripheral
-            .subscribe(&notify_char)
-            .await
-            .map_err(|e| InstaxError::Ble(format!("notification subscribe failed: {e}")))?;
-
-        // Set up notification channel
+        // Set up notification channel BEFORE subscribing to avoid race condition
+        // where early notifications are lost.
         let (tx, rx) = mpsc::channel(64);
         let mut notification_stream = peripheral
             .notifications()
@@ -148,12 +147,29 @@ impl BleTransport {
             .map_err(|e| InstaxError::Ble(format!("notification stream failed: {e}")))?;
 
         tokio::spawn(async move {
+            log::debug!("Notification listener task started");
             while let Some(notification) = notification_stream.next().await {
+                log::debug!(
+                    "Got notification: {} bytes: {:02x?}",
+                    notification.value.len(),
+                    &notification.value[..notification.value.len().min(20)]
+                );
                 if tx.send(notification.value).await.is_err() {
+                    log::debug!("Notification channel closed");
                     break;
                 }
             }
+            log::debug!("Notification stream ended");
         });
+
+        // Now subscribe to notifications
+        peripheral
+            .subscribe(&notify_char)
+            .await
+            .map_err(|e| InstaxError::Ble(format!("notification subscribe failed: {e}")))?;
+
+        // Brief delay to let the BLE connection stabilize
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         Ok(Self {
             peripheral,
@@ -166,6 +182,11 @@ impl BleTransport {
 #[async_trait]
 impl Transport for BleTransport {
     async fn send(&self, data: &[u8]) -> Result<()> {
+        log::debug!(
+            "Sending {} bytes: {:02x?}",
+            data.len(),
+            &data[..data.len().min(20)]
+        );
         // Fragment into MTU-sized sub-packets
         let fragments = protocol::fragment(data);
         for frag in fragments {
