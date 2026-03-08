@@ -1,55 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://openinstax.hongjunwu.com/</loc>
+         <loc>https://instantlink.hongjunwu.com/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/development/architecture/</loc>
+         <loc>https://instantlink.hongjunwu.com/development/architecture/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/development/contributing/</loc>
+         <loc>https://instantlink.hongjunwu.com/development/contributing/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/getting-started/installation/</loc>
+         <loc>https://instantlink.hongjunwu.com/getting-started/installation/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/getting-started/quickstart/</loc>
+         <loc>https://instantlink.hongjunwu.com/getting-started/quickstart/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/plans/001-full-stack-scaffold/</loc>
+         <loc>https://instantlink.hongjunwu.com/plans/001-full-stack-scaffold/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/plans/002-ci-cd-setup/</loc>
+         <loc>https://instantlink.hongjunwu.com/plans/002-ci-cd-setup/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/plans/003-github-pages/</loc>
+         <loc>https://instantlink.hongjunwu.com/plans/003-github-pages/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/plans/004-app-bundle-and-release/</loc>
+         <loc>https://instantlink.hongjunwu.com/plans/004-app-bundle-and-release/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/plans/005-mock-transport-device-tests/</loc>
+         <loc>https://instantlink.hongjunwu.com/plans/005-mock-transport-device-tests/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/reference/cli/</loc>
+         <loc>https://instantlink.hongjunwu.com/reference/cli/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/reference/ffi/</loc>
+         <loc>https://instantlink.hongjunwu.com/reference/ffi/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
     <url>
-         <loc>https://openinstax.hongjunwu.com/reference/protocol/</loc>
+         <loc>https://instantlink.hongjunwu.com/reference/protocol/</loc>
          <lastmod>2026-03-08</lastmod>
     </url>
 </urlset>
