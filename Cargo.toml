@@ -1,0 +1,42 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/openinstax-core",
+    "crates/openinstax-cli",
+    "crates/openinstax-ffi",
+]
+
+[workspace.dependencies]
+# Shared across crates
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+# Async runtime
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+async-trait = "0.1"
+
+# BLE
+btleplug = "0.11"
+
+# Images
+image = "0.25"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+indicatif = "0.17"
+
+# FFI
+cbindgen = "0.27"
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+futures = "0.3"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

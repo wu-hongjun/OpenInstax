@@ -1,0 +1,63 @@
+site_name: OpenInstax
+site_description: Open-source CLI and macOS app for Fujifilm Instax Link printers via BLE
+site_url: https://openinstax.hongjunwu.com/
+repo_url: https://github.com/wu-hongjun/OpenInstax
+repo_name: wu-hongjun/OpenInstax
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: white
+      accent: black
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: black
+      accent: white
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Protocol: reference/protocol.md
+      - FFI: reference/ffi.md
+  - Development:
+      - Architecture: development/architecture.md
+      - Contributing: development/contributing.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details

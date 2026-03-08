@@ -1,0 +1,17 @@
+[package]
+name = "openinstax-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "openinstax_ffi"
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+openinstax-core = { path = "../openinstax-core" }
+tokio = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+
+[build-dependencies]
+cbindgen = { workspace = true }

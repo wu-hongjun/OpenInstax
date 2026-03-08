@@ -1,0 +1,22 @@
+# Rust
+**/target/
+**/*.rs.bk
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Build artifacts
+*.dmg
+
+# References (cloned repos)
+references/*/
+
+# Environment
+.env
