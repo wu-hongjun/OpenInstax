@@ -162,39 +162,13 @@ struct OverlayColor: Codable, Equatable, Hashable {
     }
 }
 
-enum OverlayPalette: String, Codable, CaseIterable, Identifiable {
-    case white
-    case black
-    case orange
-    case green
-    case cream
-    case blue
-    case pink
-
-    var id: String { rawValue }
-
-    var color: OverlayColor {
-        switch self {
-        case .white: return .white
-        case .black: return .black
-        case .orange: return .orange
-        case .green: return .green
-        case .cream: return .cream
-        case .blue: return .blue
-        case .pink: return .pink
-        }
-    }
-}
-
 struct TextOverlayData: Codable, Equatable {
     var text: String = "New Text"
-    var fontName: String = "SF Pro Rounded"
     var fontScale: Double = 0.1
     var foregroundColor: OverlayColor = .white
     var backgroundColor: OverlayColor = .transparent
     var textAlignment: OverlayTextAlignment = .center
     var shadowStyle: OverlayShadowStyle = .soft
-    var prefersEmojiOptimization: Bool = true
     var allowsMultipleLines: Bool = true
 }
 
@@ -247,21 +221,12 @@ struct TimestampOverlayData: Codable, Equatable {
     var format: TimestampFormat = .ymd
     var showsTime: Bool = true
     var lightBleedEnabled: Bool = false
-    var source: TimestampSource = .photoDate
 }
 
 enum TimestampFormat: String, Codable, CaseIterable, Identifiable {
     case ymd
     case mdy
     case dmy
-
-    var id: String { rawValue }
-}
-
-enum TimestampSource: String, Codable, CaseIterable, Identifiable {
-    case photoDate
-    case now
-    case custom
 
     var id: String { rawValue }
 }
@@ -292,8 +257,6 @@ struct LocationOverlayData: Codable, Equatable {
     var displayStyle: LocationOverlayDisplayStyle = .coordinates
     var coordinate: GeoCoordinate?
     var locationName: String = ""
-    var prefix: String = ""
-    var suffix: String = ""
     var precision: Int = 4
 }
 

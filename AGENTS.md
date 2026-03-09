@@ -13,10 +13,10 @@ cargo fmt --all
 cargo clippy --workspace -- -D warnings
 ```
 
-Build the release app bundle with `bash scripts/build-app.sh 0.3.0`. Install the CLI locally with `cargo install --path crates/instantlink-cli`. Preview docs with `mkdocs serve` after `pip install mkdocs-material`.
+Build the release app bundle with `bash scripts/build-app.sh 0.1.2`. Install the CLI locally with `cargo install --path crates/instantlink-cli`. Preview docs with `mkdocs serve` after `pip install mkdocs-material`.
 
 ## Coding Style & Naming Conventions
-This repository uses Rust 2021 and default `rustfmt` formatting with 4-space indentation. Follow the existing naming scheme: `snake_case` for functions/modules, `PascalCase` for types/enums, and `SCREAMING_SNAKE_CASE` for constants. Keep CLI-facing error messages contextual with `anyhow::Context`; keep reusable core errors in `PrinterError`. In Swift, follow the current SwiftUI style in `macos/InstantLink` and keep FFI loading isolated from UI logic.
+This repository uses Rust 2024 and default `rustfmt` formatting with 4-space indentation. Follow the existing naming scheme: `snake_case` for functions/modules, `PascalCase` for types/enums, and `SCREAMING_SNAKE_CASE` for constants. Keep CLI-facing error messages contextual with `anyhow::Context`; keep reusable core errors in `PrinterError`. In Swift, follow the current SwiftUI style in `macos/InstantLink` and keep FFI loading isolated from UI logic.
 
 ## Testing Guidelines
 Add Rust unit tests close to the code under `#[cfg(test)] mod tests`; current coverage lives mainly in `protocol.rs`, `commands.rs`, `image.rs`, and `device.rs`. Prefer mock-based tests for protocol or transport behavior so they run without hardware. For BLE or print-flow changes, also record a manual smoke test such as `cargo run -p instantlink-cli -- status` or `cargo run -p instantlink-cli -- print sample.jpg`, including the printer model used.

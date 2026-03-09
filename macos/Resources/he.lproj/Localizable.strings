@@ -74,7 +74,7 @@
 "Stretch" = "מתיחה";
 "Standard" = "רגיל";
 "Rotated" = "מסובב";
-"Use Current Photo Settings" = "השתמש בהגדרות התמונה הנוכחית";
+"Use Current Timestamp as Default" = "השתמש בחותמת הזמן הנוכחית כברירת מחדל";
 "Reset Defaults" = "אפס ברירות מחדל";
 
 /* Editor — Rotation */

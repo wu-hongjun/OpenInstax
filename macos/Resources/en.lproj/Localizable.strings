@@ -73,7 +73,7 @@
 "Stretch" = "Stretch";
 "Standard" = "Standard";
 "Rotated" = "Rotated";
-"Use Current Photo Settings" = "Use Current Photo Settings";
+"Use Current Timestamp as Default" = "Use Current Timestamp as Default";
 "Reset Defaults" = "Reset Defaults";
 
 /* Editor — Rotation */

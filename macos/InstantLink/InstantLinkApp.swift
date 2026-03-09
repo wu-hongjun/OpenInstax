@@ -1688,12 +1688,7 @@ class ViewModel: ObservableObject {
     }
 
     func resolvedTimestampDate(for data: TimestampOverlayData) -> Date {
-        switch data.source {
-        case .photoDate:
-            return imageDate ?? Date()
-        case .now, .custom:
-            return Date()
-        }
+        imageDate ?? Date()
     }
 
     func resolvedLocationText(for data: LocationOverlayData) -> String? {
@@ -1735,7 +1730,7 @@ class ViewModel: ObservableObject {
         }
 
         guard let body, !body.isEmpty else { return nil }
-        return "\(data.prefix)\(body)\(data.suffix)"
+        return body
     }
 
     // MARK: - Overlay Rendering
@@ -1784,7 +1779,7 @@ class ViewModel: ObservableObject {
     private func drawTextOverlay(_ data: TextOverlayData, in rect: CGRect) {
         guard !data.text.isEmpty else { return }
         let fontSize = max(14, rect.height * CGFloat(max(data.fontScale, 0.05)) * 1.8)
-        let font = NSFont(name: data.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
         let paragraph = NSMutableParagraphStyle()
         switch data.textAlignment {
         case .leading:
@@ -3488,13 +3483,19 @@ struct OverlayPreviewItemView: View {
     let isSelected: Bool
 
     @State private var dragOrigin: OverlayPlacement?
+    @State private var resizeOrigin: OverlayPlacement?
 
     private var frame: CGRect {
         item.placement.rect(in: canvasSize)
     }
 
     var body: some View {
-        previewContent
+        ZStack {
+            previewContent
+            if showsResizeHandles {
+                resizeHandles
+            }
+        }
             .frame(width: frame.width, height: frame.height)
             .background(
                 RoundedRectangle(cornerRadius: 10)
@@ -3526,6 +3527,56 @@ struct OverlayPreviewItemView: View {
                     }
                     .onEnded { _ in
                         dragOrigin = nil
+                    }
+            )
+    }
+
+    private var showsResizeHandles: Bool {
+        editable && isSelected && !item.isLocked
+    }
+
+    private var resizeHandles: some View {
+        GeometryReader { proxy in
+            ZStack {
+                resizeHandle(alignmentX: 0, alignmentY: 0, xSign: -1, ySign: -1, in: proxy.size)
+                resizeHandle(alignmentX: 1, alignmentY: 0, xSign: 1, ySign: -1, in: proxy.size)
+                resizeHandle(alignmentX: 0, alignmentY: 1, xSign: -1, ySign: 1, in: proxy.size)
+                resizeHandle(alignmentX: 1, alignmentY: 1, xSign: 1, ySign: 1, in: proxy.size)
+            }
+        }
+    }
+
+    private func resizeHandle(
+        alignmentX: CGFloat,
+        alignmentY: CGFloat,
+        xSign: Double,
+        ySign: Double,
+        in size: CGSize
+    ) -> some View {
+        Circle()
+            .fill(Color.white)
+            .frame(width: 10, height: 10)
+            .overlay(
+                Circle()
+                    .stroke(Color.accentColor, lineWidth: 1.5)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+            .position(x: alignmentX * size.width, y: alignmentY * size.height)
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        if resizeOrigin == nil {
+                            resizeOrigin = item.placement
+                        }
+                        guard let resizeOrigin else { return }
+                        viewModel.selectOverlay(item.id)
+                        viewModel.updateOverlay(id: item.id) { overlay in
+                            overlay.placement.normalizedWidth = resizeOrigin.normalizedWidth + (2 * Double(value.translation.width) / max(canvasSize.width, 1)) * xSign
+                            overlay.placement.normalizedHeight = resizeOrigin.normalizedHeight + (2 * Double(value.translation.height) / max(canvasSize.height, 1)) * ySign
+                        }
+                    }
+                    .onEnded { _ in
+                        resizeOrigin = nil
                     }
             )
     }
@@ -4735,7 +4786,7 @@ struct NewPhotoDefaultsPopover: View {
             Divider()
 
             HStack {
-                Button(L("Use Current Photo Settings")) {
+                Button(L("Use Current Timestamp as Default")) {
                     viewModel.saveCurrentSettingsAsNewPhotoDefaults()
                 }
                 .disabled(viewModel.selectedImage == nil)
@@ -4815,6 +4866,26 @@ struct OverlayListRowView: View {
     }
 }
 
+struct InspectorSectionCard<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            content()
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.secondary.opacity(0.06))
+        )
+    }
+}
+
 struct SelectedOverlayInspectorView: View {
     @EnvironmentObject var viewModel: ViewModel
 
@@ -4848,25 +4919,36 @@ struct SelectedOverlayInspectorView: View {
                 }
                 .controlSize(.small)
 
-                Group {
-                    labeledSlider(L("Opacity"), value: opacityBinding, range: 0.1...1.0)
+                InspectorSectionCard(title: L("Position")) {
                     labeledSlider("X", value: positionXBinding, range: 0.05...0.95)
                     labeledSlider("Y", value: positionYBinding, range: 0.05...0.95)
                     labeledSlider(L("Width"), value: widthBinding, range: 0.08...0.95)
                     labeledSlider(L("Height"), value: heightBinding, range: 0.06...0.95)
                 }
 
-                switch overlay.content {
-                case .text:
-                    textControls
-                case .qrCode:
-                    qrControls
-                case .timestamp:
-                    timestampControls
-                case .image:
-                    imageControls
-                case .location:
-                    locationControls
+                InspectorSectionCard(title: L("Appearance")) {
+                    labeledSlider(L("Opacity"), value: opacityBinding, range: 0.1...1.0)
+
+                    HStack {
+                        Toggle(L("Lock"), isOn: lockBinding)
+                        Toggle(L("Hidden"), isOn: hiddenBinding)
+                    }
+                    .font(.caption)
+                }
+
+                InspectorSectionCard(title: L("Content")) {
+                    switch overlay.content {
+                    case .text:
+                        textControls
+                    case .qrCode:
+                        qrControls
+                    case .timestamp:
+                        timestampControls
+                    case .image:
+                        imageControls
+                    case .location:
+                        locationControls
+                    }
                 }
             }
         )
@@ -5183,7 +5265,12 @@ struct SelectedOverlayInspectorView: View {
                     return data.source
                 },
                 set: { newValue in
-                    viewModel.updateSelectedLocationOverlay { $0.source = newValue }
+                    viewModel.updateSelectedLocationOverlay {
+                        $0.source = newValue
+                        if newValue == .manualText {
+                            $0.displayStyle = .name
+                        }
+                    }
                 }
             )) {
                 Text(L("Photo Metadata")).tag(LocationOverlaySource.photoMetadata)
@@ -5192,77 +5279,123 @@ struct SelectedOverlayInspectorView: View {
             }
             .pickerStyle(.menu)
 
-            Picker(L("Display"), selection: Binding(
-                get: {
-                    guard let overlay = viewModel.selectedOverlay,
-                          case .location(let data) = overlay.content else { return LocationOverlayDisplayStyle.coordinates }
-                    return data.displayStyle
-                },
-                set: { newValue in
-                    viewModel.updateSelectedLocationOverlay { $0.displayStyle = newValue }
-                }
-            )) {
-                Text(L("Coordinates")).tag(LocationOverlayDisplayStyle.coordinates)
-                Text(L("Name")).tag(LocationOverlayDisplayStyle.name)
-                Text(L("Name + Coordinates")).tag(LocationOverlayDisplayStyle.nameAndCoordinates)
-            }
-            .pickerStyle(.menu)
-
-            TextField(L("Name"), text: Binding(
-                get: {
-                    guard let overlay = viewModel.selectedOverlay,
-                          case .location(let data) = overlay.content else { return "" }
-                    return data.locationName
-                },
-                set: { newValue in
-                    viewModel.updateSelectedLocationOverlay { $0.locationName = newValue }
-                }
-            ))
-
-            HStack {
-                TextField(L("Latitude"), text: Binding(
+            if selectedLocationSource != .manualText {
+                Picker(L("Display"), selection: Binding(
                     get: {
                         guard let overlay = viewModel.selectedOverlay,
-                              case .location(let data) = overlay.content else { return "" }
-                        guard let value = data.coordinate?.latitude else { return "" }
-                        return String(value)
+                              case .location(let data) = overlay.content else { return LocationOverlayDisplayStyle.coordinates }
+                        return data.displayStyle
                     },
                     set: { newValue in
-                        viewModel.updateSelectedLocationOverlay { data in
-                            let latitude = Double(newValue) ?? data.coordinate?.latitude ?? 0
-                            let longitude = data.coordinate?.longitude ?? 0
-                            data.coordinate = GeoCoordinate(latitude: latitude, longitude: longitude)
-                        }
+                        viewModel.updateSelectedLocationOverlay { $0.displayStyle = newValue }
                     }
-                ))
-                TextField(L("Longitude"), text: Binding(
-                    get: {
-                        guard let overlay = viewModel.selectedOverlay,
-                              case .location(let data) = overlay.content else { return "" }
-                        guard let value = data.coordinate?.longitude else { return "" }
-                        return String(value)
-                    },
-                    set: { newValue in
-                        viewModel.updateSelectedLocationOverlay { data in
-                            let latitude = data.coordinate?.latitude ?? 0
-                            let longitude = Double(newValue) ?? data.coordinate?.longitude ?? 0
-                            data.coordinate = GeoCoordinate(latitude: latitude, longitude: longitude)
-                        }
-                    }
-                ))
+                )) {
+                    Text(L("Coordinates")).tag(LocationOverlayDisplayStyle.coordinates)
+                    Text(L("Name")).tag(LocationOverlayDisplayStyle.name)
+                    Text(L("Name + Coordinates")).tag(LocationOverlayDisplayStyle.nameAndCoordinates)
+                }
+                .pickerStyle(.menu)
             }
 
-            labeledSlider(L("Precision"), value: Binding(
-                get: {
-                    guard let overlay = viewModel.selectedOverlay,
-                          case .location(let data) = overlay.content else { return 4 }
-                    return Double(data.precision)
-                },
-                set: { newValue in
-                    viewModel.updateSelectedLocationOverlay { $0.precision = Int(newValue.rounded()) }
+            switch selectedLocationSource {
+            case .photoMetadata:
+                if viewModel.imageLocation == nil {
+                    Text(L("No location metadata"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
-            ), range: 0...6)
+                if selectedLocationDisplayStyle != .coordinates {
+                    nameField(title: L("Name"))
+                }
+                if selectedLocationDisplayStyle != .name {
+                    precisionSlider
+                }
+
+            case .manualCoordinates:
+                if selectedLocationDisplayStyle != .coordinates {
+                    nameField(title: L("Name"))
+                }
+
+                HStack {
+                    coordinateField(title: L("Latitude"), axis: .latitude)
+                    coordinateField(title: L("Longitude"), axis: .longitude)
+                }
+
+                if selectedLocationDisplayStyle != .name {
+                    precisionSlider
+                }
+
+            case .manualText:
+                nameField(title: L("Content"))
+            }
         }
+    }
+
+    private var selectedLocationSource: LocationOverlaySource {
+        guard let overlay = viewModel.selectedOverlay,
+              case .location(let data) = overlay.content else { return .photoMetadata }
+        return data.source
+    }
+
+    private var selectedLocationDisplayStyle: LocationOverlayDisplayStyle {
+        guard let overlay = viewModel.selectedOverlay,
+              case .location(let data) = overlay.content else { return .coordinates }
+        return data.displayStyle
+    }
+
+    private func nameField(title: String) -> some View {
+        TextField(title, text: Binding(
+            get: {
+                guard let overlay = viewModel.selectedOverlay,
+                      case .location(let data) = overlay.content else { return "" }
+                return data.locationName
+            },
+            set: { newValue in
+                viewModel.updateSelectedLocationOverlay { $0.locationName = newValue }
+            }
+        ))
+    }
+
+    private enum CoordinateAxis {
+        case latitude
+        case longitude
+    }
+
+    private func coordinateField(title: String, axis: CoordinateAxis) -> some View {
+        TextField(title, text: Binding(
+            get: {
+                guard let overlay = viewModel.selectedOverlay,
+                      case .location(let data) = overlay.content else { return "" }
+                switch axis {
+                case .latitude:
+                    guard let value = data.coordinate?.latitude else { return "" }
+                    return String(value)
+                case .longitude:
+                    guard let value = data.coordinate?.longitude else { return "" }
+                    return String(value)
+                }
+            },
+            set: { newValue in
+                viewModel.updateSelectedLocationOverlay { data in
+                    let latitude = axis == .latitude ? (Double(newValue) ?? data.coordinate?.latitude ?? 0) : (data.coordinate?.latitude ?? 0)
+                    let longitude = axis == .longitude ? (Double(newValue) ?? data.coordinate?.longitude ?? 0) : (data.coordinate?.longitude ?? 0)
+                    data.coordinate = GeoCoordinate(latitude: latitude, longitude: longitude)
+                }
+            }
+        ))
+    }
+
+    private var precisionSlider: some View {
+        labeledSlider(L("Precision"), value: Binding(
+            get: {
+                guard let overlay = viewModel.selectedOverlay,
+                      case .location(let data) = overlay.content else { return 4 }
+                return Double(data.precision)
+            },
+            set: { newValue in
+                viewModel.updateSelectedLocationOverlay { $0.precision = Int(newValue.rounded()) }
+            }
+        ), range: 0...6)
     }
 }
 

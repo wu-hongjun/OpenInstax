@@ -73,7 +73,7 @@
 "Stretch" = "Strecken";
 "Standard" = "Standard";
 "Rotated" = "Gedreht";
-"Use Current Photo Settings" = "Aktuelle Fotoeinstellungen verwenden";
+"Use Current Timestamp as Default" = "Aktuellen Zeitstempel als Standard verwenden";
 "Reset Defaults" = "Standardwerte zurücksetzen";
 
 /* Editor — Rotation */

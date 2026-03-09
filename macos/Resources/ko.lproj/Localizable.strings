@@ -73,7 +73,7 @@
 "Stretch" = "늘리기";
 "Standard" = "기본";
 "Rotated" = "회전";
-"Use Current Photo Settings" = "현재 사진 설정 사용";
+"Use Current Timestamp as Default" = "현재 타임스탬프를 기본값으로 사용";
 "Reset Defaults" = "기본값으로 재설정";
 
 /* Editor — Rotation */

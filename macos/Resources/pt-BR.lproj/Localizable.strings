@@ -74,7 +74,7 @@
 "Stretch" = "Esticar";
 "Standard" = "Padrão";
 "Rotated" = "Girado";
-"Use Current Photo Settings" = "Usar ajustes da foto atual";
+"Use Current Timestamp as Default" = "Usar o carimbo de data/hora atual como padrão";
 "Reset Defaults" = "Restaurar padrões";
 
 /* Editor — Rotation */

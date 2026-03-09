@@ -73,7 +73,7 @@
 "Stretch" = "拉伸";
 "Standard" = "标准";
 "Rotated" = "旋转";
-"Use Current Photo Settings" = "使用当前照片设置";
+"Use Current Timestamp as Default" = "将当前时间戳设为默认";
 "Reset Defaults" = "重置默认设置";
 
 /* Editor — Rotation */

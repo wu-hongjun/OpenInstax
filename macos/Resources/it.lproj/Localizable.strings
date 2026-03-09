@@ -74,7 +74,7 @@
 "Stretch" = "Allunga";
 "Standard" = "Standard";
 "Rotated" = "Ruotato";
-"Use Current Photo Settings" = "Usa le impostazioni della foto corrente";
+"Use Current Timestamp as Default" = "Usa il timestamp corrente come predefinito";
 "Reset Defaults" = "Ripristina impostazioni predefinite";
 
 /* Editor — Rotation */

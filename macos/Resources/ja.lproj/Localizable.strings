@@ -73,7 +73,7 @@
 "Stretch" = "引き伸ばし";
 "Standard" = "標準";
 "Rotated" = "回転";
-"Use Current Photo Settings" = "現在の写真設定を使用";
+"Use Current Timestamp as Default" = "現在のタイムスタンプをデフォルトにする";
 "Reset Defaults" = "デフォルトに戻す";
 
 /* Editor — Rotation */

@@ -73,7 +73,7 @@
 "Stretch" = "تمديد";
 "Standard" = "قياسي";
 "Rotated" = "مُدار";
-"Use Current Photo Settings" = "استخدام إعدادات الصورة الحالية";
+"Use Current Timestamp as Default" = "استخدام الطابع الزمني الحالي كافتراضي";
 "Reset Defaults" = "إعادة تعيين الإعدادات الافتراضية";
 
 /* Editor — Rotation */
