@@ -3814,6 +3814,17 @@ struct AboutSection: View {
     @State private var checkResult: String?
     @State private var checkResultIsUpdate = false
 
+    private var versionSummary: String {
+        "\(L("App:")) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0") | \(L("Core:")) \(viewModel.coreVersion)"
+    }
+
+    private var updateButtonTitle: String {
+        if viewModel.updateAvailable != nil || checkResultIsUpdate {
+            return L("Update Now")
+        }
+        return checkResult ?? L("Check for Updates")
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             if let icon = NSApplication.shared.applicationIconImage {
@@ -3824,76 +3835,69 @@ struct AboutSection: View {
             Text("InstantLink")
                 .font(.title2)
                 .fontWeight(.bold)
-            VStack(spacing: 2) {
-                Text("\(L("App:")) v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")")
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(versionSummary)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Text("\(L("Core:")) \(viewModel.coreVersion)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Text("\u{00A9} 2026 InstantLink")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-            Button {
-                if let url = URL(string: "https://github.com/wu-hongjun/instantlink") {
-                    NSWorkspace.shared.open(url)
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "link")
-                    Text(L("GitHub"))
-                }
-                .font(.caption)
-            }
-            .buttonStyle(.link)
-
-            // Check for Updates
-            Button {
-                isChecking = true
-                checkResult = nil
-                Task {
-                    await viewModel.checkForUpdates()
-                    await MainActor.run {
-                        isChecking = false
-                        if let version = viewModel.updateAvailable {
-                            checkResult = L("update_available_version", version)
-                            checkResultIsUpdate = true
-                        } else {
-                            checkResult = L("Up to date")
-                            checkResultIsUpdate = false
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    if isChecking {
-                        ProgressView()
-                            .controlSize(.small)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 8)
+                Button {
+                    if viewModel.updateAvailable != nil || checkResultIsUpdate {
+                        viewModel.performUpdate()
                     } else {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                    }
-                    Text(L("Check for Updates"))
-                }
-                .font(.caption)
-            }
-            .buttonStyle(.link)
-            .disabled(isChecking)
-
-            if let result = checkResult {
-                HStack(spacing: 4) {
-                    Text(result)
-                        .font(.caption)
-                        .foregroundColor(checkResultIsUpdate ? .orange : .green)
-                    if checkResultIsUpdate {
-                        Button(L("Update Now")) {
-                            viewModel.performUpdate()
+                        isChecking = true
+                        checkResult = nil
+                        Task {
+                            await viewModel.checkForUpdates()
+                            await MainActor.run {
+                                isChecking = false
+                                if viewModel.updateAvailable != nil {
+                                    checkResult = nil
+                                    checkResultIsUpdate = true
+                                } else {
+                                    checkResult = L("Up to date")
+                                    checkResultIsUpdate = false
+                                }
+                            }
                         }
-                        .font(.caption)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
                     }
+                } label: {
+                    HStack(spacing: 4) {
+                        if isChecking {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else if viewModel.updateAvailable != nil || checkResultIsUpdate {
+                            Image(systemName: "arrow.up.circle.fill")
+                        } else {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
+                        Text(updateButtonTitle)
+                    }
+                    .font(.caption)
                 }
+                .buttonStyle(.link)
+                .disabled(isChecking)
+            }
+            .frame(maxWidth: .infinity)
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\u{00A9} 2026 InstantLink")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer(minLength: 8)
+                Button {
+                    if let url = URL(string: "https://github.com/wu-hongjun/instantlink") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "link")
+                        Text(L("GitHub"))
+                    }
+                    .font(.caption2)
+                }
+                .buttonStyle(.link)
             }
         }
         .frame(maxWidth: .infinity)
