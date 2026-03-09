@@ -417,7 +417,7 @@ struct NewPhotoDefaultsPopover: View {
                 .labelsHidden()
             }
 
-            if viewModel.printerAspectRatio != 1.0 {
+            if let aspectRatio = viewModel.printerAspectRatio, aspectRatio != 1.0 {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("Film Orientation"))
                         .font(.caption)
@@ -868,7 +868,11 @@ struct SelectedOverlayInspectorView: View {
     private var timestampControls: some View {
         VStack(alignment: .leading, spacing: 8) {
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color(white: 0.15))
+                .fill(.thinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
                 .frame(height: 48)
                 .overlay {
                     if let overlay = viewModel.selectedOverlay,
@@ -1147,7 +1151,11 @@ struct DefaultTimestampOverlayEditor: View {
             if let overlay = viewModel.defaultTimestampOverlay,
                case .timestamp(let data) = overlay.content {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(white: 0.15))
+                    .fill(.thinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    )
                     .frame(height: 48)
                     .overlay {
                         TimestampPreviewView(data: data, size: CGSize(width: 200, height: 48))

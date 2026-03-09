@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "الإعدادات";
 "Language" = "اللغة";
+"Language & Appearance" = "اللغة والمظهر";
 "Appearance" = "المظهر";
 "System Default" = "الافتراضي للنظام";
 "Light" = "فاتح";

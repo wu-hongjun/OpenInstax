@@ -115,7 +115,10 @@ struct MainPreviewView: View {
                                             viewModel.setCropZoom(viewModel.cropZoom * value)
                                         }
                                 )
-                                .onTapGesture(count: 2) { openEditor() }
+                                .onTapGesture(count: 2) {
+                                    guard !viewModel.isPrinting else { return }
+                                    openEditor()
+                                }
                         } else if viewModel.fitMode == "contain", let ar = viewModel.orientedAspectRatio {
                             Color.white
                                 .aspectRatio(ar, contentMode: .fit)
@@ -130,7 +133,10 @@ struct MainPreviewView: View {
                                     OverlayCanvasView()
                                 }
                                 .clipped()
-                                .onTapGesture(count: 2) { openEditor() }
+                                .onTapGesture(count: 2) {
+                                    guard !viewModel.isPrinting else { return }
+                                    openEditor()
+                                }
                         } else {
                             Image(nsImage: image)
                                 .resizable()
@@ -140,7 +146,10 @@ struct MainPreviewView: View {
                                 .overlay {
                                     OverlayCanvasView()
                                 }
-                                .onTapGesture(count: 2) { openEditor() }
+                                .onTapGesture(count: 2) {
+                                    guard !viewModel.isPrinting else { return }
+                                    openEditor()
+                                }
                         }
                     }
                     .padding(4)
@@ -548,9 +557,10 @@ struct QuickPrintToolbarView: View {
                 systemImage: "slider.horizontal.3",
                 action: openEditor
             )
-            .disabled(viewModel.selectedImage == nil)
+            .disabled(viewModel.selectedImage == nil || viewModel.isPrinting)
         }
         .frame(maxWidth: .infinity)
+        .disabled(viewModel.isPrinting)
     }
 
     private func quickToolbarButton(

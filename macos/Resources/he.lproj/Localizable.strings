@@ -121,6 +121,7 @@
 /* Settings Window */
 "Settings" = "הגדרות";
 "Language" = "שפה";
+"Language & Appearance" = "שפה ומראה";
 "Appearance" = "מראה";
 "System Default" = "ברירת מחדל של המערכת";
 "Light" = "בהיר";

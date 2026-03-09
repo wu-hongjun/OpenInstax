@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "설정";
 "Language" = "언어";
+"Language & Appearance" = "언어 및 모양";
 "Appearance" = "모양";
 "System Default" = "시스템 기본값";
 "Light" = "라이트";

@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "Settings";
 "Language" = "Language";
+"Language & Appearance" = "Language & Appearance";
 "Appearance" = "Appearance";
 "System Default" = "System Default";
 "Light" = "Light";

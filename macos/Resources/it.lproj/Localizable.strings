@@ -121,6 +121,7 @@
 /* Settings Window */
 "Settings" = "Impostazioni";
 "Language" = "Lingua";
+"Language & Appearance" = "Lingua e aspetto";
 "Appearance" = "Aspetto";
 "System Default" = "Predefinito di sistema";
 "Light" = "Chiaro";

@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "Ajustes";
 "Language" = "Idioma";
+"Language & Appearance" = "Idioma y apariencia";
 "Appearance" = "Apariencia";
 "System Default" = "Predeterminado del sistema";
 "Light" = "Claro";

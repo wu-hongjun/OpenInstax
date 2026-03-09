@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "設定";
 "Language" = "語言";
+"Language & Appearance" = "語言與外觀";
 "Appearance" = "外觀";
 "System Default" = "系統預設";
 "Light" = "淺色";

@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "Einstellungen";
 "Language" = "Sprache";
+"Language & Appearance" = "Sprache & Erscheinungsbild";
 "Appearance" = "Erscheinungsbild";
 "System Default" = "Systemstandard";
 "Light" = "Hell";

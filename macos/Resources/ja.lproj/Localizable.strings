@@ -120,6 +120,7 @@
 /* Settings Window */
 "Settings" = "設定";
 "Language" = "言語";
+"Language & Appearance" = "言語と外観";
 "Appearance" = "外観";
 "System Default" = "システムデフォルト";
 "Light" = "ライト";

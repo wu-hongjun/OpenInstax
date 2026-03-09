@@ -278,13 +278,17 @@ enum PrintRenderService {
         cropZoom: CGFloat
     ) -> CGImage? {
         guard let targetAspectRatio,
-              (cropOffsetNormalized != .zero || cropZoom != 1.0) else {
+              cropZoom > 0 else {
             return nil
         }
 
         let pixelW = CGFloat(cgImage.width)
         let pixelH = CGFloat(cgImage.height)
         let imageAR = pixelW / pixelH
+        let hasManualCropAdjustment = cropOffsetNormalized != .zero || abs(cropZoom - 1.0) > 0.001
+        if !hasManualCropAdjustment, abs(imageAR - targetAspectRatio) < 0.0001 {
+            return nil
+        }
         let cropRectSize: CGSize
         if imageAR > targetAspectRatio {
             cropRectSize = CGSize(

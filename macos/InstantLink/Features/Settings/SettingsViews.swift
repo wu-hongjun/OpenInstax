@@ -170,9 +170,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     AboutSection()
                     Divider().padding(.vertical, 12)
-                    LanguageSection()
-                    Divider().padding(.vertical, 12)
-                    AppearanceSection()
+                    LanguageAppearanceSection()
                     Divider().padding(.vertical, 12)
                     PrinterManagementSection()
                 }
@@ -297,30 +295,12 @@ struct AboutSection: View {
     }
 }
 
-struct AppearanceSection: View {
-    @EnvironmentObject var viewModel: ViewModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L("Appearance"))
-                .font(.headline)
-
-            Picker("", selection: $viewModel.appearancePreference) {
-                Text(L("System Default")).tag(AppAppearance.system)
-                Text(L("Light")).tag(AppAppearance.light)
-                Text(L("Dark")).tag(AppAppearance.dark)
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-        }
-    }
-}
-
-struct LanguageSection: View {
+struct LanguageAppearanceSection: View {
     private static let supportedLanguages = [
         "en", "de", "es", "fr", "it", "ja", "ko", "pt-BR", "zh-Hans", "zh-Hant", "ar", "he"
     ]
 
+    @EnvironmentObject var viewModel: ViewModel
     @Environment(\.dismiss) private var dismiss
     private let initialLanguage: String
     @State private var selectedLanguage: String
@@ -344,21 +324,45 @@ struct LanguageSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L("Language"))
+            Text(L("Language & Appearance"))
                 .font(.headline)
 
-            Picker("", selection: $selectedLanguage) {
-                Text(L("System Default")).tag("")
-                ForEach(Self.supportedLanguages, id: \.self) { code in
-                    Text(Self.displayName(for: code)).tag(code)
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("Language"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Picker("", selection: $selectedLanguage) {
+                        Text(L("System Default")).tag("")
+                        ForEach(Self.supportedLanguages, id: \.self) { code in
+                            Text(Self.displayName(for: code)).tag(code)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
+                    .onChange(of: selectedLanguage) { newValue in
+                        if newValue.isEmpty {
+                            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+                        } else {
+                            UserDefaults.standard.set([newValue], forKey: "AppleLanguages")
+                        }
+                    }
                 }
-            }
-            .labelsHidden()
-            .onChange(of: selectedLanguage) { newValue in
-                if newValue.isEmpty {
-                    UserDefaults.standard.removeObject(forKey: "AppleLanguages")
-                } else {
-                    UserDefaults.standard.set([newValue], forKey: "AppleLanguages")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(L("Appearance"))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Picker("", selection: $viewModel.appearancePreference) {
+                        Text(L("System Default")).tag(AppAppearance.system)
+                        Text(L("Light")).tag(AppAppearance.light)
+                        Text(L("Dark")).tag(AppAppearance.dark)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
                 }
             }
 
