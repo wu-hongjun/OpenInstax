@@ -1,0 +1,1652 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Open-source CLI and macOS app for Fujifilm Instax Link printers via BLE">
+      
+      
+      
+        <link rel="canonical" href="https://instantlink.hongjunwu.com/plans/006-overlay-system/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+    
+    
+      
+        <title>Plan 006: Overlay System for macOS Editor - InstantLink</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-006-overlay-system-for-macos-editor" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="InstantLink" class="md-header__button md-logo" aria-label="InstantLink" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            InstantLink
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plan 006: Overlay System for macOS Editor
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="white"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/wu-hongjun/InstantLink" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wu-hongjun/InstantLink
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/cli/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../development/architecture/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="InstantLink" class="md-nav__button md-logo" aria-label="InstantLink" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    InstantLink
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/wu-hongjun/InstantLink" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wu-hongjun/InstantLink
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ffi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FFI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-needs-a-real-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Needs a Real System
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#product-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Product Scope
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Product Scope">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#out-of-scope-for-first-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of Scope for First Pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#terminology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Terminology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#type-payloads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Type Payloads
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#placement-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Placement Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#asset-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Asset Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#view-model-refactor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View Model Refactor
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="View Model Refactor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#target-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Target Shape
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#compatibility-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Compatibility Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rendering-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rendering Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rendering Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#proposed-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed Layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#implementation-approach" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Approach
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technology-choices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technology Choices
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editor-ux" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Editor UX
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Editor UX">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#sidebar-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sidebar Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canvas-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Canvas Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspector-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspector Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inspector Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#text" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Text
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#qr-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QR Code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timestamp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timestamp
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#main-window-ux" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Main Window UX
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#defaults-for-new-photos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Defaults for New Photos
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-phases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Phases
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Phases">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-model-and-migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Model and Migration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-shared-rendering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Shared Rendering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-editor-foundations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Editor Foundations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-overlay-type-uis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Overlay Type UIs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-defaults-and-polish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Defaults and Polish
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Plan
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Plan">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manual-qa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual QA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unit-snapshot-targets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unit / Snapshot Targets
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-implementation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended Implementation Order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#success-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Success Criteria
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plan-006-overlay-system-for-macos-editor">Plan 006: Overlay System for macOS Editor<a class="headerlink" href="#plan-006-overlay-system-for-macos-editor" title="Permanent link">&para;</a></h1>
+<p><strong>Status:</strong> Proposed</p>
+<h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
+<p>Introduce a first-class overlay system for the macOS app so users can place reusable visual elements on top of the printable Instax image area. The first supported overlay types will be:</p>
+<ol>
+<li>Text</li>
+<li>QR code</li>
+<li>Timestamp</li>
+<li>Imported image</li>
+</ol>
+<p>This should replace the current one-off date stamp model with a general system that is consistent across preview, editing, queue persistence, and print rendering.</p>
+<h2 id="why-this-needs-a-real-system">Why This Needs a Real System<a class="headerlink" href="#why-this-needs-a-real-system" title="Permanent link">&para;</a></h2>
+<p>The current date stamp is implemented as a special case in <code>ViewModel</code>, previewed through <code>DateStampOverlayView</code>, and rasterized separately in <code>stampImage()</code>. That approach will not scale to multiple overlay types, multiple overlays per photo, selection, ordering, or future history persistence.</p>
+<p>The new system should treat overlays as part of each queue item's edit state, just like crop, rotation, flip, and film orientation.</p>
+<h2 id="product-scope">Product Scope<a class="headerlink" href="#product-scope" title="Permanent link">&para;</a></h2>
+<h3 id="in-scope">In Scope<a class="headerlink" href="#in-scope" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Multiple overlays per photo</li>
+<li>Per-photo overlay persistence in the in-memory queue</li>
+<li>Live preview in main view and editor</li>
+<li>Print output that matches preview</li>
+<li>Overlay defaults for new photos</li>
+<li>Basic selection, move, resize, hide/show, duplicate, delete</li>
+</ul>
+<h3 id="out-of-scope-for-first-pass">Out of Scope for First Pass<a class="headerlink" href="#out-of-scope-for-first-pass" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Remote sticker packs or downloadable assets</li>
+<li>Rich text editing</li>
+<li>Arbitrary rotation per overlay</li>
+<li>Blend modes beyond opacity</li>
+<li>Disk-backed history or reusable user asset libraries</li>
+</ul>
+<h2 id="terminology">Terminology<a class="headerlink" href="#terminology" title="Permanent link">&para;</a></h2>
+<p>Use <code>Overlay</code> as the product term. It accurately covers timestamp, text, QR, and imported images. <code>Sticker</code> can be a future preset category implemented on top of overlays.</p>
+<h2 id="data-model">Data Model<a class="headerlink" href="#data-model" title="Permanent link">&para;</a></h2>
+<p>Add overlays to <code>QueueItemEditState</code> and <code>NewPhotoDefaults</code>.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kd">struct</span><span class="w"> </span><span class="nc">OverlayItem</span><span class="p">:</span><span class="w"> </span><span class="n">Identifiable</span><span class="p">,</span><span class="w"> </span><span class="n">Codable</span><span class="p">,</span><span class="w"> </span><span class="nb">Equatable</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">id</span><span class="p">:</span><span class="w"> </span><span class="n">UUID</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">kind</span><span class="p">:</span><span class="w"> </span><span class="n">OverlayKind</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">placement</span><span class="p">:</span><span class="w"> </span><span class="n">OverlayPlacement</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">opacity</span><span class="p">:</span><span class="w"> </span><span class="nb">Double</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mf">1.0</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">zIndex</span><span class="p">:</span><span class="w"> </span><span class="nb">Int</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">isHidden</span><span class="p">:</span><span class="w"> </span><span class="nb">Bool</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">false</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">isLocked</span><span class="p">:</span><span class="w"> </span><span class="nb">Bool</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">false</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">}</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="kd">enum</span><span class="w"> </span><span class="nc">OverlayKind</span><span class="p">:</span><span class="w"> </span><span class="n">Codable</span><span class="p">,</span><span class="w"> </span><span class="nb">Equatable</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">text</span><span class="p">(</span><span class="n">TextOverlayData</span><span class="p">)</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">qr</span><span class="p">(</span><span class="n">QROverlayData</span><span class="p">)</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">timestamp</span><span class="p">(</span><span class="n">TimestampOverlayData</span><span class="p">)</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="n">image</span><span class="p">(</span><span class="n">ImageOverlayData</span><span class="p">)</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="p">}</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="kd">struct</span><span class="w"> </span><span class="nc">OverlayPlacement</span><span class="p">:</span><span class="w"> </span><span class="n">Codable</span><span class="p">,</span><span class="w"> </span><span class="nb">Equatable</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">normalizedCenter</span><span class="p">:</span><span class="w"> </span><span class="n">CGPoint</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">normalizedSize</span><span class="p">:</span><span class="w"> </span><span class="n">CGSize</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">anchor</span><span class="p">:</span><span class="w"> </span><span class="n">OverlayAnchor</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="p">.</span><span class="n">center</span>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="type-payloads">Type Payloads<a class="headerlink" href="#type-payloads" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>TextOverlayData</code>: plain text, font family, font size factor, foreground color, optional background pill, text alignment, shadow, emoji optimization flag</li>
+<li><code>QROverlayData</code>: payload string, foreground color, background color, error correction level, quiet zone, corner style if added later</li>
+<li><code>TimestampOverlayData</code>: preset key, date format, show time, glow, source date</li>
+<li><code>ImageOverlayData</code>: asset ID, content mode, corner radius, optional white backing</li>
+</ul>
+<h3 id="placement-rules">Placement Rules<a class="headerlink" href="#placement-rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Store overlay coordinates relative to the printable image area, not view pixels and not full film frame size.</li>
+<li>Normalize to <code>0...1</code> so preview and print use the same geometry.</li>
+<li>Keep film border and decorative frame outside the overlay coordinate system.</li>
+</ul>
+<h3 id="asset-strategy">Asset Strategy<a class="headerlink" href="#asset-strategy" title="Permanent link">&para;</a></h3>
+<p>Imported image overlays should reference a lightweight asset record:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">struct</span><span class="w"> </span><span class="nc">OverlayAsset</span><span class="p">:</span><span class="w"> </span><span class="n">Identifiable</span><span class="p">,</span><span class="w"> </span><span class="n">Codable</span><span class="p">,</span><span class="w"> </span><span class="nb">Equatable</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">id</span><span class="p">:</span><span class="w"> </span><span class="n">UUID</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">sourceURL</span><span class="p">:</span><span class="w"> </span><span class="n">URL</span><span class="p">?</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">bookmarkData</span><span class="p">:</span><span class="w"> </span><span class="n">Data</span><span class="p">?</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nv">imageData</span><span class="p">:</span><span class="w"> </span><span class="n">Data</span><span class="p">?</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
+</code></pre></div>
+<p>For the first pass, storing image data in memory inside the queue is acceptable. The model should still be <code>Codable</code> so it can move to disk-backed history later without a redesign.</p>
+<h2 id="view-model-refactor">View Model Refactor<a class="headerlink" href="#view-model-refactor" title="Permanent link">&para;</a></h2>
+<p>The current <code>ViewModel</code> exposes many flat date stamp fields:</p>
+<ul>
+<li><code>dateStampEnabled</code></li>
+<li><code>showTimeRow</code></li>
+<li><code>dateStampPosition</code></li>
+<li><code>dateStampStyle</code></li>
+<li><code>dateStampFormat</code></li>
+<li><code>lightBleedEnabled</code></li>
+</ul>
+<p>That pattern should not be repeated for overlays.</p>
+<h3 id="target-shape">Target Shape<a class="headerlink" href="#target-shape" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Keep image-level transforms as direct <code>@Published</code> state: fit, crop, rotation, flip, film orientation</li>
+<li>Move overlays into a single published collection for the selected queue item</li>
+<li>Track only transient editor state separately:</li>
+<li><code>selectedOverlayID</code></li>
+<li><code>hoveredOverlayID</code></li>
+<li><code>isDraggingOverlay</code></li>
+<li><code>overlayDraftKind</code> for add flow if needed</li>
+</ul>
+<h3 id="compatibility-strategy">Compatibility Strategy<a class="headerlink" href="#compatibility-strategy" title="Permanent link">&para;</a></h3>
+<p>Do this in two steps:</p>
+<ol>
+<li>Add <code>overlays: [OverlayItem]</code> to <code>QueueItemEditState</code> and <code>NewPhotoDefaults</code></li>
+<li>Convert the old date stamp fields into a generated <code>timestamp</code> overlay during state load/save</li>
+</ol>
+<p>That allows the UI and renderer to move first, then the old date stamp fields can be deleted once the migration is stable.</p>
+<h2 id="rendering-architecture">Rendering Architecture<a class="headerlink" href="#rendering-architecture" title="Permanent link">&para;</a></h2>
+<p>Preview and print must share one composition model.</p>
+<h3 id="core-rule">Core Rule<a class="headerlink" href="#core-rule" title="Permanent link">&para;</a></h3>
+<p>Do not keep a separate <code>DateStampOverlayView</code> path and a separate <code>stampImage()</code> path long term. That will drift.</p>
+<h3 id="proposed-layers">Proposed Layers<a class="headerlink" href="#proposed-layers" title="Permanent link">&para;</a></h3>
+<ol>
+<li><code>BaseImageRenderState</code></li>
+<li>crop</li>
+<li>fit</li>
+<li>flip</li>
+<li>rotation</li>
+<li>film orientation</li>
+<li><code>OverlayRenderState</code></li>
+<li>resolved overlay frames in normalized print-area coordinates</li>
+<li><code>CompositedPrintCanvas</code></li>
+<li>final canvas size based on printer model</li>
+</ol>
+<h3 id="implementation-approach">Implementation Approach<a class="headerlink" href="#implementation-approach" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Introduce a shared overlay rendering layer for SwiftUI preview</li>
+<li>Introduce a matching Core Graphics / Core Image compositor for print preparation</li>
+<li>Apply overlays after crop/flip/rotation and before final film-orientation rotation</li>
+</ul>
+<p>That ordering keeps on-screen preview aligned with exported print pixels.</p>
+<h3 id="technology-choices">Technology Choices<a class="headerlink" href="#technology-choices" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Text and timestamp rendering: <code>NSAttributedString</code> / Core Text</li>
+<li>QR generation: <code>CIQRCodeGenerator</code></li>
+<li>Image overlays: <code>CGImage</code> drawing in the same compositor</li>
+<li>Preview: SwiftUI overlay views backed by the same normalized placement rules</li>
+</ul>
+<h2 id="editor-ux">Editor UX<a class="headerlink" href="#editor-ux" title="Permanent link">&para;</a></h2>
+<p>The editor should become the only place where overlays are created and adjusted. The main window should preview the result but not expose advanced overlay controls.</p>
+<h3 id="sidebar-structure">Sidebar Structure<a class="headerlink" href="#sidebar-structure" title="Permanent link">&para;</a></h3>
+<p>Replace <code>Date Stamp</code> with <code>Overlays</code>.</p>
+<p>Inside <code>Overlays</code>:</p>
+<ul>
+<li><code>Add Overlay</code> button with menu:</li>
+<li><code>Text</code></li>
+<li><code>QR Code</code></li>
+<li><code>Timestamp</code></li>
+<li><code>Image</code></li>
+<li>Overlay list showing:</li>
+<li>type icon</li>
+<li>title</li>
+<li>hide/show</li>
+<li>lock</li>
+<li>delete</li>
+</ul>
+<h3 id="canvas-behavior">Canvas Behavior<a class="headerlink" href="#canvas-behavior" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Clicking an overlay selects it</li>
+<li>Drag to move</li>
+<li>Corner handles resize</li>
+<li>Snap to edges and corners with subtle guides</li>
+<li><code>Delete</code> removes selected overlay</li>
+<li><code>Command-D</code> duplicates selected overlay</li>
+</ul>
+<h3 id="inspector-behavior">Inspector Behavior<a class="headerlink" href="#inspector-behavior" title="Permanent link">&para;</a></h3>
+<p>Show controls based on selected overlay type.</p>
+<h4 id="text">Text<a class="headerlink" href="#text" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Text field</li>
+<li>Font size</li>
+<li>Color</li>
+<li>Background style</li>
+<li>Opacity</li>
+<li>Alignment</li>
+</ul>
+<p>Emoji should not be a separate overlay type. It should be a good text-overlay experience. Use Apple Color Emoji fallback when the text contains emoji, and keep font choices narrow in the first pass so mixed glyph rendering stays predictable.</p>
+<h4 id="qr-code">QR Code<a class="headerlink" href="#qr-code" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Content field</li>
+<li>Size</li>
+<li>Foreground / background</li>
+<li>Quiet zone toggle</li>
+<li>Error correction level</li>
+<li>Optional <code>Open Link</code> validation affordance for URLs</li>
+</ul>
+<h4 id="timestamp">Timestamp<a class="headerlink" href="#timestamp" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Preset strip</li>
+<li>Format</li>
+<li>Time on/off</li>
+<li>Glow on/off</li>
+<li>Position shortcuts</li>
+</ul>
+<p>This is the direct replacement for the current date stamp feature.</p>
+<h4 id="image">Image<a class="headerlink" href="#image" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Replace image</li>
+<li>Scale</li>
+<li>Opacity</li>
+<li>Corner radius</li>
+<li><code>Fit</code> vs <code>Fill</code></li>
+<li>Optional white backing for logo-like assets</li>
+</ul>
+<h2 id="main-window-ux">Main Window UX<a class="headerlink" href="#main-window-ux" title="Permanent link">&para;</a></h2>
+<p>Keep main-window controls light.</p>
+<ul>
+<li>Show overlays in preview</li>
+<li>Keep <code>Edit Image</code> as the entry point for overlay editing</li>
+<li>Do not add separate overlay CRUD controls to the main window</li>
+</ul>
+<p>This keeps the top-level print flow fast and prevents the main surface from turning into a full design tool.</p>
+<h2 id="defaults-for-new-photos">Defaults for New Photos<a class="headerlink" href="#defaults-for-new-photos" title="Permanent link">&para;</a></h2>
+<p>The new defaults popover should gain an <code>Overlays</code> area later, but only for reusable defaults:</p>
+<ul>
+<li>default timestamp overlay</li>
+<li>default text overlay templates if we add them later</li>
+</ul>
+<p>Do not enable default QR or default image overlays in the first pass. Those are too specific and will surprise users if they appear automatically on every new photo.</p>
+<h2 id="implementation-phases">Implementation Phases<a class="headerlink" href="#implementation-phases" title="Permanent link">&para;</a></h2>
+<h3 id="phase-1-model-and-migration">Phase 1: Model and Migration<a class="headerlink" href="#phase-1-model-and-migration" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add <code>OverlayItem</code>, payload types, placement model, and asset model</li>
+<li>Extend <code>QueueItemEditState</code> and <code>NewPhotoDefaults</code></li>
+<li>Add compatibility conversion from old date stamp fields to a <code>timestamp</code> overlay</li>
+<li>Keep old UI working temporarily</li>
+</ul>
+<h3 id="phase-2-shared-rendering">Phase 2: Shared Rendering<a class="headerlink" href="#phase-2-shared-rendering" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add a shared overlay placement helper</li>
+<li>Build print compositor for text, timestamp, QR, and image overlays</li>
+<li>Replace <code>stampImage()</code> with general overlay composition</li>
+<li>Add preview overlay container in main and editor film views</li>
+</ul>
+<h3 id="phase-3-editor-foundations">Phase 3: Editor Foundations<a class="headerlink" href="#phase-3-editor-foundations" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add overlay selection state</li>
+<li>Add overlay list UI</li>
+<li>Add canvas move and resize behavior</li>
+<li>Add add/delete/duplicate/hide/lock actions</li>
+</ul>
+<h3 id="phase-4-overlay-type-uis">Phase 4: Overlay Type UIs<a class="headerlink" href="#phase-4-overlay-type-uis" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Text overlay editor</li>
+<li>Timestamp overlay editor</li>
+<li>QR code overlay editor</li>
+<li>Imported image overlay editor</li>
+</ul>
+<h3 id="phase-5-defaults-and-polish">Phase 5: Defaults and Polish<a class="headerlink" href="#phase-5-defaults-and-polish" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add timestamp overlay defaults to <code>Defaults For New Photos</code></li>
+<li>Add snapping guides</li>
+<li>Add keyboard shortcuts</li>
+<li>Add accessibility labels and localization strings</li>
+</ul>
+<h2 id="testing-plan">Testing Plan<a class="headerlink" href="#testing-plan" title="Permanent link">&para;</a></h2>
+<h3 id="manual-qa">Manual QA<a class="headerlink" href="#manual-qa" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add multiple overlays to one photo and switch queue items</li>
+<li>Print preview matches print output</li>
+<li>Rotated film orientation preserves overlay layout</li>
+<li>Crop + overlay combinations remain stable</li>
+<li>Deleting queue items does not leak selected overlay state</li>
+<li>QR codes remain scannable after composition</li>
+<li>Emoji text prints legibly on mini, square, and wide</li>
+</ul>
+<h3 id="unit-snapshot-targets">Unit / Snapshot Targets<a class="headerlink" href="#unit-snapshot-targets" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Timestamp migration to <code>OverlayItem</code></li>
+<li>Overlay placement normalization and denormalization</li>
+<li>QR generation output size</li>
+<li>Print compositor ordering</li>
+<li>Queue-item persistence of overlays</li>
+</ul>
+<h2 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Preview/print mismatch if SwiftUI and Core Graphics layout drift</li>
+<li>Mixed emoji and text font rendering can look inconsistent</li>
+<li>Image overlays can inflate memory if raw data is duplicated per queue item</li>
+<li>Gesture conflicts between crop interaction and overlay interaction</li>
+</ol>
+<h2 id="recommended-implementation-order">Recommended Implementation Order<a class="headerlink" href="#recommended-implementation-order" title="Permanent link">&para;</a></h2>
+<p>Start with <code>timestamp</code> and <code>text</code> overlays first. They exercise most of the architecture with the lowest asset complexity. Add <code>QR</code> next because Core Image makes it cheap. Add imported image overlays last because asset handling and memory management are the hardest part.</p>
+<h2 id="success-criteria">Success Criteria<a class="headerlink" href="#success-criteria" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Users can add, edit, reorder, hide, duplicate, and delete overlays per photo</li>
+<li>Timestamp is fully implemented as an overlay, not a special case</li>
+<li>Preview and print output match</li>
+<li>Overlay state persists across queue selection changes</li>
+<li>The editor remains understandable for quick single-photo edits</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.indexes", "navigation.top", "navigation.tracking", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
