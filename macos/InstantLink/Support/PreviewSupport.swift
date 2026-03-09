@@ -393,7 +393,7 @@ struct OverlayQRCodePreviewView: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            if let image = viewModel.qrCodeImage(for: data) {
+            if let image = PrintRenderService.qrCodeImage(for: data) {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.none)
@@ -426,18 +426,18 @@ struct TimestampPreviewView: View {
     let size: CGSize
 
     var body: some View {
-        let date = viewModel.resolvedTimestampDate(for: data)
-        let preset = ViewModel.dateStampPresets[data.presetKey] ?? ViewModel.dateStampPresets["classic"]!
+        let date = PrintRenderService.resolvedTimestampDate(for: data, imageDate: viewModel.imageDate)
+        let preset = TimestampPresetCatalog.presets[data.presetKey] ?? TimestampPresetCatalog.presets["classic"]!
         let stampColor = Color(red: preset.color.0, green: preset.color.1, blue: preset.color.2)
         let fontSize = max(10, size.height * (data.showsTime ? 0.32 : 0.52))
 
         VStack(spacing: fontSize * 0.12) {
-            Text(viewModel.timestampText(from: date, format: data.format, separator: preset.separator))
+            Text(PrintRenderService.timestampText(from: date, format: data.format, separator: preset.separator))
                 .font(.custom(preset.fontFamily, size: fontSize))
                 .tracking(fontSize * preset.tracking)
                 .foregroundColor(stampColor)
             if data.showsTime {
-                Text(viewModel.timeStampText(from: date))
+                Text(PrintRenderService.timeStampText(from: date))
                     .font(.custom(preset.fontFamily, size: fontSize))
                     .tracking(fontSize * preset.tracking)
                     .foregroundColor(stampColor)
@@ -483,7 +483,12 @@ struct OverlayLocationPreviewView: View {
     let size: CGSize
 
     var body: some View {
-        Text(viewModel.resolvedLocationText(for: data) ?? L("No location metadata"))
+        Text(
+            PrintRenderService.resolvedLocationText(
+                for: data,
+                imageLocation: viewModel.imageLocation
+            ) ?? L("No location metadata")
+        )
             .font(.system(size: max(10, size.height * 0.22), weight: .medium, design: .monospaced))
             .foregroundColor(.white)
             .multilineTextAlignment(.center)
@@ -499,7 +504,7 @@ struct OverlayLocationPreviewView: View {
 }
 
 struct PresetCard: View {
-    let preset: ViewModel.DateStampPreset
+    let preset: DateStampPreset
     let isSelected: Bool
 
     var body: some View {

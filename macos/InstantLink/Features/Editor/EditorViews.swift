@@ -810,9 +810,9 @@ struct SelectedOverlayInspectorView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    ForEach(ViewModel.presetOrder, id: \.self) { key in
+                    ForEach(TimestampPresetCatalog.presetOrder, id: \.self) { key in
                         PresetCard(
-                            preset: ViewModel.dateStampPresets[key]!,
+                            preset: TimestampPresetCatalog.presets[key]!,
                             isSelected: {
                                 guard let overlay = viewModel.selectedOverlay,
                                       case .timestamp(let data) = overlay.content else { return false }
@@ -822,7 +822,7 @@ struct SelectedOverlayInspectorView: View {
                         .onTapGesture {
                             viewModel.updateSelectedTimestampOverlay {
                                 $0.presetKey = key
-                                $0.lightBleedEnabled = ViewModel.dateStampPresets[key]!.defaultLightBleed
+                                $0.lightBleedEnabled = TimestampPresetCatalog.presets[key]!.defaultLightBleed
                             }
                         }
                     }
@@ -1087,15 +1087,15 @@ struct DefaultTimestampOverlayEditor: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(ViewModel.presetOrder, id: \.self) { key in
+                        ForEach(TimestampPresetCatalog.presetOrder, id: \.self) { key in
                             PresetCard(
-                                preset: ViewModel.dateStampPresets[key]!,
+                                preset: TimestampPresetCatalog.presets[key]!,
                                 isSelected: data.presetKey == key
                             )
                             .onTapGesture {
                                 viewModel.updateDefaultTimestampOverlay {
                                     $0.presetKey = key
-                                    $0.lightBleedEnabled = ViewModel.dateStampPresets[key]!.defaultLightBleed
+                                    $0.lightBleedEnabled = TimestampPresetCatalog.presets[key]!.defaultLightBleed
                                 }
                             }
                         }

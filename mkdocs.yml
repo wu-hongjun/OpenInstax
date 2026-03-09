@@ -55,6 +55,7 @@ nav:
       - Plan 008 UI/UX Pass 2: plans/008-ui-ux-pass-2.md
       - Plan 009 Repo Simplification Audit: plans/009-repo-simplification-audit.md
       - Plan 010 UI/UX Pass 3: plans/010-ui-ux-pass-3.md
+      - Plan 011 macOS Coordinator Extraction: plans/011-macos-coordinator-extraction.md
 
 plugins:
   - search

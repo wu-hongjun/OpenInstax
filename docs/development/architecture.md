@@ -63,7 +63,7 @@ The FFI crate exposes the Rust core through a C ABI.
 The macOS app lives in `macos/InstantLink/` and is split by responsibility.
 
 - `App/` holds the SwiftUI app entry point, restart helper, and app delegate
-- `Core/` holds shared app state such as `ViewModel`, printer orchestration, queue state, and print pipeline logic
+- `Core/` holds shared app state (`ViewModel`), persisted app models, runtime services, and coordinator/service layers for printer connection, queue editing, and print rendering
 - `Features/` groups UI by workflow: `Camera/`, `Editor/`, `Main/`, and `Settings/`
 - `Support/` holds reusable UI primitives such as film frames, preview helpers, overlay canvas rendering, and shared visual styles
 - `OverlayModels.swift` defines the overlay data model and typed payloads

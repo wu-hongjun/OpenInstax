@@ -48,7 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        ViewModel.registerBundledFonts()
+        BundledFontRegistrar.register()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem?.button {
             button.image = NSImage(systemSymbolName: "printer.fill", accessibilityDescription: L("InstantLink"))
