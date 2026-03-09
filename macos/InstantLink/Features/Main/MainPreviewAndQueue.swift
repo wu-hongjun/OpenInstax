@@ -190,12 +190,13 @@ struct MainPreviewView: View {
             width: viewModel.cropOffset.width + dragDelta.width,
             height: viewModel.cropOffset.height + dragDelta.height
         )
-        return viewModel.clampedCropOffset(
+        let clamped = viewModel.clampedCropOffset(
             raw: raw,
             imageSize: imageSize,
             frameSize: localFrameSize,
             zoom: effectiveZoom
         )
+        return CGSize(width: -clamped.width, height: -clamped.height)
     }
 }
 
@@ -497,7 +498,6 @@ struct QuickPrintToolbarView: View {
     var body: some View {
         HStack(spacing: 10) {
             QuickZoomControlsView(resetTitle: L("Reset Zoom"), showsChrome: false)
-                .frame(maxWidth: .infinity, alignment: .leading)
 
             toolbarDivider
 
@@ -524,6 +524,8 @@ struct QuickPrintToolbarView: View {
                 .accessibilityLabel(Text(L("Film Orientation")))
             }
 
+            Spacer(minLength: 0)
+
             toolbarDivider
 
             quickToolbarButton(
@@ -531,22 +533,14 @@ struct QuickPrintToolbarView: View {
                 systemImage: "plus",
                 action: { viewModel.selectImage() }
             )
-            .frame(maxWidth: .infinity)
 
             quickToolbarButton(
                 title: L("Edit Image"),
                 systemImage: "slider.horizontal.3",
                 action: openEditor
             )
-            .frame(maxWidth: .infinity)
             .disabled(viewModel.selectedImage == nil)
         }
-        .padding(8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-        )
     }
 
     private var toolbarDivider: some View {

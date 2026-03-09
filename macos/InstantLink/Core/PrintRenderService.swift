@@ -304,8 +304,8 @@ enum PrintRenderService {
         }
 
         let pixelsPerScaledPoint = pixelW / (displayW * cropZoom)
-        let visibleX = (displayW * cropZoom - frameW) / 2 - cropOffset.width
-        let visibleY = (displayH * cropZoom - frameH) / 2 - cropOffset.height
+        let visibleX = (displayW * cropZoom - frameW) / 2 + cropOffset.width
+        let visibleY = (displayH * cropZoom - frameH) / 2 + cropOffset.height
 
         let cropRect = CGRect(
             x: visibleX * pixelsPerScaledPoint,

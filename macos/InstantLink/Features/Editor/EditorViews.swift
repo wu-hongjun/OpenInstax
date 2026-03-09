@@ -182,12 +182,13 @@ struct EditorPreviewView: View {
             width: viewModel.cropOffset.width + dragDelta.width,
             height: viewModel.cropOffset.height + dragDelta.height
         )
-        return viewModel.clampedCropOffset(
+        let clamped = viewModel.clampedCropOffset(
             raw: raw,
             imageSize: imageSize,
             frameSize: localFrameSize,
             zoom: effectiveZoom
         )
+        return CGSize(width: -clamped.width, height: -clamped.height)
     }
 }
 
