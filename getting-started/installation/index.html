@@ -1080,7 +1080,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cp<span class="w"> </span>target/release/instantlink<span class="w"> </span>/usr/local/bin/
 </code></pre></div>
 <h2 id="build-the-macos-app">Build the macOS App<a class="headerlink" href="#build-the-macos-app" title="Permanent link">&para;</a></h2>
-<p>The app bundle embeds the CLI binary and the FFI dylib.</p>
+<p>The app bundle embeds the CLI binary and the FFI dylib. Runtime printer/device operations use the bundled FFI dylib; the bundled CLI is kept only for lightweight metadata such as version reporting.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>bash<span class="w"> </span>scripts/build-app.sh<span class="w"> </span><span class="m">0</span>.1.2
 </code></pre></div>
 <p><code>scripts/build-app.sh</code> requires a semver version argument. It builds the Rust workspace, compiles the SwiftUI launcher, bundles localizations and fonts, codesigns the app, and creates a <code>.dmg</code> when <code>create-dmg</code> is installed (<code>brew install create-dmg</code>).</p>

@@ -995,7 +995,7 @@
 
 
 <h1 id="plan-009-repository-simplification-audit">Plan 009: Repository Simplification Audit<a class="headerlink" href="#plan-009-repository-simplification-audit" title="Permanent link">&para;</a></h1>
-<p><strong>Status:</strong> Proposed</p>
+<p><strong>Status:</strong> In Progress</p>
 <h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
 <p>Reduce structural complexity across the repository now, while backward compatibility is still cheap to break.</p>
 <p>This is not a feature pass. It is a cleanup sequence aimed at removing stale paths, collapsing duplicate structures, and making the repository easier to evolve.</p>
@@ -1010,26 +1010,16 @@
 3. optionally fail CI if the checked-in header differs from generated output</p>
 <h2 id="p1-cleanup-sequence">P1 Cleanup Sequence<a class="headerlink" href="#p1-cleanup-sequence" title="Permanent link">&para;</a></h2>
 <h3 id="1-split-the-macos-app-by-feature">1. Split the macOS app by feature<a class="headerlink" href="#1-split-the-macos-app-by-feature" title="Permanent link">&para;</a></h3>
-<p><code>macos/InstantLink/InstantLinkApp.swift</code> is still too monolithic. It currently mixes:</p>
+<p>Completed in March 2026: the macOS app is no longer a single-file target. The old <code>InstantLinkApp.swift</code> monolith was split into:</p>
 <ul>
-<li>app lifecycle</li>
-<li>printer/device orchestration</li>
-<li>print pipeline</li>
-<li>queue state</li>
-<li>camera flow</li>
-<li>overlay editor</li>
-<li>settings/about UI</li>
+<li><code>App/</code> for lifecycle and relaunch helpers</li>
+<li><code>Core/</code> for <code>ViewModel</code>, queue state, and print orchestration</li>
+<li><code>Features/Camera/</code>, <code>Features/Main/</code>, <code>Features/Editor/</code>, and <code>Features/Settings/</code> for workflow-specific UI</li>
+<li><code>Support/</code> for reusable preview, overlay, and panel components</li>
 </ul>
-<p>Recommended target structure:</p>
-<ul>
-<li><code>App/</code></li>
-<li><code>Features/Queue/</code></li>
-<li><code>Features/Camera/</code></li>
-<li><code>Features/OverlayEditor/</code></li>
-<li><code>Features/Settings/</code></li>
-<li><code>Services/Printing/</code></li>
-<li><code>Services/Profiles/</code></li>
-</ul>
+<p>Remaining follow-up:
+- continue reducing <code>Core/ViewModel.swift</code> by extracting non-state services and helpers behind clearer boundaries
+- consolidate printer profile editing flows so settings and post-pairing use the same editor surface</p>
 <h3 id="2-remove-or-formalize-instantlinkcliswift">2. Remove or formalize <code>InstantLinkCLI.swift</code><a class="headerlink" href="#2-remove-or-formalize-instantlinkcliswift" title="Permanent link">&para;</a></h3>
 <p>Completed in March 2026: <code>InstantLinkCLI.swift</code> was removed and <code>scripts/build-app.sh</code> no longer compiles a Swift CLI fallback layer. The macOS app now uses the FFI dylib as its only printer/device runtime path, while the bundled CLI binary remains only for metadata/version lookups.</p>
 <h3 id="3-consolidate-printer-profile-editors">3. Consolidate printer profile editors<a class="headerlink" href="#3-consolidate-printer-profile-editors" title="Permanent link">&para;</a></h3>
@@ -1047,17 +1037,16 @@
 <h2 id="suggested-order">Suggested Order<a class="headerlink" href="#suggested-order" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Fix FFI header packaging in CI/release flow</li>
-<li>Remove dead macOS CLI fallback path if truly unused</li>
-<li>Split <code>InstantLinkApp.swift</code> into feature files without changing behavior</li>
 <li>Consolidate duplicate printer-profile editing views</li>
 <li>Archive completed plans and tighten docs ownership</li>
+<li>Continue decomposing <code>Core/ViewModel.swift</code> into smaller services once current UX work stabilizes</li>
 </ol>
 <h2 id="exit-criteria">Exit Criteria<a class="headerlink" href="#exit-criteria" title="Permanent link">&para;</a></h2>
 <p>This audit is complete when the repo has:</p>
 <ul>
 <li>one authoritative FFI header path per release</li>
 <li>no dead fallback layers</li>
-<li>a decomposed macOS app structure</li>
+<li>a decomposed macOS app structure with slimmer core state ownership</li>
 <li>fewer duplicated UI/editor paths</li>
 <li>a clear boundary between active plans and historical records</li>
 </ul>

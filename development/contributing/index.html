@@ -1136,10 +1136,17 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>│   ├── instantlink-core/   # BLE protocol, device logic, image processing
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>│   ├── instantlink-cli/    # CLI binary
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>│   └── instantlink-ffi/    # C ABI wrapper for native apps
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>├── macos/InstantLink/      # SwiftUI app, FFI loader, overlay models
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>├── docs/                   # MkDocs documentation
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>├── scripts/build-app.sh    # App bundle + DMG build script
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>└── .github/workflows/      # CI and release automation
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>├── macos/InstantLink/
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>│   ├── App/                # SwiftUI app entry, app delegate, relaunch helpers
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>│   ├── Core/               # ViewModel, queue state, print pipeline
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>│   ├── Features/           # Camera, main window, editor, settings UI
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>│   ├── Support/            # Shared preview, overlay, and panel components
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>│   ├── InstantLinkFFI.swift
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>│   ├── Localization.swift
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>│   └── OverlayModels.swift
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>├── docs/                   # MkDocs documentation
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>├── scripts/build-app.sh    # App bundle + DMG build script
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>└── .github/workflows/      # CI and release automation
 </code></pre></div>
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <h3 id="fast-tests">Fast Tests<a class="headerlink" href="#fast-tests" title="Permanent link">&para;</a></h3>
