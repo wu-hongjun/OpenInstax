@@ -2077,9 +2077,13 @@ struct CameraActionsView: View {
                         Button {
                             viewModel.filmOrientation = viewModel.filmOrientation == "default" ? "rotated" : "default"
                         } label: {
-                            Image(systemName: viewModel.filmOrientation == "default"
-                                ? "rectangle.portrait.arrowtriangle.2.outward" : "rectangle.landscape.arrowtriangle.2.outward")
-                                .font(.callout)
+                            HStack(spacing: 4) {
+                                Image(systemName: viewModel.filmOrientation == "default"
+                                    ? "rectangle.portrait" : "rectangle")
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 8, weight: .semibold))
+                            }
+                            .font(.callout)
                         }
                         .help(L("Film Orientation"))
                     }
