@@ -23,11 +23,17 @@
 "Try Again" = "다시 시도";
 "Open File" = "파일 열기";
 "Save" = "저장";
+"Reset" = "재설정";
 "Reset Crop" = "자르기 초기화";
 "Scan for Printers" = "프린터 스캔";
 "Edit Image" = "이미지 편집";
 "Done" = "완료";
 "Print" = "인쇄";
+"Flip" = "반전";
+"Print Current" = "현재 이미지 인쇄";
+"Zoom" = "줌";
+"Zoom Out" = "축소";
+"Zoom In" = "확대";
 
 /* Status Display */
 "Connected" = "연결됨";
@@ -123,6 +129,7 @@
 "Delete" = "삭제";
 "delete_printer_confirm" = "이 프린터를 삭제하시겠습니까?";
 "GitHub" = "GitHub";
+"Report an Issue" = "문제 신고";
 
 /* Updates */
 "Check for Updates" = "업데이트 확인";
@@ -159,6 +166,7 @@
 
 /* Print Queue */
 "print_n_images" = "%d장 인쇄";
+"print_next_n" = "다음 %d장 인쇄";
 "printing_n_of_m" = "%d / %d 인쇄 중";
 "printed_n_images" = "%d장 인쇄 완료!";
 "print_failed_at" = "%d / %d번째에서 인쇄 실패";

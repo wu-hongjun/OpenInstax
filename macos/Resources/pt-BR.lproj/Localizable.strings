@@ -24,11 +24,17 @@
 "Try Again" = "Tentar novamente";
 "Open File" = "Abrir arquivo";
 "Save" = "Salvar";
+"Reset" = "Redefinir";
 "Reset Crop" = "Redefinir corte";
 "Scan for Printers" = "Buscar impressoras";
 "Edit Image" = "Editar imagem";
 "Done" = "Concluído";
 "Print" = "Imprimir";
+"Flip" = "Espelhar";
+"Print Current" = "Imprimir atual";
+"Zoom" = "Zoom";
+"Zoom Out" = "Diminuir zoom";
+"Zoom In" = "Aumentar zoom";
 
 /* Status Display */
 "Connected" = "Conectada";
@@ -124,6 +130,7 @@
 "Delete" = "Excluir";
 "delete_printer_confirm" = "Tem certeza de que deseja excluir esta impressora?";
 "GitHub" = "GitHub";
+"Report an Issue" = "Relatar um problema";
 
 /* Updates */
 "Check for Updates" = "Verificar atualizações";
@@ -160,6 +167,7 @@
 
 /* Print Queue */
 "print_n_images" = "Imprimir %d imagens";
+"print_next_n" = "Imprimir próximas %d";
 "printing_n_of_m" = "Imprimindo %d de %d";
 "printed_n_images" = "%d imagens impressas!";
 "print_failed_at" = "Impressão falhou na imagem %d de %d";

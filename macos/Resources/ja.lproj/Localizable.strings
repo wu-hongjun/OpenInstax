@@ -23,11 +23,17 @@
 "Try Again" = "再試行";
 "Open File" = "ファイルを開く";
 "Save" = "保存";
+"Reset" = "リセット";
 "Reset Crop" = "切り抜きをリセット";
 "Scan for Printers" = "プリンターをスキャン";
 "Edit Image" = "画像を編集";
 "Done" = "完了";
 "Print" = "印刷";
+"Flip" = "反転";
+"Print Current" = "現在の画像を印刷";
+"Zoom" = "ズーム";
+"Zoom Out" = "縮小";
+"Zoom In" = "拡大";
 
 /* Status Display */
 "Connected" = "接続済み";
@@ -123,6 +129,7 @@
 "Delete" = "削除";
 "delete_printer_confirm" = "このプリンターを削除してもよろしいですか？";
 "GitHub" = "GitHub";
+"Report an Issue" = "問題を報告";
 
 /* Updates */
 "Check for Updates" = "アップデートを確認";
@@ -159,6 +166,7 @@
 
 /* Print Queue */
 "print_n_images" = "%d 枚を印刷";
+"print_next_n" = "次の %d 枚を印刷";
 "printing_n_of_m" = "%d / %d 印刷中";
 "printed_n_images" = "%d 枚印刷しました！";
 "print_failed_at" = "%d / %d 枚目で印刷失敗";

@@ -23,11 +23,17 @@
 "Try Again" = "إعادة المحاولة";
 "Open File" = "فتح ملف";
 "Save" = "حفظ";
+"Reset" = "إعادة تعيين";
 "Reset Crop" = "إعادة تعيين القص";
 "Scan for Printers" = "البحث عن طابعات";
 "Edit Image" = "تعديل الصورة";
 "Done" = "تم";
 "Print" = "طباعة";
+"Flip" = "قلب";
+"Print Current" = "طباعة الحالية";
+"Zoom" = "تكبير";
+"Zoom Out" = "تصغير";
+"Zoom In" = "تكبير";
 
 /* Status Display */
 "Connected" = "متصلة";
@@ -123,6 +129,7 @@
 "Delete" = "حذف";
 "delete_printer_confirm" = "هل أنت متأكد أنك تريد حذف هذه الطابعة؟";
 "GitHub" = "GitHub";
+"Report an Issue" = "الإبلاغ عن مشكلة";
 
 /* Updates */
 "Check for Updates" = "التحقق من التحديثات";
@@ -159,6 +166,7 @@
 
 /* Print Queue */
 "print_n_images" = "طباعة %d صور";
+"print_next_n" = "طباعة %d التالية";
 "printing_n_of_m" = "طباعة %d من %d";
 "printed_n_images" = "تمت طباعة %d صور!";
 "print_failed_at" = "فشلت الطباعة عند الصورة %d من %d";

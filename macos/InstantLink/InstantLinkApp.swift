@@ -246,6 +246,7 @@ struct QueueItemEditState: Equatable {
     var cropOffset: CGSize = .zero
     var cropZoom: CGFloat = 1.0
     var rotationAngle: Int = 0
+    var isHorizontallyFlipped: Bool = false
     var dateStampEnabled: Bool = false
     var showTimeRow: Bool = true
     var dateStampPosition: String = "bottomRight"
@@ -281,6 +282,9 @@ struct QueueItem: Identifiable, Equatable {
 
 class ViewModel: ObservableObject {
     static let maxQueueItems = 20
+    static let minCropZoom: CGFloat = 1.0
+    static let maxCropZoom: CGFloat = 5.0
+    static let quickCropZoomStep: CGFloat = 0.25
 
     let ffi: InstantLinkFFI
     private var isApplyingQueueItemEditState = false
@@ -340,6 +344,9 @@ class ViewModel: ObservableObject {
 
     // Rotation
     @Published var rotationAngle: Int = 0 {  // 0, 90, 180, 270
+        didSet { persistSelectedQueueItemEditState() }
+    }
+    @Published var isHorizontallyFlipped: Bool = false {
         didSet { persistSelectedQueueItemEditState() }
     }
 
@@ -813,9 +820,83 @@ class ViewModel: ObservableObject {
         applyDefaultQueueItemEditState()
     }
 
+    var printableQueueCountFromSelection: Int {
+        guard !queue.isEmpty else { return 0 }
+        let startIndex = queue.indices.contains(selectedQueueIndex) ? selectedQueueIndex : 0
+        return min(queue.count - startIndex, filmRemaining)
+    }
+
     func resetCropAdjustments() {
         cropOffset = .zero
-        cropZoom = 1.0
+        cropZoom = Self.minCropZoom
+    }
+
+    var canQuickZoomIn: Bool {
+        selectedImage != nil && cropZoom < Self.maxCropZoom - 0.001
+    }
+
+    var canQuickZoomOut: Bool {
+        selectedImage != nil && fitMode == "crop" && cropZoom > Self.minCropZoom + 0.001
+    }
+
+    var canResetCropAdjustments: Bool {
+        selectedImage != nil &&
+        fitMode == "crop" &&
+        (cropOffset != .zero || abs(cropZoom - Self.minCropZoom) > 0.001)
+    }
+
+    func quickZoomIn() {
+        guard selectedImage != nil else { return }
+        if fitMode != "crop" {
+            fitMode = "crop"
+        }
+        setCropZoom(cropZoom + Self.quickCropZoomStep)
+    }
+
+    func quickZoomOut() {
+        guard selectedImage != nil, fitMode == "crop" else { return }
+        setCropZoom(cropZoom - Self.quickCropZoomStep)
+    }
+
+    func setCropZoom(_ zoom: CGFloat) {
+        guard let image = selectedImage else { return }
+        let newZoom = min(max(zoom, Self.minCropZoom), Self.maxCropZoom)
+        cropZoom = newZoom
+        cropOffset = clampedCropOffset(
+            raw: cropOffset,
+            imageSize: image.size,
+            frameSize: cropFrameSize,
+            zoom: newZoom
+        )
+    }
+
+    func clampedCropOffset(raw: CGSize, imageSize: CGSize, frameSize: CGSize, zoom: CGFloat) -> CGSize {
+        let maxOff = maxCropOffset(imageSize: imageSize, frameSize: frameSize, zoom: zoom)
+        return CGSize(
+            width: min(max(raw.width, -maxOff.width), maxOff.width),
+            height: min(max(raw.height, -maxOff.height), maxOff.height)
+        )
+    }
+
+    private func maxCropOffset(imageSize: CGSize, frameSize: CGSize, zoom: CGFloat) -> CGSize {
+        guard frameSize.width > 0, frameSize.height > 0 else { return .zero }
+        let imageAR = imageSize.width / imageSize.height
+        let frameAR = frameSize.width / frameSize.height
+
+        let displayW: CGFloat
+        let displayH: CGFloat
+        if imageAR > frameAR {
+            displayH = frameSize.height
+            displayW = frameSize.height * imageAR
+        } else {
+            displayW = frameSize.width
+            displayH = frameSize.width / imageAR
+        }
+
+        return CGSize(
+            width: max(0, (displayW * zoom - frameSize.width) / 2),
+            height: max(0, (displayH * zoom - frameSize.height) / 2)
+        )
     }
 
     func saveCurrentSettingsAsNewPhotoDefaults() {
@@ -845,6 +926,7 @@ class ViewModel: ObservableObject {
             cropOffset: cropOffset,
             cropZoom: cropZoom,
             rotationAngle: rotationAngle,
+            isHorizontallyFlipped: isHorizontallyFlipped,
             dateStampEnabled: dateStampEnabled,
             showTimeRow: showTimeRow,
             dateStampPosition: dateStampPosition,
@@ -868,6 +950,13 @@ class ViewModel: ObservableObject {
         )
     }
 
+    private func makeCapturedQueueItemEditState() -> QueueItemEditState {
+        var editState = makeQueueItemEditStateFromDefaults()
+        editState.filmOrientation = filmOrientation
+        editState.isHorizontallyFlipped = isHorizontallyFlipped
+        return editState
+    }
+
     private func makeNewQueueItemEditState() -> QueueItemEditState {
         makeQueueItemEditStateFromDefaults()
     }
@@ -882,6 +971,7 @@ class ViewModel: ObservableObject {
         cropOffset = editState.cropOffset
         cropZoom = editState.cropZoom
         rotationAngle = editState.rotationAngle
+        isHorizontallyFlipped = editState.isHorizontallyFlipped
         dateStampEnabled = editState.dateStampEnabled
         showTimeRow = editState.showTimeRow
         dateStampPosition = editState.dateStampPosition
@@ -1089,7 +1179,7 @@ class ViewModel: ObservableObject {
             url: tempURL,
             image: finalImage,
             imageDate: Date(),
-            editState: makeNewQueueItemEditState()
+            editState: makeCapturedQueueItemEditState()
         ))
         selectedQueueIndex = queue.count - 1
         applyQueueItemEditState(queue[selectedQueueIndex].editState)
@@ -1102,6 +1192,7 @@ class ViewModel: ObservableObject {
 
     func rotateClockwise() { rotationAngle = (rotationAngle + 90) % 360 }
     func rotateCounterClockwise() { rotationAngle = (rotationAngle + 270) % 360 }
+    func toggleHorizontalFlip() { isHorizontallyFlipped.toggle() }
 
     private func cropCGImage(_ cgImage: CGImage) -> CGImage? {
         guard printerAspectRatio != nil,
@@ -1378,6 +1469,23 @@ class ViewModel: ObservableObject {
         return context.makeImage()
     }
 
+    private func flipCGImageHorizontally(_ cgImage: CGImage) -> CGImage? {
+        let w = cgImage.width
+        let h = cgImage.height
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        guard let context = CGContext(
+            data: nil, width: w, height: h,
+            bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        context.translateBy(x: CGFloat(w), y: 0)
+        context.scaleBy(x: -1, y: 1)
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return context.makeImage()
+    }
+
     // MARK: - Print Preparation
 
     func prepareImageForPrint() -> (path: String, fit: String, tempFile: String?)? {
@@ -1390,6 +1498,11 @@ class ViewModel: ObservableObject {
 
         if fitMode == "crop", let cropped = cropCGImage(currentCG) {
             currentCG = cropped
+            processed = true
+        }
+
+        if isHorizontallyFlipped, let flipped = flipCGImageHorizontally(currentCG) {
+            currentCG = flipped
             processed = true
         }
 
@@ -1462,8 +1575,11 @@ class ViewModel: ObservableObject {
 
     // MARK: - Batch Printing
 
-    func printQueue() async {
-        let count = min(queue.count, filmRemaining)
+    func printQueue(startingAt startIndex: Int? = nil) async {
+        let firstIndex = startIndex ?? selectedQueueIndex
+        guard queue.indices.contains(firstIndex) else { return }
+
+        let count = min(queue.count - firstIndex, filmRemaining)
         guard count > 0 else { return }
 
         await MainActor.run {
@@ -1473,17 +1589,18 @@ class ViewModel: ObservableObject {
             batchPrintTotal = count
         }
 
-        for i in 0..<count {
+        for offset in 0..<count {
+            let queueIndex = firstIndex + offset
             await MainActor.run {
-                batchPrintIndex = i + 1
-                selectQueueItem(at: i)
+                batchPrintIndex = offset + 1
+                selectQueueItem(at: queueIndex)
             }
 
             guard let prepared = prepareImageForPrint() else {
                 await MainActor.run {
                     isPrinting = false
                     batchPrintTotal = 0
-                    showStatus(L("print_failed_at", i + 1, count))
+                    showStatus(L("print_failed_at", offset + 1, count))
                 }
                 return
             }
@@ -1506,7 +1623,7 @@ class ViewModel: ObservableObject {
                 await MainActor.run {
                     isPrinting = false
                     batchPrintTotal = 0
-                    showStatus(L("print_failed_at", i + 1, count))
+                    showStatus(L("print_failed_at", offset + 1, count))
                 }
                 return
             }
@@ -1514,11 +1631,11 @@ class ViewModel: ObservableObject {
             await refreshStatus()
 
             let remaining = await MainActor.run { filmRemaining }
-            if remaining <= 0 && i < count - 1 {
+            if remaining <= 0 && offset < count - 1 {
                 await MainActor.run {
                     isPrinting = false
                     batchPrintTotal = 0
-                    showStatus(L("film_ran_out", i + 1, count))
+                    showStatus(L("film_ran_out", offset + 1, count))
                 }
                 return
             }
@@ -1979,6 +2096,7 @@ struct CameraView: View {
                                   isRotated: viewModel.filmOrientation == "rotated") {
                         if let ar = viewModel.orientedAspectRatio {
                             CameraPreviewView(session: session, isMirrored: isFront)
+                                .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                 .aspectRatio(ar, contentMode: .fill)
                                 .overlay(alignment: stampAlignmentFor(viewModel)) {
                                     DateStampOverlayView()
@@ -1986,6 +2104,7 @@ struct CameraView: View {
                                 .clipped()
                         } else {
                             CameraPreviewView(session: session, isMirrored: isFront)
+                                .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                         }
                     }
                     .padding(4)
@@ -2016,6 +2135,7 @@ struct CameraView: View {
                         Image(nsImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
+                            .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .aspectRatio(ar, contentMode: .fit)
                             .overlay(alignment: stampAlignmentFor(viewModel)) {
@@ -2025,6 +2145,7 @@ struct CameraView: View {
                     } else {
                         Image(nsImage: image)
                             .resizable()
+                            .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                             .aspectRatio(contentMode: .fit)
                     }
                 }
@@ -2080,18 +2201,33 @@ struct CameraActionsView: View {
                     .frame(maxWidth: 140)
 
                     if viewModel.printerAspectRatio != nil {
-                        Button {
-                            viewModel.filmOrientation = viewModel.filmOrientation == "default" ? "rotated" : "default"
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: viewModel.filmOrientation == "default"
-                                    ? "rectangle.portrait" : "rectangle")
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                    .font(.system(size: 8, weight: .semibold))
+                        HStack(spacing: 8) {
+                            Button {
+                                viewModel.filmOrientation = viewModel.filmOrientation == "default" ? "rotated" : "default"
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: viewModel.filmOrientation == "default"
+                                        ? "rectangle.portrait" : "rectangle")
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 8, weight: .semibold))
+                                }
+                                .font(.callout)
                             }
-                            .font(.callout)
+                            .help(L("Film Orientation"))
+
+                            Button {
+                                viewModel.toggleHorizontalFlip()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.left.and.right")
+                                    Text(L("Flip"))
+                                }
+                                .font(.callout)
+                                .foregroundColor(viewModel.isHorizontallyFlipped ? .accentColor : .primary)
+                            }
+                            .buttonStyle(.bordered)
+                            .help(L("Flip"))
                         }
-                        .help(L("Film Orientation"))
                     }
                 }
 
@@ -2704,7 +2840,10 @@ struct MainPreviewView: View {
                                     Image(nsImage: image)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                        .scaleEffect(effectiveZoom)
+                                        .scaleEffect(
+                                            x: viewModel.isHorizontallyFlipped ? -effectiveZoom : effectiveZoom,
+                                            y: effectiveZoom
+                                        )
                                         .offset(effectiveOffset(imageSize: image.size))
                                         .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                                 )
@@ -2723,7 +2862,7 @@ struct MainPreviewView: View {
                                                 width: viewModel.cropOffset.width + value.translation.width,
                                                 height: viewModel.cropOffset.height + value.translation.height
                                             )
-                                            viewModel.cropOffset = clampedOffset(
+                                            viewModel.cropOffset = viewModel.clampedCropOffset(
                                                 raw: raw,
                                                 imageSize: image.size,
                                                 frameSize: localFrameSize,
@@ -2737,14 +2876,7 @@ struct MainPreviewView: View {
                                             state = value
                                         }
                                         .onEnded { value in
-                                            let newZoom = min(max(viewModel.cropZoom * value, 1.0), 5.0)
-                                            viewModel.cropZoom = newZoom
-                                            viewModel.cropOffset = clampedOffset(
-                                                raw: viewModel.cropOffset,
-                                                imageSize: image.size,
-                                                frameSize: localFrameSize,
-                                                zoom: newZoom
-                                            )
+                                            viewModel.setCropZoom(viewModel.cropZoom * value)
                                         }
                                 )
                                 .onTapGesture(count: 2) { openEditor() }
@@ -2755,6 +2887,7 @@ struct MainPreviewView: View {
                                     Image(nsImage: image)
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
+                                        .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                         .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                                 )
                                 .overlay(alignment: stampAlignmentFor(viewModel)) {
@@ -2766,6 +2899,7 @@ struct MainPreviewView: View {
                             Image(nsImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
+                                .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                 .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                                 .overlay(alignment: stampAlignmentFor(viewModel)) {
                                     DateStampOverlayView()
@@ -2813,7 +2947,7 @@ struct MainPreviewView: View {
     // MARK: - Crop gesture helpers
 
     private var effectiveZoom: CGFloat {
-        min(max(viewModel.cropZoom * magnifyDelta, 1.0), 5.0)
+        min(max(viewModel.cropZoom * magnifyDelta, ViewModel.minCropZoom), ViewModel.maxCropZoom)
     }
 
     private func effectiveOffset(imageSize: CGSize) -> CGSize {
@@ -2821,35 +2955,11 @@ struct MainPreviewView: View {
             width: viewModel.cropOffset.width + dragDelta.width,
             height: viewModel.cropOffset.height + dragDelta.height
         )
-        return clampedOffset(raw: raw, imageSize: imageSize, frameSize: localFrameSize, zoom: effectiveZoom)
-    }
-
-    private func maxOffset(imageSize: CGSize, frameSize: CGSize, zoom: CGFloat) -> CGSize {
-        guard frameSize.width > 0, frameSize.height > 0 else { return .zero }
-        let imageAR = imageSize.width / imageSize.height
-        let frameAR = frameSize.width / frameSize.height
-
-        let displayW: CGFloat
-        let displayH: CGFloat
-        if imageAR > frameAR {
-            displayH = frameSize.height
-            displayW = frameSize.height * imageAR
-        } else {
-            displayW = frameSize.width
-            displayH = frameSize.width / imageAR
-        }
-
-        return CGSize(
-            width: max(0, (displayW * zoom - frameSize.width) / 2),
-            height: max(0, (displayH * zoom - frameSize.height) / 2)
-        )
-    }
-
-    private func clampedOffset(raw: CGSize, imageSize: CGSize, frameSize: CGSize, zoom: CGFloat) -> CGSize {
-        let maxOff = maxOffset(imageSize: imageSize, frameSize: frameSize, zoom: zoom)
-        return CGSize(
-            width: min(max(raw.width, -maxOff.width), maxOff.width),
-            height: min(max(raw.height, -maxOff.height), maxOff.height)
+        return viewModel.clampedCropOffset(
+            raw: raw,
+            imageSize: imageSize,
+            frameSize: localFrameSize,
+            zoom: effectiveZoom
         )
     }
 }
@@ -2975,57 +3085,143 @@ struct MainActionsView: View {
     @EnvironmentObject var viewModel: ViewModel
     var openEditor: () -> Void
 
-    private var printLabel: String {
+    private var singlePrintLabel: String {
         if viewModel.isPrinting {
             if viewModel.batchPrintTotal > 1 {
                 return L("printing_n_of_m", viewModel.batchPrintIndex, viewModel.batchPrintTotal)
             }
             return viewModel.printProgress.map { L("transfer_progress", $0.sent, $0.total) } ?? L("Preparing...")
         }
-        if viewModel.queue.count > 1 {
-            let count = min(viewModel.queue.count, viewModel.filmRemaining)
-            return L("print_n_images", count)
-        }
         return L("Print")
+    }
+
+    private var nextPrintLabel: String {
+        L("print_next_n", viewModel.printableQueueCountFromSelection)
     }
 
     var body: some View {
         VStack(spacing: 10) {
-            Button {
-                openEditor()
-            } label: {
-                HStack {
-                    Image(systemName: "slider.horizontal.3")
-                    Text(L("Edit Image"))
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .controlSize(.large)
-            .disabled(viewModel.selectedImage == nil)
+            HStack(spacing: 10) {
+                QuickZoomControlsView()
+                    .frame(maxWidth: .infinity)
 
-            Button {
-                if viewModel.queue.count > 1 {
-                    Task { await viewModel.printQueue() }
-                } else {
-                    Task { await viewModel.printSelectedImage() }
-                }
-            } label: {
-                HStack {
-                    if viewModel.isPrinting {
-                        ProgressView()
-                            .controlSize(.small)
-                            .padding(.trailing, 2)
-                    } else {
-                        Image(systemName: "printer.fill")
+                Button {
+                    openEditor()
+                } label: {
+                    HStack {
+                        Image(systemName: "slider.horizontal.3")
+                        Text(L("Edit Image"))
                     }
-                    Text(printLabel)
+                    .frame(maxWidth: .infinity)
                 }
+                .controlSize(.large)
+                .disabled(viewModel.selectedImage == nil)
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(viewModel.selectedImage == nil || !viewModel.isConnected || viewModel.isPrinting)
+
+            if viewModel.queue.count > 1 {
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await viewModel.printSelectedImage() }
+                    } label: {
+                        HStack {
+                            Image(systemName: "printer")
+                            Text(L("Print Current"))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                    .disabled(viewModel.selectedImage == nil || !viewModel.isConnected || viewModel.isPrinting)
+
+                    Button {
+                        Task { await viewModel.printQueue(startingAt: viewModel.selectedQueueIndex) }
+                    } label: {
+                        HStack {
+                            Image(systemName: "printer.fill")
+                            Text(nextPrintLabel)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(
+                        viewModel.selectedImage == nil ||
+                        !viewModel.isConnected ||
+                        viewModel.isPrinting ||
+                        viewModel.printableQueueCountFromSelection == 0
+                    )
+                }
+            } else {
+                Button {
+                    Task { await viewModel.printSelectedImage() }
+                } label: {
+                    HStack {
+                        if viewModel.isPrinting {
+                            ProgressView()
+                                .controlSize(.small)
+                                .padding(.trailing, 2)
+                        } else {
+                            Image(systemName: "printer.fill")
+                        }
+                        Text(singlePrintLabel)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(viewModel.selectedImage == nil || !viewModel.isConnected || viewModel.isPrinting)
+            }
         }
+    }
+}
+
+struct QuickZoomControlsView: View {
+    @EnvironmentObject var viewModel: ViewModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(L("Zoom"))
+                .font(.callout)
+                .foregroundColor(.secondary)
+
+            Spacer(minLength: 0)
+
+            ControlGroup {
+                Button {
+                    viewModel.quickZoomOut()
+                } label: {
+                    Image(systemName: "minus")
+                }
+                .disabled(!viewModel.canQuickZoomOut)
+                .help(L("Zoom Out"))
+                .accessibilityLabel(Text(L("Zoom Out")))
+
+                Button(L("Reset")) {
+                    viewModel.resetCropAdjustments()
+                }
+                .disabled(!viewModel.canResetCropAdjustments)
+
+                Button {
+                    viewModel.quickZoomIn()
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .disabled(!viewModel.canQuickZoomIn)
+                .help(L("Zoom In"))
+                .accessibilityLabel(Text(L("Zoom In")))
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 36)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.secondary.opacity(0.18))
+        )
     }
 }
 
@@ -3130,7 +3326,10 @@ struct EditorPreviewView: View {
                                 Image(nsImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .scaleEffect(effectiveZoom)
+                                    .scaleEffect(
+                                        x: viewModel.isHorizontallyFlipped ? -effectiveZoom : effectiveZoom,
+                                        y: effectiveZoom
+                                    )
                                     .offset(effectiveOffset(imageSize: image.size))
                                     .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                             )
@@ -3149,7 +3348,7 @@ struct EditorPreviewView: View {
                                             width: viewModel.cropOffset.width + value.translation.width,
                                             height: viewModel.cropOffset.height + value.translation.height
                                         )
-                                        viewModel.cropOffset = clampedOffset(
+                                        viewModel.cropOffset = viewModel.clampedCropOffset(
                                             raw: raw,
                                             imageSize: image.size,
                                             frameSize: localFrameSize,
@@ -3163,14 +3362,7 @@ struct EditorPreviewView: View {
                                         state = value
                                     }
                                     .onEnded { value in
-                                        let newZoom = min(max(viewModel.cropZoom * value, 1.0), 5.0)
-                                        viewModel.cropZoom = newZoom
-                                        viewModel.cropOffset = clampedOffset(
-                                            raw: viewModel.cropOffset,
-                                            imageSize: image.size,
-                                            frameSize: localFrameSize,
-                                            zoom: newZoom
-                                        )
+                                        viewModel.setCropZoom(viewModel.cropZoom * value)
                                     }
                             )
                     } else if viewModel.fitMode == "contain", let ar = viewModel.orientedAspectRatio {
@@ -3180,6 +3372,7 @@ struct EditorPreviewView: View {
                                 Image(nsImage: image)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
+                                    .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                     .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                             )
                             .overlay(alignment: stampAlignmentFor(viewModel)) {
@@ -3190,6 +3383,7 @@ struct EditorPreviewView: View {
                         Image(nsImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
+                            .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                             .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                             .overlay(alignment: stampAlignmentFor(viewModel)) {
                                 DateStampOverlayView()
@@ -3215,7 +3409,7 @@ struct EditorPreviewView: View {
     // MARK: - Crop gesture helpers
 
     private var effectiveZoom: CGFloat {
-        min(max(viewModel.cropZoom * magnifyDelta, 1.0), 5.0)
+        min(max(viewModel.cropZoom * magnifyDelta, ViewModel.minCropZoom), ViewModel.maxCropZoom)
     }
 
     private func effectiveOffset(imageSize: CGSize) -> CGSize {
@@ -3223,35 +3417,11 @@ struct EditorPreviewView: View {
             width: viewModel.cropOffset.width + dragDelta.width,
             height: viewModel.cropOffset.height + dragDelta.height
         )
-        return clampedOffset(raw: raw, imageSize: imageSize, frameSize: localFrameSize, zoom: effectiveZoom)
-    }
-
-    private func maxOffset(imageSize: CGSize, frameSize: CGSize, zoom: CGFloat) -> CGSize {
-        guard frameSize.width > 0, frameSize.height > 0 else { return .zero }
-        let imageAR = imageSize.width / imageSize.height
-        let frameAR = frameSize.width / frameSize.height
-
-        let displayW: CGFloat
-        let displayH: CGFloat
-        if imageAR > frameAR {
-            displayH = frameSize.height
-            displayW = frameSize.height * imageAR
-        } else {
-            displayW = frameSize.width
-            displayH = frameSize.width / imageAR
-        }
-
-        return CGSize(
-            width: max(0, (displayW * zoom - frameSize.width) / 2),
-            height: max(0, (displayH * zoom - frameSize.height) / 2)
-        )
-    }
-
-    private func clampedOffset(raw: CGSize, imageSize: CGSize, frameSize: CGSize, zoom: CGFloat) -> CGSize {
-        let maxOff = maxOffset(imageSize: imageSize, frameSize: frameSize, zoom: zoom)
-        return CGSize(
-            width: min(max(raw.width, -maxOff.width), maxOff.width),
-            height: min(max(raw.height, -maxOff.height), maxOff.height)
+        return viewModel.clampedCropOffset(
+            raw: raw,
+            imageSize: imageSize,
+            frameSize: localFrameSize,
+            zoom: effectiveZoom
         )
     }
 }
@@ -3323,14 +3493,7 @@ struct EditorSidebarView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    if viewModel.fitMode == "crop" {
-                        Button(L("Reset Crop")) {
-                            viewModel.resetCropAdjustments()
-                        }
-                        .controlSize(.small)
-                        .disabled(viewModel.cropOffset == .zero && viewModel.cropZoom == 1.0)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
+                    QuickZoomControlsView()
                 }
 
                 Divider()
@@ -3351,6 +3514,15 @@ struct EditorSidebarView: View {
                             Label(L("Rotate Right"), systemImage: "rotate.right")
                         }
                         .controlSize(.small)
+
+                        Button {
+                            viewModel.toggleHorizontalFlip()
+                        } label: {
+                            Label(L("Flip"), systemImage: "arrow.left.and.right")
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                        .tint(viewModel.isHorizontallyFlipped ? .accentColor : .secondary)
 
                         Spacer()
                     }
@@ -3954,22 +4126,39 @@ struct AboutSection: View {
             .frame(maxWidth: .infinity)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\u{00A9} 2026 InstantLink")
+                Text("\u{00A9} 2026 Hongjun Wu")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Button {
-                    if let url = URL(string: "https://github.com/wu-hongjun/instantlink") {
-                        NSWorkspace.shared.open(url)
+                HStack(spacing: 8) {
+                    Button {
+                        if let url = URL(string: "https://github.com/wu-hongjun/instantlink") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "link")
+                            Text(L("GitHub"))
+                        }
+                        .font(.caption2)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "link")
-                        Text(L("GitHub"))
+                    .buttonStyle(.link)
+
+                    Button {
+                        if let url = URL(string: "https://me.hongjunwu.com/contact/") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.bubble")
+                            Text(L("Report an Issue"))
+                        }
+                        .font(.caption2)
                     }
-                    .font(.caption2)
+                    .buttonStyle(.link)
                 }
-                .buttonStyle(.link)
             }
         }
         .frame(maxWidth: .infinity)

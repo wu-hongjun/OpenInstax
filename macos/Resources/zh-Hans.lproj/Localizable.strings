@@ -23,11 +23,17 @@
 "Try Again" = "重试";
 "Open File" = "打开文件";
 "Save" = "保存";
+"Reset" = "重置";
 "Reset Crop" = "重置裁剪";
 "Scan for Printers" = "扫描打印机";
 "Edit Image" = "编辑图片";
 "Done" = "完成";
 "Print" = "打印";
+"Flip" = "翻转";
+"Print Current" = "打印当前";
+"Zoom" = "缩放";
+"Zoom Out" = "缩小";
+"Zoom In" = "放大";
 
 /* Status Display */
 "Connected" = "已连接";
@@ -123,6 +129,7 @@
 "Delete" = "删除";
 "delete_printer_confirm" = "确定要删除此打印机吗？";
 "GitHub" = "GitHub";
+"Report an Issue" = "报告问题";
 
 /* Updates */
 "Check for Updates" = "检查更新";
@@ -159,6 +166,7 @@
 
 /* Print Queue */
 "print_n_images" = "打印 %d 张";
+"print_next_n" = "打印接下来的 %d 张";
 "printing_n_of_m" = "正在打印 %d / %d";
 "printed_n_images" = "已打印 %d 张！";
 "print_failed_at" = "第 %d / %d 张打印失败";

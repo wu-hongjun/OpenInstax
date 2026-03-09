@@ -24,11 +24,17 @@
 "Try Again" = "נסה שוב";
 "Open File" = "פתח קובץ";
 "Save" = "שמור";
+"Reset" = "אפס";
 "Reset Crop" = "אפס חיתוך";
 "Scan for Printers" = "חפש מדפסות";
 "Edit Image" = "ערוך תמונה";
 "Done" = "סיום";
 "Print" = "הדפס";
+"Flip" = "הפוך";
+"Print Current" = "הדפס תמונה נוכחית";
+"Zoom" = "זום";
+"Zoom Out" = "הקטן";
+"Zoom In" = "הגדל";
 
 /* Status Display */
 "Connected" = "מחוברת";
@@ -124,6 +130,7 @@
 "Delete" = "מחק";
 "delete_printer_confirm" = "האם אתה בטוח שברצונך למחוק מדפסת זו?";
 "GitHub" = "GitHub";
+"Report an Issue" = "דווח על בעיה";
 
 /* Updates */
 "Check for Updates" = "בדוק עדכונים";
@@ -160,6 +167,7 @@
 
 /* Print Queue */
 "print_n_images" = "הדפס %d תמונות";
+"print_next_n" = "הדפס %d הבאות";
 "printing_n_of_m" = "מדפיס %d מתוך %d";
 "printed_n_images" = "הודפסו %d תמונות!";
 "print_failed_at" = "ההדפסה נכשלה בתמונה %d מתוך %d";

@@ -23,11 +23,17 @@
 "Try Again" = "重試";
 "Open File" = "開啟檔案";
 "Save" = "儲存";
+"Reset" = "重設";
 "Reset Crop" = "重設裁切";
 "Scan for Printers" = "掃描印表機";
 "Edit Image" = "編輯圖片";
 "Done" = "完成";
 "Print" = "列印";
+"Flip" = "翻轉";
+"Print Current" = "列印目前項目";
+"Zoom" = "縮放";
+"Zoom Out" = "縮小";
+"Zoom In" = "放大";
 
 /* Status Display */
 "Connected" = "已連線";
@@ -123,6 +129,7 @@
 "Delete" = "刪除";
 "delete_printer_confirm" = "確定要刪除此印表機嗎？";
 "GitHub" = "GitHub";
+"Report an Issue" = "回報問題";
 
 /* Updates */
 "Check for Updates" = "檢查更新";
@@ -159,6 +166,7 @@
 
 /* Print Queue */
 "print_n_images" = "列印 %d 張";
+"print_next_n" = "列印接下來的 %d 張";
 "printing_n_of_m" = "正在列印 %d / %d";
 "printed_n_images" = "已列印 %d 張！";
 "print_failed_at" = "第 %d / %d 張列印失敗";

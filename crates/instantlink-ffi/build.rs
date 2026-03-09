@@ -8,8 +8,14 @@ fn main() {
     let crate_dir =
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR must be set by Cargo");
     let crate_path = PathBuf::from(&crate_dir);
-    let output_dir = crate_path.join("include");
-    std::fs::create_dir_all(&output_dir).expect("failed to create include/ directory");
+    let output_path = if env::var_os("INSTANTLINK_UPDATE_HEADER").is_some() {
+        let output_dir = crate_path.join("include");
+        std::fs::create_dir_all(&output_dir).expect("failed to create include/ directory");
+        output_dir.join("instantlink.h")
+    } else {
+        PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR must be set by Cargo"))
+            .join("instantlink.h")
+    };
 
     cbindgen::Builder::new()
         .with_crate(&crate_dir)
@@ -19,5 +25,5 @@ fn main() {
         )
         .generate()
         .expect("Unable to generate C bindings")
-        .write_to_file(output_dir.join("instantlink.h"));
+        .write_to_file(output_path);
 }

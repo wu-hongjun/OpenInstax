@@ -14,6 +14,8 @@
 //! - `-10` — printer cover is open
 //! - `-11` — printer is busy
 
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::sync::{Mutex, Once, OnceLock};
@@ -89,7 +91,7 @@ unsafe fn write_str_to_buf(s: &str, out: *mut c_char, out_len: i32) -> i32 {
 }
 
 /// Initialize the FFI layer (logging + runtime). Safe to call multiple times.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_init() {
     INIT.call_once(|| {
         let _ = env_logger::try_init();
@@ -105,7 +107,7 @@ pub extern "C" fn instantlink_init() {
 /// # Safety
 ///
 /// `out_json` must point to a buffer of at least `out_len` bytes.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_scan(
     duration_secs: i32,
     out_json: *mut c_char,
@@ -135,7 +137,7 @@ pub unsafe extern "C" fn instantlink_scan(
 
 /// Connect to the first available Instax printer.
 /// Returns 0 on success, negative error code on failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_connect() -> i32 {
     std::panic::catch_unwind(|| {
         let rt = get_runtime();
@@ -165,7 +167,7 @@ pub extern "C" fn instantlink_connect() -> i32 {
 /// # Safety
 ///
 /// `name` must be a valid, non-null, null-terminated UTF-8 C string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_connect_named(name: *const c_char, duration_secs: i32) -> i32 {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let s = match cstr_to_str(name) {
@@ -198,7 +200,7 @@ pub unsafe extern "C" fn instantlink_connect_named(name: *const c_char, duration
 }
 
 /// Disconnect from the current printer.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_disconnect() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -220,7 +222,7 @@ pub extern "C" fn instantlink_disconnect() -> i32 {
 }
 
 /// Get battery level (0-100). Returns negative error code on failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_battery() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -242,7 +244,7 @@ pub extern "C" fn instantlink_battery() -> i32 {
 }
 
 /// Get remaining film count. Returns negative error code on failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_film_remaining() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -271,7 +273,7 @@ pub extern "C" fn instantlink_film_remaining() -> i32 {
 /// # Safety
 ///
 /// `out_film` and `out_charging` must be valid, non-null pointers.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_film_and_charging(
     out_film: *mut i32,
     out_charging: *mut i32,
@@ -303,7 +305,7 @@ pub unsafe extern "C" fn instantlink_film_and_charging(
 }
 
 /// Get total print count. Returns negative error code on failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_print_count() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -332,7 +334,7 @@ pub extern "C" fn instantlink_print_count() -> i32 {
 /// # Safety
 ///
 /// All output pointers must be valid and non-null.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_status(
     out_battery: *mut i32,
     out_film: *mut i32,
@@ -378,7 +380,7 @@ pub unsafe extern "C" fn instantlink_status(
 /// # Safety
 ///
 /// `out` must point to a buffer of at least `out_len` bytes.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_device_name(out: *mut c_char, out_len: i32) -> i32 {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let lock = get_device_lock();
@@ -402,7 +404,7 @@ pub unsafe extern "C" fn instantlink_device_name(out: *mut c_char, out_len: i32)
 /// # Safety
 ///
 /// `out` must point to a buffer of at least `out_len` bytes.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_device_model(out: *mut c_char, out_len: i32) -> i32 {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let lock = get_device_lock();
@@ -429,7 +431,7 @@ pub unsafe extern "C" fn instantlink_device_model(out: *mut c_char, out_len: i32
 /// # Safety
 ///
 /// `path` must be a valid, non-null, null-terminated UTF-8 C string.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_print(
     path: *const c_char,
     quality: u8,
@@ -475,7 +477,7 @@ pub unsafe extern "C" fn instantlink_print(
 ///
 /// `path` must be a valid, non-null, null-terminated UTF-8 C string.
 /// `progress_cb` may be null (no progress reporting).
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn instantlink_print_with_progress(
     path: *const c_char,
     quality: u8,
@@ -525,7 +527,7 @@ pub unsafe extern "C" fn instantlink_print_with_progress(
 }
 
 /// Set LED color and pattern.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_set_led(r: u8, g: u8, b: u8, pattern: u8) -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -547,7 +549,7 @@ pub extern "C" fn instantlink_set_led(r: u8, g: u8, b: u8, pattern: u8) -> i32 {
 }
 
 /// Turn off the LED.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_led_off() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -570,7 +572,7 @@ pub extern "C" fn instantlink_led_off() -> i32 {
 
 /// Check if a printer is currently connected.
 /// Returns 1 if connected, 0 if not, -3 on error.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_is_connected() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -585,7 +587,7 @@ pub extern "C" fn instantlink_is_connected() -> i32 {
 
 /// Shut down (power off) the connected printer.
 /// Returns 0 on success, negative error code on failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_shutdown() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
@@ -608,7 +610,7 @@ pub extern "C" fn instantlink_shutdown() -> i32 {
 
 /// Reset the connected printer.
 /// Returns 0 on success, negative error code on failure.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn instantlink_reset() -> i32 {
     std::panic::catch_unwind(|| {
         let lock = get_device_lock();
