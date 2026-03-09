@@ -52,6 +52,7 @@
 "Image Editor" = "이미지 편집기";
 "No image selected" = "선택된 이미지 없음";
 "Drop image or click Open File" = "이미지를 드롭하거나 파일 열기를 클릭하세요";
+"Drop images or click Open File" = "이미지를 드롭하거나 파일 열기 클릭";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "맞춤 모드";
@@ -146,3 +147,11 @@
 "Timer" = "타이머";
 "Off" = "끔";
 "Film Orientation" = "필름 방향";
+
+/* Print Queue */
+"print_n_images" = "%d장 인쇄";
+"printing_n_of_m" = "%d / %d 인쇄 중";
+"printed_n_images" = "%d장 인쇄 완료!";
+"print_failed_at" = "%d / %d번째에서 인쇄 실패";
+"film_ran_out" = "%d / %d장 후 필름 소진";
+"Remove" = "제거";

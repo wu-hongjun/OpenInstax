@@ -52,6 +52,7 @@
 "Image Editor" = "Image Editor";
 "No image selected" = "No image selected";
 "Drop image or click Open File" = "Drop image or click Open File";
+"Drop images or click Open File" = "Drop images or click Open File";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "Fit Mode";
@@ -146,3 +147,11 @@
 "Timer" = "Timer";
 "Off" = "Off";
 "Film Orientation" = "Film Orientation";
+
+/* Print Queue */
+"print_n_images" = "Print %d Images";
+"printing_n_of_m" = "Printing %d of %d";
+"printed_n_images" = "Printed %d images!";
+"print_failed_at" = "Print failed at image %d of %d";
+"film_ran_out" = "Film ran out after %d of %d images";
+"Remove" = "Remove";

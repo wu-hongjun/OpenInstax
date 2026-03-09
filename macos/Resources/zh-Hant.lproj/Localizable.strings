@@ -52,6 +52,7 @@
 "Image Editor" = "圖片編輯器";
 "No image selected" = "未選擇圖片";
 "Drop image or click Open File" = "拖放圖片或點擊開啟檔案";
+"Drop images or click Open File" = "拖放圖片或點擊開啟檔案";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "適應模式";
@@ -146,3 +147,11 @@
 "Timer" = "定時器";
 "Off" = "關閉";
 "Film Orientation" = "底片方向";
+
+/* Print Queue */
+"print_n_images" = "列印 %d 張";
+"printing_n_of_m" = "正在列印 %d / %d";
+"printed_n_images" = "已列印 %d 張！";
+"print_failed_at" = "第 %d / %d 張列印失敗";
+"film_ran_out" = "列印 %d / %d 張後底片用完";
+"Remove" = "移除";

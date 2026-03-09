@@ -52,6 +52,7 @@
 "Image Editor" = "画像エディター";
 "No image selected" = "画像が選択されていません";
 "Drop image or click Open File" = "画像をドロップするかファイルを開くをクリック";
+"Drop images or click Open File" = "画像をドロップまたはファイルを開く";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "フィットモード";
@@ -146,3 +147,11 @@
 "Timer" = "タイマー";
 "Off" = "オフ";
 "Film Orientation" = "フィルム向き";
+
+/* Print Queue */
+"print_n_images" = "%d 枚を印刷";
+"printing_n_of_m" = "%d / %d 印刷中";
+"printed_n_images" = "%d 枚印刷しました！";
+"print_failed_at" = "%d / %d 枚目で印刷失敗";
+"film_ran_out" = "%d / %d 枚目でフィルム切れ";
+"Remove" = "削除";

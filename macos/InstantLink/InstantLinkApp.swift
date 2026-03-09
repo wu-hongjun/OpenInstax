@@ -105,7 +105,7 @@ struct PrinterProfile: Codable, Equatable, Identifiable {
     var effectiveModel: String { overriddenModel ?? detectedModel }
 
     static let availableModels = [
-        "Instax Mini Link", "Instax Mini Link 2",
+        "Instax Mini Link", "Instax Mini Link 2", "Instax Mini Link 3",
         "Instax Square Link", "Instax Wide Link"
     ]
     static let availableColors = [
@@ -143,6 +143,15 @@ struct PrinterProfile: Codable, Equatable, Identifiable {
     }
 }
 
+// MARK: - Queue Item
+
+struct QueueItem: Identifiable, Equatable {
+    let id = UUID()
+    let url: URL
+    let image: NSImage
+    let imageDate: Date?
+}
+
 // MARK: - View Model
 
 class ViewModel: ObservableObject {
@@ -157,9 +166,15 @@ class ViewModel: ObservableObject {
     @Published var filmRemaining: Int = 0
     @Published var printCount: Int = 0
 
-    // Image selection
-    @Published var selectedImage: NSImage?
-    @Published var selectedImagePath: String?
+    // Image queue
+    @Published var queue: [QueueItem] = []
+    @Published var selectedQueueIndex: Int = 0
+    @Published var batchPrintIndex: Int = 0
+    @Published var batchPrintTotal: Int = 0
+
+    var selectedImage: NSImage? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].image : nil }
+    var selectedImagePath: String? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].url.path : nil }
+    var imageDate: Date? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].imageDate : nil }
 
     // Print options
     @Published var defaultFitMode: String = UserDefaults.standard.string(forKey: "defaultFitMode") ?? "crop" {
@@ -184,7 +199,6 @@ class ViewModel: ObservableObject {
     @Published var dateStampStyle: String = "classic"
     @Published var dateStampFormat: String = "ymd"
     @Published var lightBleedEnabled: Bool = false
-    var imageDate: Date?
 
     // Camera mode
     @Published var captureMode: CaptureMode = .file
@@ -227,7 +241,8 @@ class ViewModel: ObservableObject {
         switch model {
         case "Instax Square Link":  return 1.0          // 800×800
         case "Instax Mini Link",
-             "Instax Mini Link 2":  return 600.0/800.0  // 600×800
+             "Instax Mini Link 2",
+             "Instax Mini Link 3":  return 600.0/800.0  // 600×800
         case "Instax Wide Link":    return 1260.0/840.0  // 1260×840
         default: return nil
         }
@@ -253,7 +268,8 @@ class ViewModel: ObservableObject {
         switch model {
         case "Instax Square Link":  return "Sqre"
         case "Instax Mini Link",
-             "Instax Mini Link 2":  return "Mini"
+             "Instax Mini Link 2",
+             "Instax Mini Link 3":  return "Mini"
         case "Instax Wide Link":    return "Wide"
         default: return nil
         }
@@ -520,26 +536,53 @@ class ViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Queue Management
+
+    func addImages(from urls: [URL]) {
+        for url in urls {
+            guard let image = NSImage(contentsOf: url) else { continue }
+            let date = Self.extractImageDate(from: url)
+            queue.append(QueueItem(url: url, image: image, imageDate: date))
+        }
+        if !queue.isEmpty {
+            selectedQueueIndex = queue.count - 1
+            rotationAngle = 0
+            resetCropAdjustments()
+        }
+    }
+
+    func removeQueueItem(at index: Int) {
+        guard queue.indices.contains(index) else { return }
+        queue.remove(at: index)
+        if queue.isEmpty {
+            selectedQueueIndex = 0
+        } else {
+            selectedQueueIndex = min(selectedQueueIndex, queue.count - 1)
+        }
+    }
+
+    func selectQueueItem(at index: Int) {
+        guard queue.indices.contains(index) else { return }
+        selectedQueueIndex = index
+        rotationAngle = 0
+        resetCropAdjustments()
+    }
+
     // MARK: - Image Selection
 
     func selectImage() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff, .webP]
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.message = L("Select an image to print")
-        if panel.runModal() == .OK, let url = panel.url {
-            loadImage(from: url)
+        if panel.runModal() == .OK {
+            addImages(from: panel.urls)
         }
     }
 
     func loadImage(from url: URL) {
-        guard let image = NSImage(contentsOf: url) else { return }
-        selectedImage = image
-        selectedImagePath = url.path
-        rotationAngle = 0
-        resetCropAdjustments()
-        imageDate = Self.extractImageDate(from: url)
+        addImages(from: [url])
     }
 
     private static func extractImageDate(from url: URL) -> Date? {
@@ -561,9 +604,8 @@ class ViewModel: ObservableObject {
     }
 
     func clearImage() {
-        selectedImage = nil
-        selectedImagePath = nil
-        imageDate = nil
+        queue.removeAll()
+        selectedQueueIndex = 0
         rotationAngle = 0
         resetCropAdjustments()
     }
@@ -748,10 +790,10 @@ class ViewModel: ObservableObject {
             return
         }
 
-        // Set selectedImage to the cropped image so the file-mode preview matches
-        selectedImage = NSImage(data: jpegData) ?? image
-        selectedImagePath = tempURL.path
-        imageDate = Date()
+        // Append to queue so the file-mode preview matches
+        let finalImage = NSImage(data: jpegData) ?? image
+        queue.append(QueueItem(url: tempURL, image: finalImage, imageDate: Date()))
+        selectedQueueIndex = queue.count - 1
         resetCropAdjustments()
         rotationAngle = 0
         captureMode = .file
@@ -1118,6 +1160,80 @@ class ViewModel: ObservableObject {
             showStatus(success ? L("Printed!") : L("Print failed"))
         }
         await refreshStatus()
+    }
+
+    // MARK: - Batch Printing
+
+    func printQueue() async {
+        let count = min(queue.count, filmRemaining)
+        guard count > 0 else { return }
+
+        await MainActor.run {
+            isPrinting = true
+            printProgress = nil
+            batchPrintIndex = 0
+            batchPrintTotal = count
+        }
+
+        for i in 0..<count {
+            await MainActor.run {
+                batchPrintIndex = i + 1
+                selectedQueueIndex = i
+                rotationAngle = 0
+                resetCropAdjustments()
+            }
+
+            guard let prepared = prepareImageForPrint() else {
+                await MainActor.run {
+                    isPrinting = false
+                    batchPrintTotal = 0
+                    showStatus(L("print_failed_at", i + 1, count))
+                }
+                return
+            }
+
+            let success = await ffi.printImage(
+                path: prepared.path,
+                quality: 100,
+                fit: prepared.fit
+            ) { [weak self] sent, total in
+                DispatchQueue.main.async {
+                    self?.printProgress = (sent: Int(sent), total: Int(total))
+                }
+            }
+
+            if let temp = prepared.tempFile {
+                try? FileManager.default.removeItem(atPath: temp)
+            }
+
+            if !success {
+                await MainActor.run {
+                    isPrinting = false
+                    batchPrintTotal = 0
+                    showStatus(L("print_failed_at", i + 1, count))
+                }
+                return
+            }
+
+            await refreshStatus()
+
+            let remaining = await MainActor.run { filmRemaining }
+            if remaining <= 0 && i < count - 1 {
+                await MainActor.run {
+                    isPrinting = false
+                    batchPrintTotal = 0
+                    showStatus(L("film_ran_out", i + 1, count))
+                }
+                return
+            }
+        }
+
+        await MainActor.run {
+            isPrinting = false
+            printProgress = nil
+            batchPrintTotal = 0
+            showStatus(L("printed_n_images", count))
+        }
     }
 
     // MARK: - Core Version
@@ -1937,6 +2053,12 @@ struct MainView: View {
                         .layoutPriority(-1)
                 }
 
+                if viewModel.captureMode == .file && viewModel.queue.count > 1 {
+                    QueueStripView()
+                        .padding(.horizontal, 14)
+                        .padding(.top, 8)
+                }
+
                 Spacer(minLength: 0)
 
                 if viewModel.captureMode == .file {
@@ -2226,6 +2348,12 @@ struct MainPreviewView: View {
 
             if viewModel.isPrinting {
                 VStack(spacing: 8) {
+                    if viewModel.batchPrintTotal > 1 {
+                        Text(L("printing_n_of_m", viewModel.batchPrintIndex, viewModel.batchPrintTotal))
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                    }
                     if let p = viewModel.printProgress {
                         ProgressView(value: Double(p.sent), total: Double(p.total))
                             .progressViewStyle(.linear)
@@ -2345,7 +2473,7 @@ struct MainPreviewView: View {
                     Image(systemName: "photo.on.rectangle.angled")
                         .font(.largeTitle)
                         .foregroundColor(.secondary)
-                    Text(L("Drop image or click Open File"))
+                    Text(L("Drop images or click Open File"))
                         .font(.callout)
                         .foregroundColor(.secondary)
                     Button(L("Open File")) { viewModel.selectImage() }
@@ -2355,10 +2483,12 @@ struct MainPreviewView: View {
         }
         .frame(minHeight: 120, maxHeight: .infinity)
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-            guard let provider = providers.first else { return false }
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url = url else { return }
-                DispatchQueue.main.async { viewModel.loadImage(from: url) }
+            guard !providers.isEmpty else { return false }
+            for provider in providers {
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url = url else { return }
+                    DispatchQueue.main.async { viewModel.addImages(from: [url]) }
+                }
             }
             return true
         }
@@ -2408,11 +2538,78 @@ struct MainPreviewView: View {
     }
 }
 
+// MARK: - Queue Strip View
+
+struct QueueStripView: View {
+    @EnvironmentObject var viewModel: ViewModel
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(Array(viewModel.queue.enumerated()), id: \.element.id) { index, item in
+                        QueueThumbnailView(item: item, isSelected: index == viewModel.selectedQueueIndex)
+                            .id(item.id)
+                            .onTapGesture { viewModel.selectQueueItem(at: index) }
+                            .contextMenu {
+                                Button(L("Remove")) {
+                                    viewModel.removeQueueItem(at: index)
+                                }
+                            }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .onChange(of: viewModel.selectedQueueIndex) { _ in
+                if viewModel.queue.indices.contains(viewModel.selectedQueueIndex) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(viewModel.queue[viewModel.selectedQueueIndex].id, anchor: .center)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct QueueThumbnailView: View {
+    let item: QueueItem
+    let isSelected: Bool
+
+    var body: some View {
+        Image(nsImage: item.image)
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(width: 36, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+            )
+            .shadow(color: isSelected ? Color.accentColor.opacity(0.3) : .clear, radius: 3)
+            .scaleEffect(isSelected ? 1.08 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isSelected)
+    }
+}
+
 // MARK: - Main Actions View (Edit + Print buttons, in main window)
 
 struct MainActionsView: View {
     @EnvironmentObject var viewModel: ViewModel
     var openEditor: () -> Void
+
+    private var printLabel: String {
+        if viewModel.isPrinting {
+            if viewModel.batchPrintTotal > 1 {
+                return L("printing_n_of_m", viewModel.batchPrintIndex, viewModel.batchPrintTotal)
+            }
+            return viewModel.printProgress.map { L("transfer_progress", $0.sent, $0.total) } ?? L("Preparing...")
+        }
+        if viewModel.queue.count > 1 {
+            let count = min(viewModel.queue.count, viewModel.filmRemaining)
+            return L("print_n_images", count)
+        }
+        return L("Print")
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -2429,7 +2626,11 @@ struct MainActionsView: View {
             .disabled(viewModel.selectedImage == nil)
 
             Button {
-                Task { await viewModel.printSelectedImage() }
+                if viewModel.queue.count > 1 {
+                    Task { await viewModel.printQueue() }
+                } else {
+                    Task { await viewModel.printSelectedImage() }
+                }
             } label: {
                 HStack {
                     if viewModel.isPrinting {
@@ -2439,9 +2640,7 @@ struct MainActionsView: View {
                     } else {
                         Image(systemName: "printer.fill")
                     }
-                    Text(viewModel.isPrinting
-                        ? (viewModel.printProgress.map { L("transfer_progress", $0.sent, $0.total) } ?? L("Preparing..."))
-                        : L("Print"))
+                    Text(printLabel)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -2616,10 +2815,12 @@ struct EditorPreviewView: View {
         }
         .frame(minHeight: 250, idealHeight: 350)
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-            guard let provider = providers.first else { return false }
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url = url else { return }
-                DispatchQueue.main.async { viewModel.loadImage(from: url) }
+            guard !providers.isEmpty else { return false }
+            for provider in providers {
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url = url else { return }
+                    DispatchQueue.main.async { viewModel.addImages(from: [url]) }
+                }
             }
             return true
         }

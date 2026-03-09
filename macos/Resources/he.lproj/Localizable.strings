@@ -53,6 +53,7 @@
 "Image Editor" = "עורך תמונות";
 "No image selected" = "לא נבחרה תמונה";
 "Drop image or click Open File" = "גרור תמונה או לחץ פתח קובץ";
+"Drop images or click Open File" = "גרור תמונות או לחץ על פתח קובץ";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "מצב התאמה";
@@ -147,3 +148,11 @@
 "Timer" = "טיימר";
 "Off" = "כבוי";
 "Film Orientation" = "כיוון הפילם";
+
+/* Print Queue */
+"print_n_images" = "הדפס %d תמונות";
+"printing_n_of_m" = "מדפיס %d מתוך %d";
+"printed_n_images" = "הודפסו %d תמונות!";
+"print_failed_at" = "ההדפסה נכשלה בתמונה %d מתוך %d";
+"film_ran_out" = "הפילם נגמר אחרי %d מתוך %d תמונות";
+"Remove" = "הסר";

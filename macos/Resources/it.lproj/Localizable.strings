@@ -53,6 +53,7 @@
 "Image Editor" = "Editor immagine";
 "No image selected" = "Nessuna immagine selezionata";
 "Drop image or click Open File" = "Trascina un'immagine o clicca Apri file";
+"Drop images or click Open File" = "Trascina immagini o clicca Apri file";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "Modalità adattamento";
@@ -147,3 +148,11 @@
 "Timer" = "Timer";
 "Off" = "Spento";
 "Film Orientation" = "Orientamento pellicola";
+
+/* Print Queue */
+"print_n_images" = "Stampa %d immagini";
+"printing_n_of_m" = "Stampa %d di %d";
+"printed_n_images" = "%d immagini stampate!";
+"print_failed_at" = "Stampa fallita all'immagine %d di %d";
+"film_ran_out" = "Film esaurito dopo %d di %d immagini";
+"Remove" = "Rimuovi";

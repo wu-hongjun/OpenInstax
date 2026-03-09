@@ -52,6 +52,7 @@
 "Image Editor" = "图片编辑器";
 "No image selected" = "未选择图片";
 "Drop image or click Open File" = "拖放图片或点击打开文件";
+"Drop images or click Open File" = "拖放图片或点击打开文件";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "适应模式";
@@ -146,3 +147,11 @@
 "Timer" = "定时器";
 "Off" = "关闭";
 "Film Orientation" = "胶片方向";
+
+/* Print Queue */
+"print_n_images" = "打印 %d 张";
+"printing_n_of_m" = "正在打印 %d / %d";
+"printed_n_images" = "已打印 %d 张！";
+"print_failed_at" = "第 %d / %d 张打印失败";
+"film_ran_out" = "打印 %d / %d 张后胶片用完";
+"Remove" = "移除";

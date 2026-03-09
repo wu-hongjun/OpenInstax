@@ -52,6 +52,7 @@
 "Image Editor" = "محرر الصور";
 "No image selected" = "لم يتم اختيار صورة";
 "Drop image or click Open File" = "اسحب صورة أو انقر فتح ملف";
+"Drop images or click Open File" = "اسحب الصور أو انقر فتح ملف";
 
 /* Editor Sidebar — Section Titles */
 "Fit Mode" = "وضع الملاءمة";
@@ -146,3 +147,11 @@
 "Timer" = "مؤقت";
 "Off" = "إيقاف";
 "Film Orientation" = "اتجاه الفيلم";
+
+/* Print Queue */
+"print_n_images" = "طباعة %d صور";
+"printing_n_of_m" = "طباعة %d من %d";
+"printed_n_images" = "تمت طباعة %d صور!";
+"print_failed_at" = "فشلت الطباعة عند الصورة %d من %d";
+"film_ran_out" = "نفد الفيلم بعد %d من %d صور";
+"Remove" = "إزالة";
