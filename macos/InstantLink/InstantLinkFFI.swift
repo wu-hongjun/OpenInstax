@@ -303,7 +303,22 @@ class InstantLinkFFI {
 
 /// Thread-safe box to bridge a Swift closure into a C callback context.
 private final class ProgressBox: @unchecked Sendable {
-    static var current: Unmanaged<ProgressBox>?
+    private static let lock = NSLock()
+    private static var _current: Unmanaged<ProgressBox>?
+
+    static var current: Unmanaged<ProgressBox>? {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return _current
+        }
+        set {
+            lock.lock()
+            defer { lock.unlock() }
+            _current = newValue
+        }
+    }
+
     let callback: @Sendable (UInt32, UInt32) -> Void
     init(callback: @escaping @Sendable (UInt32, UInt32) -> Void) {
         self.callback = callback

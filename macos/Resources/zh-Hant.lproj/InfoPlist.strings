@@ -1,1 +1,2 @@
 "NSBluetoothAlwaysUsageDescription" = "InstantLink 需要使用藍牙與您的 Instax Link 印表機通訊。";
+"NSCameraUsageDescription" = "InstantLink需要存取相機以拍攝照片進行列印。";

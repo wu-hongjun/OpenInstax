@@ -1,1 +1,2 @@
 "NSBluetoothAlwaysUsageDescription" = "InstantLink は Instax Link プリンターと通信するために Bluetooth を使用します。";
+"NSCameraUsageDescription" = "InstantLinkは印刷用の写真を撮影するためにカメラへのアクセスが必要です。";

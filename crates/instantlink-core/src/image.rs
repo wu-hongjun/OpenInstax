@@ -90,14 +90,20 @@ pub fn encode_jpeg(img: &DynamicImage, initial_quality: u8) -> Result<Vec<u8>> {
     }
 
     // Binary search for the highest quality that fits.
-    let mut low: u8 = 10;
+    let mut low: u8 = 1;
     let mut high: u8 = capped.saturating_sub(1);
     let mut best_data: Option<Vec<u8>> = None;
+    let mut best_quality: u8 = 0;
+    let mut min_quality_size: Option<usize> = None;
 
     while low <= high {
         let mid = low + (high - low) / 2;
         let attempt = encode_at(mid)?;
+        if min_quality_size.is_none() || mid <= low {
+            min_quality_size = Some(attempt.len());
+        }
         if attempt.len() <= MAX_IMAGE_SIZE {
+            best_quality = mid;
             best_data = Some(attempt);
             low = mid + 1;
         } else {
@@ -113,15 +119,18 @@ pub fn encode_jpeg(img: &DynamicImage, initial_quality: u8) -> Result<Vec<u8>> {
             log::debug!(
                 "JPEG encoded: {} bytes at quality {} (reduced from {})",
                 data.len(),
-                high.min(low.saturating_sub(1)),
+                best_quality,
                 capped
             );
             Ok(data)
         }
-        None => Err(PrinterError::ImageTooLarge {
-            size: encode_at(10)?.len(),
-            max: MAX_IMAGE_SIZE,
-        }),
+        None => {
+            let size = min_quality_size.unwrap_or_else(|| encode_at(1).map_or(0, |d| d.len()));
+            Err(PrinterError::ImageTooLarge {
+                size,
+                max: MAX_IMAGE_SIZE,
+            })
+        }
     }
 }
 

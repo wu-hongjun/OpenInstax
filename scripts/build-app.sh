@@ -20,6 +20,13 @@ VERSION="${1:?Usage: build-app.sh <version>}"
 # Strip leading 'v' if present for plist version strings
 PLIST_VERSION="${VERSION#v}"
 
+# Validate semver format (MAJOR.MINOR.PATCH, optional pre-release/build metadata)
+if [[ ! "$PLIST_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$ ]]; then
+  echo "Error: Invalid semver version: '$PLIST_VERSION'" >&2
+  echo "Expected format: MAJOR.MINOR.PATCH (e.g., 0.1.0, 1.2.3-beta.1)" >&2
+  exit 1
+fi
+
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$REPO_ROOT/target/release/InstantLink.app"
 CONTENTS="$APP/Contents"
@@ -72,6 +79,19 @@ for LPROJ in "$REPO_ROOT/macos/Resources"/*.lproj; do
   fi
 done
 
+# Copy bundled fonts
+FONTS_SRC="$REPO_ROOT/macos/Resources/Fonts"
+if [[ -d "$FONTS_SRC" ]]; then
+  FONTS_DST="$RESOURCES_DIR/Fonts"
+  mkdir -p "$FONTS_DST"
+  shopt -s nullglob
+  TTF_FILES=("$FONTS_SRC"/*.ttf)
+  shopt -u nullglob
+  if [[ ${#TTF_FILES[@]} -gt 0 ]]; then
+    cp "${TTF_FILES[@]}" "$FONTS_DST/"
+  fi
+fi
+
 # --- Compile SwiftUI launcher (Contents/MacOS/InstantLink) -----------------
 echo "==> Compiling SwiftUI launcher..."
 swiftc \
@@ -86,6 +106,7 @@ swiftc \
   -framework AppKit \
   -framework UniformTypeIdentifiers \
   -framework AVFoundation \
+  -framework CoreText \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -parse-as-library
 

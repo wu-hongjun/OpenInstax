@@ -1,1 +1,2 @@
 "NSBluetoothAlwaysUsageDescription" = "InstantLink a besoin du Bluetooth pour communiquer avec votre imprimante Instax Link.";
+"NSCameraUsageDescription" = "InstantLink a besoin d'accéder à la caméra pour prendre des photos à imprimer.";

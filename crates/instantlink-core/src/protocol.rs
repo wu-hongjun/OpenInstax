@@ -140,8 +140,14 @@ impl PacketAssembler {
 
         // Check for valid header (accept both request and response headers)
         if !is_valid_header(self.buffer[0], self.buffer[1]) {
-            // Invalid header — clear buffer
-            self.buffer.clear();
+            // Invalid header — scan forward for the next potential header byte
+            // instead of discarding everything.
+            let skip = self.buffer[1..]
+                .iter()
+                .position(|&b| b == HEADER[0] || b == RESPONSE_HEADER[0])
+                .map(|pos| pos + 1)
+                .unwrap_or(self.buffer.len());
+            self.buffer.drain(..skip);
             return None;
         }
 

@@ -134,7 +134,6 @@ async fn main() -> Result<()> {
                 eprintln!("progress: Reading battery...");
             }
             let battery = device.battery().await.context("failed to read battery")?;
-            eprintln!("debug: battery={battery}");
 
             if cli.json {
                 eprintln!("progress: Reading film...");
@@ -206,22 +205,17 @@ async fn main() -> Result<()> {
             let mode_name = if print_option == 0 { "Rich" } else { "Natural" };
             println!("Printing to {} ({}) [{}]", device.name(), model, mode_name);
 
-            // Prepare image to know total chunks for progress bar
-            let (_jpeg_data, chunks) =
-                instantlink_core::image::prepare_image(&image, model, fit_mode, quality)
-                    .context("failed to prepare image")?;
-
-            let pb = output::transfer_progress(chunks.len() as u64);
-            let progress = move |sent: usize, _total: usize| {
-                pb.set_position(sent as u64);
+            let sp = output::spinner("Printing...");
+            let progress = move |sent: usize, total: usize| {
+                sp.set_message(format!("Sending chunk {sent}/{total}..."));
             };
 
-            device
+            let print_result = device
                 .print_file(&image, fit_mode, quality, print_option, Some(&progress))
-                .await
-                .context("print failed")?;
+                .await;
 
             device.disconnect().await?;
+            print_result.context("print failed")?;
             println!("Print complete!");
         }
 
@@ -239,11 +233,9 @@ async fn main() -> Result<()> {
                     None => printer::connect_any(None).await?,
                 };
 
-                device
-                    .set_led(r, g, b, pattern_byte)
-                    .await
-                    .context("failed to set LED")?;
+                let result = device.set_led(r, g, b, pattern_byte).await;
                 device.disconnect().await?;
+                result.context("failed to set LED")?;
                 println!("LED set to #{:02x}{:02x}{:02x} ({})", r, g, b, pattern);
             }
             LedAction::Off => {
@@ -252,8 +244,9 @@ async fn main() -> Result<()> {
                     None => printer::connect_any(None).await?,
                 };
 
-                device.led_off().await.context("failed to turn off LED")?;
+                let result = device.led_off().await;
                 device.disconnect().await?;
+                result.context("failed to turn off LED")?;
                 println!("LED off");
             }
         },

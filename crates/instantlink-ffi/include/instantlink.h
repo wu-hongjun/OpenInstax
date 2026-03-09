@@ -155,7 +155,7 @@ int32_t instantlink_led_off(void);
 
 /**
  * Check if a printer is currently connected.
- * Returns 1 if connected, 0 if not.
+ * Returns 1 if connected, 0 if not, -3 on error.
  */
 int32_t instantlink_is_connected(void);
 

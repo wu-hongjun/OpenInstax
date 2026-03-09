@@ -109,6 +109,7 @@ pub struct BleTransport {
     peripheral: Peripheral,
     write_char: Characteristic,
     rx: tokio::sync::Mutex<mpsc::Receiver<Vec<u8>>>,
+    assembler: tokio::sync::Mutex<PacketAssembler>,
 }
 
 impl BleTransport {
@@ -138,8 +139,13 @@ impl BleTransport {
             .cloned()
             .ok_or_else(|| PrinterError::Ble("notify characteristic not found".into()))?;
 
-        // Set up notification channel BEFORE subscribing to avoid race condition
-        // where early notifications are lost.
+        // Subscribe to notifications BEFORE spawning the listener task
+        // so that a failed subscribe() doesn't leak a spawned task.
+        peripheral
+            .subscribe(&notify_char)
+            .await
+            .map_err(|e| PrinterError::Ble(format!("notification subscribe failed: {e}")))?;
+
         let (tx, rx) = mpsc::channel(64);
         let mut notification_stream = peripheral
             .notifications()
@@ -162,12 +168,6 @@ impl BleTransport {
             log::debug!("Notification stream ended");
         });
 
-        // Now subscribe to notifications
-        peripheral
-            .subscribe(&notify_char)
-            .await
-            .map_err(|e| PrinterError::Ble(format!("notification subscribe failed: {e}")))?;
-
         // Brief delay to let the BLE connection stabilize
         tokio::time::sleep(Duration::from_millis(200)).await;
 
@@ -175,6 +175,7 @@ impl BleTransport {
             peripheral,
             write_char,
             rx: tokio::sync::Mutex::new(rx),
+            assembler: tokio::sync::Mutex::new(PacketAssembler::new()),
         })
     }
 }
@@ -200,7 +201,7 @@ impl Transport for BleTransport {
 
     async fn receive(&self, timeout: Duration) -> Result<protocol::Packet> {
         let mut rx = self.rx.lock().await;
-        let mut assembler = PacketAssembler::new();
+        let mut assembler = self.assembler.lock().await;
 
         loop {
             let data = tokio::time::timeout(timeout, rx.recv())

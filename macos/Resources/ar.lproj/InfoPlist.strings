@@ -1,1 +1,2 @@
 "NSBluetoothAlwaysUsageDescription" = "يحتاج InstantLink إلى البلوتوث للتواصل مع طابعة Instax Link الخاصة بك.";
+"NSCameraUsageDescription" = "يحتاج InstantLink إلى الوصول إلى الكاميرا لالتقاط الصور للطباعة.";

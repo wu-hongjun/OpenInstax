@@ -139,6 +139,9 @@ pub extern "C" fn instantlink_connect() -> i32 {
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
+                    if let Some(old_device) = guard.take() {
+                        let _ = rt.block_on(old_device.disconnect());
+                    }
                     *guard = Some(device);
                     0
                 } else {
@@ -175,6 +178,9 @@ pub unsafe extern "C" fn instantlink_connect_named(name: *const c_char, duration
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
+                    if let Some(old_device) = guard.take() {
+                        let _ = rt.block_on(old_device.disconnect());
+                    }
                     *guard = Some(device);
                     0
                 } else {
@@ -559,7 +565,7 @@ pub extern "C" fn instantlink_led_off() -> i32 {
 }
 
 /// Check if a printer is currently connected.
-/// Returns 1 if connected, 0 if not.
+/// Returns 1 if connected, 0 if not, -3 on error.
 #[no_mangle]
 pub extern "C" fn instantlink_is_connected() -> i32 {
     std::panic::catch_unwind(|| {
@@ -567,8 +573,8 @@ pub extern "C" fn instantlink_is_connected() -> i32 {
         if let Ok(guard) = lock.lock() {
             i32::from(guard.is_some())
         } else {
-            0
+            -3
         }
     })
-    .unwrap_or(0)
+    .unwrap_or(-3)
 }

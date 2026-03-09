@@ -3,19 +3,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use serde::Serialize;
 
-/// Create a progress bar for image transfer.
-pub fn transfer_progress(total: u64) -> ProgressBar {
-    let pb = ProgressBar::new(total);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} chunks ({eta})")
-            .expect("valid template")
-            .progress_chars("=>-"),
-    );
-    pb
-}
-
-/// Create a spinner for indeterminate operations (scanning, connecting).
+/// Create a spinner for indeterminate operations (scanning, connecting, printing).
 pub fn spinner(message: &str) -> ProgressBar {
     let pb = ProgressBar::new_spinner();
     pb.set_style(

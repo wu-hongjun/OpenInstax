@@ -240,7 +240,7 @@ impl PrinterDevice for BlePrinterDevice {
         let mut is_charging = None;
         let mut print_count = None;
 
-        for _ in 0..3 {
+        for _ in 0..6 {
             let packet = self.transport.receive(DEFAULT_TIMEOUT).await?;
             match Response::decode(&packet) {
                 Response::BatteryStatus { level, .. } => battery = Some(level),
@@ -253,10 +253,13 @@ impl PrinterDevice for BlePrinterDevice {
                 }
                 Response::HistoryInfo { count } => print_count = Some(count),
                 other => {
-                    return Err(PrinterError::UnexpectedResponse(format!(
-                        "unexpected response during status query: {other:?}"
-                    )));
+                    log::warn!("ignoring spurious notification during status query: {other:?}");
+                    continue;
                 }
+            }
+            // Break early once we have all three responses.
+            if battery.is_some() && film_remaining.is_some() && print_count.is_some() {
+                break;
             }
         }
 
