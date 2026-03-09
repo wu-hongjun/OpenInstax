@@ -60,11 +60,14 @@ The FFI crate exposes the Rust core through a C ABI.
 
 ## macOS App
 
-The macOS app lives in `macos/InstantLink/` and is no longer a single-file app.
+The macOS app lives in `macos/InstantLink/` and is split by responsibility.
 
-- `InstantLinkApp.swift` contains the app entry point, view model, and most SwiftUI views
+- `App/` holds the SwiftUI app entry point, restart helper, and app delegate
+- `Core/` holds shared app state such as `ViewModel`, printer orchestration, queue state, and print pipeline logic
+- `Features/` groups UI by workflow: `Camera/`, `Editor/`, `Main/`, and `Settings/`
+- `Support/` holds reusable UI primitives such as film frames, preview helpers, overlay canvas rendering, and shared visual styles
 - `OverlayModels.swift` defines the overlay data model and typed payloads
-- `InstantLinkFFI.swift` loads `libinstantlink_ffi.dylib` and resolves 19 symbols at runtime
+- `InstantLinkFFI.swift` loads `libinstantlink_ffi.dylib` and resolves the FFI symbols at runtime
 - `.lproj/Localizable.strings` bundles provide 12-language localization
 
 The app no longer compiles a Swift CLI wrapper or keeps a CLI fallback path for printer operations. Runtime printer/device work goes through `InstantLinkFFI.swift` into the bundled `libinstantlink_ffi.dylib`. The bundled `instantlink-cli` binary remains in the app only for lightweight metadata lookups such as version display.

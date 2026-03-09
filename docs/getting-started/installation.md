@@ -42,7 +42,7 @@ cp target/release/instantlink /usr/local/bin/
 
 ## Build the macOS App
 
-The app bundle embeds the CLI binary and the FFI dylib.
+The app bundle embeds the CLI binary and the FFI dylib. Runtime printer/device operations use the bundled FFI dylib; the bundled CLI is kept only for lightweight metadata such as version reporting.
 
 ```bash
 bash scripts/build-app.sh 0.1.2

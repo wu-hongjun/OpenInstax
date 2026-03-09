@@ -52,7 +52,14 @@ InstantLink/
 │   ├── instantlink-core/   # BLE protocol, device logic, image processing
 │   ├── instantlink-cli/    # CLI binary
 │   └── instantlink-ffi/    # C ABI wrapper for native apps
-├── macos/InstantLink/      # SwiftUI app, FFI loader, overlay models
+├── macos/InstantLink/
+│   ├── App/                # SwiftUI app entry, app delegate, relaunch helpers
+│   ├── Core/               # ViewModel, queue state, print pipeline
+│   ├── Features/           # Camera, main window, editor, settings UI
+│   ├── Support/            # Shared preview, overlay, and panel components
+│   ├── InstantLinkFFI.swift
+│   ├── Localization.swift
+│   └── OverlayModels.swift
 ├── docs/                   # MkDocs documentation
 ├── scripts/build-app.sh    # App bundle + DMG build script
 └── .github/workflows/      # CI and release automation

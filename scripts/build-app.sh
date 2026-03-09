@@ -94,14 +94,21 @@ fi
 
 # --- Compile SwiftUI launcher (Contents/MacOS/InstantLink) -----------------
 echo "==> Compiling SwiftUI launcher..."
+SWIFT_SOURCES=()
+while IFS= read -r source; do
+  SWIFT_SOURCES+=("$source")
+done < <(find "$REPO_ROOT/macos/InstantLink" -name '*.swift' | sort)
+
+if [[ ${#SWIFT_SOURCES[@]} -eq 0 ]]; then
+  echo "Error: No Swift sources found under macos/InstantLink" >&2
+  exit 1
+fi
+
 swiftc \
   -target arm64-apple-macosx13.0 \
   -O \
   -o "$MACOS_DIR/InstantLink" \
-  "$REPO_ROOT/macos/InstantLink/InstantLinkApp.swift" \
-  "$REPO_ROOT/macos/InstantLink/OverlayModels.swift" \
-  "$REPO_ROOT/macos/InstantLink/Localization.swift" \
-  "$REPO_ROOT/macos/InstantLink/InstantLinkFFI.swift" \
+  "${SWIFT_SOURCES[@]}" \
   -framework SwiftUI \
   -framework AppKit \
   -framework UniformTypeIdentifiers \

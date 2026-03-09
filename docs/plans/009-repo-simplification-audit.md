@@ -1,6 +1,6 @@
 # Plan 009: Repository Simplification Audit
 
-**Status:** Proposed
+**Status:** In Progress
 
 ## Goal
 
@@ -26,25 +26,16 @@ Recommended fix:
 
 ### 1. Split the macOS app by feature
 
-`macos/InstantLink/InstantLinkApp.swift` is still too monolithic. It currently mixes:
+Completed in March 2026: the macOS app is no longer a single-file target. The old `InstantLinkApp.swift` monolith was split into:
 
-- app lifecycle
-- printer/device orchestration
-- print pipeline
-- queue state
-- camera flow
-- overlay editor
-- settings/about UI
+- `App/` for lifecycle and relaunch helpers
+- `Core/` for `ViewModel`, queue state, and print orchestration
+- `Features/Camera/`, `Features/Main/`, `Features/Editor/`, and `Features/Settings/` for workflow-specific UI
+- `Support/` for reusable preview, overlay, and panel components
 
-Recommended target structure:
-
-- `App/`
-- `Features/Queue/`
-- `Features/Camera/`
-- `Features/OverlayEditor/`
-- `Features/Settings/`
-- `Services/Printing/`
-- `Services/Profiles/`
+Remaining follow-up:
+- continue reducing `Core/ViewModel.swift` by extracting non-state services and helpers behind clearer boundaries
+- consolidate printer profile editing flows so settings and post-pairing use the same editor surface
 
 ### 2. Remove or formalize `InstantLinkCLI.swift`
 
@@ -77,10 +68,9 @@ Location overlay source modes should map to clearly separate UI states and valid
 ## Suggested Order
 
 1. Fix FFI header packaging in CI/release flow
-2. Remove dead macOS CLI fallback path if truly unused
-3. Split `InstantLinkApp.swift` into feature files without changing behavior
-4. Consolidate duplicate printer-profile editing views
-5. Archive completed plans and tighten docs ownership
+2. Consolidate duplicate printer-profile editing views
+3. Archive completed plans and tighten docs ownership
+4. Continue decomposing `Core/ViewModel.swift` into smaller services once current UX work stabilizes
 
 ## Exit Criteria
 
@@ -88,6 +78,6 @@ This audit is complete when the repo has:
 
 - one authoritative FFI header path per release
 - no dead fallback layers
-- a decomposed macOS app structure
+- a decomposed macOS app structure with slimmer core state ownership
 - fewer duplicated UI/editor paths
 - a clear boundary between active plans and historical records

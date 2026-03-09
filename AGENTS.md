@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`crates/instantlink-core/src` contains the async BLE protocol, printer/device layers, image pipeline, and most inline unit tests. `crates/instantlink-cli/src` is the `clap`-based CLI entry point. `crates/instantlink-ffi/src` and `crates/instantlink-ffi/include` expose the native C interface used by the macOS app in `macos/InstantLink`. Keep documentation in `docs/`, automation in `scripts/`, and reverse-engineering references in `references/`. Treat `target/` as generated output.
+`crates/instantlink-core/src` contains the async BLE protocol, printer/device layers, image pipeline, and most inline unit tests. `crates/instantlink-cli/src` is the `clap` frontend. `crates/instantlink-ffi/src` and `crates/instantlink-ffi/include` expose the C interface used by the macOS app in `macos/InstantLink`, which is split into `App/` (entry/relaunch), `Core/` (view model and print logic), `Features/` (Camera, Main, Editor, Settings), and `Support/` (shared preview/panel components). Keep docs in `docs/`, automation in `scripts/`, and reverse-engineering references in `references/`. Treat `target/` as generated output.
 
 ## Build, Test, and Development Commands
 Run workspace checks from the repo root:
