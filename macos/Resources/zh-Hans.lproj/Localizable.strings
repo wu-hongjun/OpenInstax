@@ -110,7 +110,10 @@
 /* Settings Window */
 "Settings" = "设置";
 "Language" = "语言";
+"Appearance" = "外观";
 "System Default" = "系统默认";
+"Light" = "浅色";
+"Dark" = "深色";
 "language_restart_note" = "更改语言需要重新启动应用。";
 "Restart" = "重新启动";
 "Default Print Settings" = "默认打印设置";

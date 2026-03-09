@@ -110,7 +110,10 @@
 /* Settings Window */
 "Settings" = "الإعدادات";
 "Language" = "اللغة";
+"Appearance" = "المظهر";
 "System Default" = "الافتراضي للنظام";
+"Light" = "فاتح";
+"Dark" = "داكن";
 "language_restart_note" = "يتطلب تغيير اللغة إعادة تشغيل التطبيق.";
 "Restart" = "إعادة التشغيل";
 "Default Print Settings" = "إعدادات الطباعة الافتراضية";

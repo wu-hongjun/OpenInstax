@@ -208,6 +208,39 @@ struct NewPhotoDefaults: Codable, Equatable {
 
 private let initialNewPhotoDefaults = NewPhotoDefaults.load()
 
+enum AppAppearance: String, CaseIterable, Codable, Identifiable {
+    case system
+    case light
+    case dark
+
+    static let storageKey = "appAppearance"
+
+    var id: String { rawValue }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system:
+            return nil
+        case .light:
+            return NSAppearance(named: .aqua)
+        case .dark:
+            return NSAppearance(named: .darkAqua)
+        }
+    }
+
+    static func load() -> Self {
+        guard let rawValue = UserDefaults.standard.string(forKey: storageKey),
+              let appearance = Self(rawValue: rawValue) else {
+            return .system
+        }
+        return appearance
+    }
+
+    func save() {
+        UserDefaults.standard.set(rawValue, forKey: Self.storageKey)
+    }
+}
+
 struct QueueItemEditState: Equatable {
     var fitMode: String
     var cropOffset: CGSize = .zero
@@ -272,6 +305,12 @@ class ViewModel: ObservableObject {
             if queue.isEmpty {
                 applyDefaultQueueItemEditState()
             }
+        }
+    }
+    @Published var appearancePreference: AppAppearance = AppAppearance.load() {
+        didSet {
+            appearancePreference.save()
+            applyAppearancePreference()
         }
     }
 
@@ -439,6 +478,7 @@ class ViewModel: ObservableObject {
             fatalError("Failed to load InstantLink native library. The app bundle may be corrupted.")
         }
         ffi = f
+        applyAppearancePreference()
         loadCoreVersion()
         autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             guard let self = self, self.isConnected else { return }
@@ -793,6 +833,10 @@ class ViewModel: ObservableObject {
 
     func resetNewPhotoDefaults() {
         newPhotoDefaults = NewPhotoDefaults()
+    }
+
+    func applyAppearancePreference() {
+        NSApp.appearance = appearancePreference.nsAppearance
     }
 
     private func makeCurrentQueueItemEditState() -> QueueItemEditState {
@@ -3796,6 +3840,8 @@ struct SettingsView: View {
                     Divider().padding(.vertical, 12)
                     LanguageSection()
                     Divider().padding(.vertical, 12)
+                    AppearanceSection()
+                    Divider().padding(.vertical, 12)
                     PrinterManagementSection()
                 }
                 .padding(.horizontal, 24)
@@ -3901,6 +3947,27 @@ struct AboutSection: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Appearance Section
+
+struct AppearanceSection: View {
+    @EnvironmentObject var viewModel: ViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L("Appearance"))
+                .font(.headline)
+
+            Picker("", selection: $viewModel.appearancePreference) {
+                Text(L("System Default")).tag(AppAppearance.system)
+                Text(L("Light")).tag(AppAppearance.light)
+                Text(L("Dark")).tag(AppAppearance.dark)
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+        }
     }
 }
 

@@ -110,7 +110,10 @@
 /* Settings Window */
 "Settings" = "설정";
 "Language" = "언어";
+"Appearance" = "모양";
 "System Default" = "시스템 기본값";
+"Light" = "라이트";
+"Dark" = "다크";
 "language_restart_note" = "언어를 변경하면 앱을 다시 시작해야 합니다.";
 "Restart" = "재시작";
 "Default Print Settings" = "기본 인쇄 설정";

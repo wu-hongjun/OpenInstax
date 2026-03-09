@@ -110,7 +110,10 @@
 /* Settings Window */
 "Settings" = "Settings";
 "Language" = "Language";
+"Appearance" = "Appearance";
 "System Default" = "System Default";
+"Light" = "Light";
+"Dark" = "Dark";
 "language_restart_note" = "Changing the language requires restarting the app.";
 "Restart" = "Restart";
 "Default Print Settings" = "Default Print Settings";

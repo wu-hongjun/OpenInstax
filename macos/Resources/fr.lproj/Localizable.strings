@@ -111,7 +111,10 @@
 /* Settings Window */
 "Settings" = "Réglages";
 "Language" = "Langue";
+"Appearance" = "Apparence";
 "System Default" = "Par défaut du système";
+"Light" = "Clair";
+"Dark" = "Sombre";
 "language_restart_note" = "Le changement de langue nécessite un redémarrage de l'app.";
 "Restart" = "Redémarrer";
 "Default Print Settings" = "Réglages d'impression par défaut";

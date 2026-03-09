@@ -111,7 +111,10 @@
 /* Settings Window */
 "Settings" = "הגדרות";
 "Language" = "שפה";
+"Appearance" = "מראה";
 "System Default" = "ברירת מחדל של המערכת";
+"Light" = "בהיר";
+"Dark" = "כהה";
 "language_restart_note" = "שינוי השפה מחייב הפעלה מחדש של האפליקציה.";
 "Restart" = "הפעל מחדש";
 "Default Print Settings" = "הגדרות הדפסה ברירת מחדל";

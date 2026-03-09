@@ -110,7 +110,10 @@
 /* Settings Window */
 "Settings" = "Einstellungen";
 "Language" = "Sprache";
+"Appearance" = "Erscheinungsbild";
 "System Default" = "Systemstandard";
+"Light" = "Hell";
+"Dark" = "Dunkel";
 "language_restart_note" = "Das Ändern der Sprache erfordert einen Neustart der App.";
 "Restart" = "Neustart";
 "Default Print Settings" = "Standard-Druckeinstellungen";
