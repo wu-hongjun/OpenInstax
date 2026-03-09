@@ -25,6 +25,7 @@ struct ImageEditorView: View {
                 HSplitView {
                     EditorPreviewView()
                         .padding(12)
+                        .frame(minWidth: 620, idealWidth: 820)
                         .layoutPriority(1)
 
                     EditorSidebarView()
@@ -39,13 +40,15 @@ struct ImageEditorView: View {
                         .font(.headline)
                         .foregroundColor(.secondary)
                     Button(L("Open File")) { viewModel.selectImage() }
-                        .controlSize(.large)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .frame(minHeight: 36)
                     Spacer()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(minWidth: 1080, idealWidth: 1280, minHeight: 720, idealHeight: 820)
     }
 }
 
@@ -368,7 +371,7 @@ struct EditorSidebarView: View {
             }
             .padding(12)
         }
-        .frame(minWidth: 200, idealWidth: 220, maxWidth: 260)
+        .frame(minWidth: 360, idealWidth: 400, maxWidth: 460)
     }
 }
 

@@ -159,7 +159,9 @@ struct MainPreviewView: View {
                         .font(.callout)
                         .foregroundColor(.secondary)
                     Button(L("Open File")) { viewModel.selectImage() }
+                        .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .frame(minHeight: 36)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
@@ -422,9 +424,10 @@ struct MainActionsView: View {
                             Image(systemName: "plus")
                             Text(L("Open File"))
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: 36)
                     }
-                    .controlSize(.large)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
 
                     Button {
                         openEditor()
@@ -433,9 +436,10 @@ struct MainActionsView: View {
                             Image(systemName: "slider.horizontal.3")
                             Text(L("Edit Image"))
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: 36)
                     }
-                    .controlSize(.large)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                     .disabled(viewModel.selectedImage == nil)
                 }
                 .frame(maxWidth: .infinity)

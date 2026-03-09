@@ -428,6 +428,7 @@ struct MainView: View {
             Image(systemName: "camera").tag(CaptureMode.camera)
         }
         .pickerStyle(.segmented)
+        .controlSize(.small)
         .labelsHidden()
         .frame(width: 60)
         .onChange(of: viewModel.captureMode) { newMode in

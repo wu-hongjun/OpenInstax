@@ -171,6 +171,7 @@ struct AppPanelBackground: View {
 }
 
 struct HeaderCapsule<Content: View>: View {
+    private let capsuleHeight: CGFloat = 34
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -178,7 +179,7 @@ struct HeaderCapsule<Content: View>: View {
             content()
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .frame(height: capsuleHeight)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
             Capsule()
