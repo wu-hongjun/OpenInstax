@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreImage
 import CoreText
 import SwiftUI
 import UniformTypeIdentifiers
@@ -179,12 +180,7 @@ struct NewPhotoDefaults: Codable, Equatable {
     static let storageKey = "newPhotoDefaults"
 
     var fitMode: String = "crop"
-    var dateStampEnabled: Bool = false
-    var showTimeRow: Bool = true
-    var dateStampPosition: String = "bottomRight"
-    var dateStampStyle: String = "classic"
-    var dateStampFormat: String = "ymd"
-    var lightBleedEnabled: Bool = false
+    var overlays: [OverlayItem] = []
     var filmOrientation: String = "default"
 
     static func load() -> Self {
@@ -192,16 +188,12 @@ struct NewPhotoDefaults: Codable, Equatable {
            let decoded = try? JSONDecoder().decode(Self.self, from: data) {
             return decoded
         }
-
-        var defaults = Self()
-        defaults.fitMode = UserDefaults.standard.string(forKey: "defaultFitMode") ?? defaults.fitMode
-        return defaults
+        return Self()
     }
 
     func save() {
         if let data = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(data, forKey: Self.storageKey)
-            UserDefaults.standard.removeObject(forKey: "defaultFitMode")
         }
     }
 }
@@ -247,12 +239,7 @@ struct QueueItemEditState: Equatable {
     var cropZoom: CGFloat = 1.0
     var rotationAngle: Int = 0
     var isHorizontallyFlipped: Bool = false
-    var dateStampEnabled: Bool = false
-    var showTimeRow: Bool = true
-    var dateStampPosition: String = "bottomRight"
-    var dateStampStyle: String = "classic"
-    var dateStampFormat: String = "ymd"
-    var lightBleedEnabled: Bool = false
+    var overlays: [OverlayItem] = []
     var filmOrientation: String = "default"
 }
 
@@ -261,6 +248,7 @@ struct QueueItem: Identifiable, Equatable {
     let url: URL
     let image: NSImage
     let imageDate: Date?
+    let imageLocation: ImageLocationMetadata?
     var editState: QueueItemEditState
 
     init(
@@ -268,12 +256,14 @@ struct QueueItem: Identifiable, Equatable {
         url: URL,
         image: NSImage,
         imageDate: Date?,
+        imageLocation: ImageLocationMetadata?,
         editState: QueueItemEditState
     ) {
         self.id = id
         self.url = url
         self.image = image
         self.imageDate = imageDate
+        self.imageLocation = imageLocation
         self.editState = editState
     }
 }
@@ -321,6 +311,7 @@ class ViewModel: ObservableObject {
     var selectedImage: NSImage? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].image : nil }
     var selectedImagePath: String? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].url.path : nil }
     var imageDate: Date? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].imageDate : nil }
+    var imageLocation: ImageLocationMetadata? { queue.indices.contains(selectedQueueIndex) ? queue[selectedQueueIndex].imageLocation : nil }
 
     // Print options
     @Published var fitMode: String = initialNewPhotoDefaults.fitMode {
@@ -350,24 +341,28 @@ class ViewModel: ObservableObject {
         didSet { persistSelectedQueueItemEditState() }
     }
 
-    // Date stamp
-    @Published var dateStampEnabled: Bool = initialNewPhotoDefaults.dateStampEnabled {
-        didSet { persistSelectedQueueItemEditState() }
+    // Overlays
+    @Published var overlays: [OverlayItem] = initialNewPhotoDefaults.overlays {
+        didSet {
+            if let selectedOverlayID,
+               overlays.contains(where: { $0.id == selectedOverlayID }) == false {
+                self.selectedOverlayID = overlays.last?.id
+            } else if selectedOverlayID == nil {
+                selectedOverlayID = overlays.last?.id
+            }
+            persistSelectedQueueItemEditState()
+        }
     }
-    @Published var showTimeRow: Bool = initialNewPhotoDefaults.showTimeRow {
-        didSet { persistSelectedQueueItemEditState() }
+    @Published var selectedOverlayID: UUID?
+
+    var selectedOverlayIndex: Int? {
+        guard let selectedOverlayID else { return nil }
+        return overlays.firstIndex(where: { $0.id == selectedOverlayID })
     }
-    @Published var dateStampPosition: String = initialNewPhotoDefaults.dateStampPosition {
-        didSet { persistSelectedQueueItemEditState() }
-    }
-    @Published var dateStampStyle: String = initialNewPhotoDefaults.dateStampStyle {
-        didSet { persistSelectedQueueItemEditState() }
-    }
-    @Published var dateStampFormat: String = initialNewPhotoDefaults.dateStampFormat {
-        didSet { persistSelectedQueueItemEditState() }
-    }
-    @Published var lightBleedEnabled: Bool = initialNewPhotoDefaults.lightBleedEnabled {
-        didSet { persistSelectedQueueItemEditState() }
+
+    var selectedOverlay: OverlayItem? {
+        guard let selectedOverlayIndex else { return nil }
+        return overlays[selectedOverlayIndex]
     }
 
     // Camera mode
@@ -724,11 +719,12 @@ class ViewModel: ObservableObject {
         for url in urls {
             if queue.count >= Self.maxQueueItems { break }
             guard let image = NSImage(contentsOf: url) else { continue }
-            let date = Self.extractImageDate(from: url)
+            let metadata = Self.extractImageMetadata(from: url)
             queue.append(QueueItem(
                 url: url,
                 image: image,
-                imageDate: date,
+                imageDate: metadata.date,
+                imageLocation: metadata.location,
                 editState: makeNewQueueItemEditState()
             ))
         }
@@ -800,18 +796,57 @@ class ViewModel: ObservableObject {
         addImages(from: [url])
     }
 
-    private static func extractImageDate(from url: URL) -> Date? {
+    private static func extractImageMetadata(from url: URL) -> (date: Date?, location: ImageLocationMetadata?) {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
-            return fileModificationDate(url)
+            return (fileModificationDate(url), nil)
         }
-        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any],
-              let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any],
-              let dateString = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String else {
-            return fileModificationDate(url)
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] else {
+            return (fileModificationDate(url), nil)
         }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
-        return formatter.date(from: dateString) ?? fileModificationDate(url)
+        let date: Date?
+        if let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any],
+           let dateString = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+            date = formatter.date(from: dateString) ?? fileModificationDate(url)
+        } else {
+            date = fileModificationDate(url)
+        }
+        return (date, extractImageLocation(from: properties))
+    }
+
+    private static func extractImageLocation(from properties: [String: Any]) -> ImageLocationMetadata? {
+        guard let gps = properties[kCGImagePropertyGPSDictionary as String] as? [String: Any],
+              let latitudeValue = gps[kCGImagePropertyGPSLatitude as String] as? Double,
+              let longitudeValue = gps[kCGImagePropertyGPSLongitude as String] as? Double else {
+            return nil
+        }
+
+        let latitudeRef = (gps[kCGImagePropertyGPSLatitudeRef as String] as? String) ?? "N"
+        let longitudeRef = (gps[kCGImagePropertyGPSLongitudeRef as String] as? String) ?? "E"
+        let latitude = latitudeRef.uppercased() == "S" ? -latitudeValue : latitudeValue
+        let longitude = longitudeRef.uppercased() == "W" ? -longitudeValue : longitudeValue
+        let coordinate = GeoCoordinate(latitude: latitude, longitude: longitude)
+        guard coordinate.isValid else { return nil }
+
+        let altitude = gps[kCGImagePropertyGPSAltitude as String] as? Double
+        let speed = gps[kCGImagePropertyGPSSpeed as String] as? Double
+        let timestamp: Date?
+        if let dateString = gps[kCGImagePropertyGPSDateStamp as String] as? String,
+           let timeString = gps[kCGImagePropertyGPSTimeStamp as String] as? String {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+            timestamp = formatter.date(from: "\(dateString) \(timeString)")
+        } else {
+            timestamp = nil
+        }
+
+        return ImageLocationMetadata(
+            coordinate: coordinate,
+            altitude: altitude,
+            speed: speed,
+            timestamp: timestamp
+        )
     }
 
     private static func fileModificationDate(_ url: URL) -> Date? {
@@ -906,12 +941,7 @@ class ViewModel: ObservableObject {
     func saveCurrentSettingsAsNewPhotoDefaults() {
         newPhotoDefaults = NewPhotoDefaults(
             fitMode: fitMode,
-            dateStampEnabled: dateStampEnabled,
-            showTimeRow: showTimeRow,
-            dateStampPosition: dateStampPosition,
-            dateStampStyle: dateStampStyle,
-            dateStampFormat: dateStampFormat,
-            lightBleedEnabled: lightBleedEnabled,
+            overlays: overlays,
             filmOrientation: filmOrientation
         )
     }
@@ -931,12 +961,7 @@ class ViewModel: ObservableObject {
             cropZoom: cropZoom,
             rotationAngle: rotationAngle,
             isHorizontallyFlipped: isHorizontallyFlipped,
-            dateStampEnabled: dateStampEnabled,
-            showTimeRow: showTimeRow,
-            dateStampPosition: dateStampPosition,
-            dateStampStyle: dateStampStyle,
-            dateStampFormat: dateStampFormat,
-            lightBleedEnabled: lightBleedEnabled,
+            overlays: overlays,
             filmOrientation: filmOrientation
         )
     }
@@ -944,12 +969,7 @@ class ViewModel: ObservableObject {
     private func makeQueueItemEditStateFromDefaults() -> QueueItemEditState {
         QueueItemEditState(
             fitMode: newPhotoDefaults.fitMode,
-            dateStampEnabled: newPhotoDefaults.dateStampEnabled,
-            showTimeRow: newPhotoDefaults.showTimeRow,
-            dateStampPosition: newPhotoDefaults.dateStampPosition,
-            dateStampStyle: newPhotoDefaults.dateStampStyle,
-            dateStampFormat: newPhotoDefaults.dateStampFormat,
-            lightBleedEnabled: newPhotoDefaults.lightBleedEnabled,
+            overlays: newPhotoDefaults.overlays,
             filmOrientation: newPhotoDefaults.filmOrientation
         )
     }
@@ -976,12 +996,8 @@ class ViewModel: ObservableObject {
         cropZoom = editState.cropZoom
         rotationAngle = editState.rotationAngle
         isHorizontallyFlipped = editState.isHorizontallyFlipped
-        dateStampEnabled = editState.dateStampEnabled
-        showTimeRow = editState.showTimeRow
-        dateStampPosition = editState.dateStampPosition
-        dateStampStyle = editState.dateStampStyle
-        dateStampFormat = editState.dateStampFormat
-        lightBleedEnabled = editState.lightBleedEnabled
+        overlays = editState.overlays
+        selectedOverlayID = overlays.last?.id
         filmOrientation = editState.filmOrientation
         isApplyingQueueItemEditState = false
     }
@@ -990,6 +1006,230 @@ class ViewModel: ObservableObject {
         guard !isApplyingQueueItemEditState,
               queue.indices.contains(selectedQueueIndex) else { return }
         queue[selectedQueueIndex].editState = makeCurrentQueueItemEditState()
+    }
+
+    func selectOverlay(_ id: UUID?) {
+        selectedOverlayID = id
+    }
+
+    func addOverlay(kind: OverlayKind) {
+        let overlay = OverlayItem(
+            content: defaultOverlayContent(for: kind),
+            placement: defaultOverlayPlacement(for: kind),
+            opacity: 1.0,
+            zIndex: (overlays.map(\.zIndex).max() ?? -1) + 1
+        )
+        overlays.append(overlay)
+        selectedOverlayID = overlay.id
+    }
+
+    func deleteOverlay(id: UUID) {
+        guard let index = overlays.firstIndex(where: { $0.id == id }) else { return }
+        overlays.remove(at: index)
+        if selectedOverlayID == id {
+            selectedOverlayID = overlays.indices.contains(index) ? overlays[index].id : overlays.last?.id
+        }
+    }
+
+    func deleteSelectedOverlay() {
+        guard let selectedOverlayID else { return }
+        deleteOverlay(id: selectedOverlayID)
+    }
+
+    func duplicateSelectedOverlay() {
+        guard let selectedOverlay else { return }
+        var duplicate = selectedOverlay
+        duplicate.id = UUID()
+        duplicate.createdAt = Date()
+        duplicate.placement.normalizedCenterX = min(0.92, duplicate.placement.normalizedCenterX + 0.04)
+        duplicate.placement.normalizedCenterY = min(0.92, duplicate.placement.normalizedCenterY + 0.04)
+        duplicate.zIndex = (overlays.map(\.zIndex).max() ?? -1) + 1
+        overlays.append(duplicate)
+        selectedOverlayID = duplicate.id
+    }
+
+    func moveSelectedOverlayForward() {
+        guard let index = selectedOverlayIndex, index < overlays.count - 1 else { return }
+        let currentZ = overlays[index].zIndex
+        let nextZ = overlays[index + 1].zIndex
+        overlays[index].zIndex = nextZ
+        overlays[index + 1].zIndex = currentZ
+        overlays.sort { $0.zIndex < $1.zIndex }
+    }
+
+    func moveSelectedOverlayBackward() {
+        guard let index = selectedOverlayIndex, index > 0 else { return }
+        let currentZ = overlays[index].zIndex
+        let previousZ = overlays[index - 1].zIndex
+        overlays[index].zIndex = previousZ
+        overlays[index - 1].zIndex = currentZ
+        overlays.sort { $0.zIndex < $1.zIndex }
+    }
+
+    func updateSelectedOverlay(_ mutate: (inout OverlayItem) -> Void) {
+        guard let index = selectedOverlayIndex else { return }
+        var updated = overlays[index]
+        mutate(&updated)
+        updated.placement = updated.placement.clamped
+        overlays[index] = updated
+    }
+
+    func updateOverlay(id: UUID, _ mutate: (inout OverlayItem) -> Void) {
+        guard let index = overlays.firstIndex(where: { $0.id == id }) else { return }
+        var updated = overlays[index]
+        mutate(&updated)
+        updated.placement = updated.placement.clamped
+        overlays[index] = updated
+    }
+
+    func updateSelectedTextOverlay(_ mutate: (inout TextOverlayData) -> Void) {
+        updateSelectedOverlay { overlay in
+            guard case .text(var data) = overlay.content else { return }
+            mutate(&data)
+            overlay.content = .text(data)
+        }
+    }
+
+    func updateSelectedQRCodeOverlay(_ mutate: (inout QROverlayData) -> Void) {
+        updateSelectedOverlay { overlay in
+            guard case .qrCode(var data) = overlay.content else { return }
+            mutate(&data)
+            overlay.content = .qrCode(data)
+        }
+    }
+
+    func updateSelectedTimestampOverlay(_ mutate: (inout TimestampOverlayData) -> Void) {
+        updateSelectedOverlay { overlay in
+            guard case .timestamp(var data) = overlay.content else { return }
+            mutate(&data)
+            overlay.content = .timestamp(data)
+        }
+    }
+
+    func updateSelectedImageOverlay(_ mutate: (inout ImageOverlayData) -> Void) {
+        updateSelectedOverlay { overlay in
+            guard case .image(var data) = overlay.content else { return }
+            mutate(&data)
+            overlay.content = .image(data)
+        }
+    }
+
+    func updateSelectedLocationOverlay(_ mutate: (inout LocationOverlayData) -> Void) {
+        updateSelectedOverlay { overlay in
+            guard case .location(var data) = overlay.content else { return }
+            mutate(&data)
+            overlay.content = .location(data)
+        }
+    }
+
+    func replaceSelectedImageOverlayAsset() {
+        guard let selectedOverlay, case .image = selectedOverlay.content else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.message = L("Select an image to print")
+        guard panel.runModal() == .OK,
+              let url = panel.url,
+              let image = NSImage(contentsOf: url),
+              let tiff = image.tiffRepresentation else { return }
+        updateSelectedImageOverlay { data in
+            data.asset = OverlayImageAsset(fileName: url.lastPathComponent, imageData: tiff)
+        }
+    }
+
+    var defaultTimestampOverlay: OverlayItem? {
+        newPhotoDefaults.overlays.first { overlay in
+            if case .timestamp = overlay.content {
+                return true
+            }
+            return false
+        }
+    }
+
+    func setDefaultTimestampOverlayEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            guard defaultTimestampOverlay == nil else { return }
+            var overlay = OverlayItem(
+                content: .timestamp(TimestampOverlayData()),
+                placement: defaultOverlayPlacement(for: .timestamp),
+                opacity: 1.0,
+                zIndex: 0
+            )
+            overlay.isLocked = false
+            newPhotoDefaults.overlays.append(overlay)
+        } else {
+            newPhotoDefaults.overlays.removeAll { overlay in
+                if case .timestamp = overlay.content {
+                    return true
+                }
+                return false
+            }
+        }
+    }
+
+    func updateDefaultTimestampOverlay(_ mutate: (inout TimestampOverlayData) -> Void) {
+        guard let index = newPhotoDefaults.overlays.firstIndex(where: { overlay in
+            if case .timestamp = overlay.content {
+                return true
+            }
+            return false
+        }) else { return }
+
+        var overlay = newPhotoDefaults.overlays[index]
+        guard case .timestamp(var data) = overlay.content else { return }
+        mutate(&data)
+        overlay.content = .timestamp(data)
+        newPhotoDefaults.overlays[index] = overlay
+    }
+
+    func overlayTitle(for overlay: OverlayItem) -> String {
+        switch overlay.content {
+        case .text(let data):
+            let trimmed = data.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? L("Text") : trimmed
+        case .qrCode:
+            return L("QR Code")
+        case .timestamp:
+            return L("Timestamp")
+        case .image(let data):
+            return data.asset.fileName ?? L("Image")
+        case .location:
+            return L("Location")
+        }
+    }
+
+    private func defaultOverlayContent(for kind: OverlayKind) -> OverlayContent {
+        switch kind {
+        case .text:
+            return .text(TextOverlayData())
+        case .qrCode:
+            return .qrCode(QROverlayData())
+        case .timestamp:
+            return .timestamp(TimestampOverlayData())
+        case .image:
+            let emptyImage = NSImage(size: CGSize(width: 128, height: 128))
+            let imageData = emptyImage.tiffRepresentation ?? Data()
+            return .image(ImageOverlayData(asset: OverlayImageAsset(fileName: nil, imageData: imageData)))
+        case .location:
+            return .location(LocationOverlayData(coordinate: imageLocation?.coordinate))
+        }
+    }
+
+    private func defaultOverlayPlacement(for kind: OverlayKind) -> OverlayPlacement {
+        switch kind {
+        case .qrCode:
+            return OverlayPlacement(normalizedCenterX: 0.78, normalizedCenterY: 0.78, normalizedWidth: 0.22, normalizedHeight: 0.22, anchor: .center)
+        case .image:
+            return OverlayPlacement(normalizedCenterX: 0.78, normalizedCenterY: 0.24, normalizedWidth: 0.24, normalizedHeight: 0.24, anchor: .center)
+        case .timestamp:
+            return OverlayPlacement(normalizedCenterX: 0.78, normalizedCenterY: 0.9, normalizedWidth: 0.34, normalizedHeight: 0.1, anchor: .center)
+        case .location:
+            return OverlayPlacement(normalizedCenterX: 0.24, normalizedCenterY: 0.9, normalizedWidth: 0.34, normalizedHeight: 0.12, anchor: .center)
+        case .text:
+            return OverlayPlacement(normalizedCenterX: 0.5, normalizedCenterY: 0.16, normalizedWidth: 0.42, normalizedHeight: 0.14, anchor: .center)
+        }
     }
 
     // MARK: - Camera Session
@@ -1170,7 +1410,7 @@ class ViewModel: ObservableObject {
         do {
             try jpegData.write(to: tempURL)
         } catch {
-            showStatus(L("Failed to save captured image: \(error.localizedDescription)"))
+            showStatus(L("failed_to_save_captured_image", error.localizedDescription))
             return false
         }
 
@@ -1183,6 +1423,7 @@ class ViewModel: ObservableObject {
             url: tempURL,
             image: finalImage,
             imageDate: Date(),
+            imageLocation: nil,
             editState: makeCapturedQueueItemEditState()
         ))
         selectedQueueIndex = queue.count - 1
@@ -1300,20 +1541,27 @@ class ViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Date Stamp Text Formatting
+    // MARK: - Overlay Text Formatting
 
-    func dateStampText(from date: Date) -> String {
+    private func nsColor(from color: OverlayColor) -> NSColor {
+        NSColor(
+            srgbRed: CGFloat(color.red),
+            green: CGFloat(color.green),
+            blue: CGFloat(color.blue),
+            alpha: CGFloat(color.alpha)
+        )
+    }
+
+    func timestampText(from date: Date, format: TimestampFormat, separator: String) -> String {
         let cal = Calendar.current
         let y = cal.component(.year, from: date) % 100
         let m = cal.component(.month, from: date)
         let d = cal.component(.day, from: date)
-        let preset = Self.dateStampPresets[dateStampStyle] ?? Self.dateStampPresets["classic"]!
-        let s = preset.separator
         let (yy, mm, dd) = (String(format: "%02d", y), String(format: "%02d", m), String(format: "%02d", d))
-        switch dateStampFormat {
-        case "mdy": return "\(mm)\(s)\(dd)\(s)\(yy)"
-        case "dmy": return "\(dd)\(s)\(mm)\(s)\(yy)"
-        default:    return "\(yy)\(s)\(mm)\(s)\(dd)"
+        switch format {
+        case .mdy: return "\(mm)\(separator)\(dd)\(separator)\(yy)"
+        case .dmy: return "\(dd)\(separator)\(mm)\(separator)\(yy)"
+        case .ymd: return "\(yy)\(separator)\(mm)\(separator)\(dd)"
         }
     }
 
@@ -1322,116 +1570,306 @@ class ViewModel: ObservableObject {
         return String(format: "%02d:%02d", cal.component(.hour, from: date), cal.component(.minute, from: date))
     }
 
-    // MARK: - Date Stamp Rendering
+    func resolvedTimestampDate(for data: TimestampOverlayData) -> Date {
+        switch data.source {
+        case .photoDate:
+            return imageDate ?? Date()
+        case .now, .custom:
+            return Date()
+        }
+    }
 
-    func stampImage(_ cgImage: CGImage) -> CGImage? {
-        let width = cgImage.width
-        let height = cgImage.height
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-
-        guard let context = CGContext(
-            data: nil,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
-
-        let date = imageDate ?? Date()
-        let preset = Self.dateStampPresets[dateStampStyle]
-            ?? Self.dateStampPresets["classic"]!
-        let fontSize = CGFloat(height) * preset.sizePercent
-        let padding = fontSize * 0.8
-        let rowGap = fontSize * 0.3
-        let kern = fontSize * preset.tracking
-
-        let (r, g, b) = preset.color
-        let (gr, gg, gb) = preset.glowColor
-
-        let ctFont = CTFontCreateWithName(preset.fontFamily as CFString, fontSize, nil)
-        let textColor = CGColor(srgbRed: r, green: g, blue: b, alpha: 1.0)
-
-        let dateText = dateStampText(from: date)
-        let timeText = timeStampText(from: date)
-
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: ctFont,
-            .foregroundColor: textColor,
-            .kern: kern,
-        ]
-
-        let dateLine = CTLineCreateWithAttributedString(NSAttributedString(string: dateText, attributes: attrs))
-        var dateAscent: CGFloat = 0, dateDescent: CGFloat = 0, dateLeading: CGFloat = 0
-        let dateWidth = CGFloat(CTLineGetTypographicBounds(dateLine, &dateAscent, &dateDescent, &dateLeading))
-        let dateLineHeight = dateAscent + dateDescent
-
-        var timeLineWidth: CGFloat = 0
-        var timeLineObj: CTLine?
-        var timeLineHeight: CGFloat = 0
-        if showTimeRow {
-            let tLine = CTLineCreateWithAttributedString(NSAttributedString(string: timeText, attributes: attrs))
-            var tAscent: CGFloat = 0, tDescent: CGFloat = 0, tLeading: CGFloat = 0
-            timeLineWidth = CGFloat(CTLineGetTypographicBounds(tLine, &tAscent, &tDescent, &tLeading))
-            timeLineHeight = tAscent + tDescent
-            timeLineObj = tLine
+    func resolvedLocationText(for data: LocationOverlayData) -> String? {
+        let coordinate: GeoCoordinate?
+        switch data.source {
+        case .photoMetadata:
+            coordinate = imageLocation?.coordinate
+        case .manualCoordinates:
+            coordinate = data.coordinate
+        case .manualText:
+            coordinate = nil
         }
 
-        let maxWidth = max(dateWidth, timeLineWidth)
-        let totalHeight = dateLineHeight + (showTimeRow ? timeLineHeight + rowGap : 0)
-
-        // Compute origin (Core Graphics: origin at bottom-left)
-        let blockX: CGFloat
-        let blockY: CGFloat
-        switch dateStampPosition {
-        case "topLeft":
-            blockX = padding
-            blockY = CGFloat(height) - padding - totalHeight
-        case "topRight":
-            blockX = CGFloat(width) - padding - maxWidth
-            blockY = CGFloat(height) - padding - totalHeight
-        case "bottomLeft":
-            blockX = padding
-            blockY = padding
-        default:
-            blockX = CGFloat(width) - padding - maxWidth
-            blockY = padding
+        let precision = max(0, min(data.precision, 6))
+        let coordinateText: String?
+        if let coordinate {
+            coordinateText = String(
+                format: "%.\(precision)f, %.\(precision)f",
+                coordinate.latitude,
+                coordinate.longitude
+            )
+        } else {
+            coordinateText = nil
         }
 
-        // Drawing closure for glow + sharp pass
-        func drawText() {
-            // Date row (top row)
-            let dateY = blockY + (showTimeRow ? timeLineHeight + rowGap : 0)
-            context.textPosition = CGPoint(x: blockX, y: dateY)
-            CTLineDraw(dateLine, context)
-            // Time row (below date)
-            if showTimeRow, let tLine = timeLineObj {
-                context.textPosition = CGPoint(x: blockX, y: blockY)
-                CTLineDraw(tLine, context)
+        let trimmedName = data.locationName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body: String?
+        switch data.displayStyle {
+        case .coordinates:
+            body = coordinateText
+        case .name:
+            body = trimmedName.isEmpty ? coordinateText : trimmedName
+        case .nameAndCoordinates:
+            if !trimmedName.isEmpty, let coordinateText {
+                body = "\(trimmedName)\n\(coordinateText)"
+            } else {
+                body = !trimmedName.isEmpty ? trimmedName : coordinateText
             }
         }
 
-        if lightBleedEnabled && preset.glowRadius > 0 {
-            // Glow pass: draw with shadow
-            context.saveGState()
-            context.setShadow(
-                offset: .zero,
-                blur: fontSize * preset.glowRadius,
-                color: CGColor(srgbRed: gr, green: gg, blue: gb, alpha: 0.6)
-            )
-            drawText()
-            context.restoreGState()
+        guard let body, !body.isEmpty else { return nil }
+        return "\(data.prefix)\(body)\(data.suffix)"
+    }
 
-            // Sharp overdraw
-            drawText()
-        } else {
-            drawText()
+    // MARK: - Overlay Rendering
+
+    private func overlayRect(for item: OverlayItem, canvasSize: CGSize) -> CGRect {
+        let rect = item.placement.rect(in: canvasSize)
+        return CGRect(
+            x: rect.minX,
+            y: canvasSize.height - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+    }
+
+    private func overlayShadow(for style: OverlayShadowStyle, color: NSColor = .black) -> NSShadow? {
+        guard style != .none else { return nil }
+        let shadow = NSShadow()
+        shadow.shadowColor = color.withAlphaComponent(style == .strong ? 0.85 : 0.45)
+        shadow.shadowBlurRadius = style == .strong ? 10 : 4
+        shadow.shadowOffset = CGSize(width: 0, height: -1)
+        return shadow
+    }
+
+    func qrCodeImage(for data: QROverlayData) -> NSImage? {
+        guard let payload = data.payload.data(using: .utf8),
+              let qrFilter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        qrFilter.setValue(payload, forKey: "inputMessage")
+        qrFilter.setValue(data.correctionLevel.coreImageValue, forKey: "inputCorrectionLevel")
+        guard let output = qrFilter.outputImage else { return nil }
+
+        let falseColor = CIFilter(name: "CIFalseColor")
+        falseColor?.setValue(output, forKey: kCIInputImageKey)
+        falseColor?.setValue(CIColor(cgColor: nsColor(from: data.foregroundColor).cgColor), forKey: "inputColor0")
+        falseColor?.setValue(CIColor(cgColor: nsColor(from: data.backgroundColor).cgColor), forKey: "inputColor1")
+        let colored = falseColor?.outputImage ?? output
+        let scaled = colored.transformed(by: CGAffineTransform(scaleX: 16, y: 16))
+        let context = CIContext(options: nil)
+        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    }
+
+    private func imageFromOverlayAsset(_ asset: OverlayImageAsset) -> NSImage? {
+        NSImage(data: asset.imageData)
+    }
+
+    private func drawTextOverlay(_ data: TextOverlayData, in rect: CGRect) {
+        guard !data.text.isEmpty else { return }
+        let fontSize = max(14, rect.height * CGFloat(max(data.fontScale, 0.05)) * 1.8)
+        let font = NSFont(name: data.fontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let paragraph = NSMutableParagraphStyle()
+        switch data.textAlignment {
+        case .leading:
+            paragraph.alignment = .left
+        case .center:
+            paragraph.alignment = .center
+        case .trailing:
+            paragraph.alignment = .right
+        }
+        paragraph.lineBreakMode = data.allowsMultipleLines ? .byWordWrapping : .byTruncatingTail
+
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: nsColor(from: data.foregroundColor),
+            .paragraphStyle: paragraph,
+        ]
+        if let shadow = overlayShadow(for: data.shadowStyle) {
+            attributes[.shadow] = shadow
         }
 
-        return context.makeImage()
+        if data.backgroundColor.alpha > 0.01 {
+            nsColor(from: data.backgroundColor).setFill()
+            NSBezierPath(roundedRect: rect.insetBy(dx: -6, dy: -4), xRadius: 12, yRadius: 12).fill()
+        }
+
+        NSAttributedString(string: data.text, attributes: attributes).draw(
+            with: rect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+    }
+
+    private func drawTimestampOverlay(_ data: TimestampOverlayData, in rect: CGRect) {
+        let preset = Self.dateStampPresets[data.presetKey] ?? Self.dateStampPresets["classic"]!
+        let date = resolvedTimestampDate(for: data)
+        let body = data.showsTime
+            ? "\(timestampText(from: date, format: data.format, separator: preset.separator))\n\(timeStampText(from: date))"
+            : timestampText(from: date, format: data.format, separator: preset.separator)
+        let fontSize = max(12, rect.height * (data.showsTime ? 0.34 : 0.58))
+        let font = NSFont(name: preset.fontFamily, size: fontSize) ?? NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .medium)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor(srgbRed: preset.color.0, green: preset.color.1, blue: preset.color.2, alpha: 1),
+            .paragraphStyle: paragraph,
+            .kern: fontSize * preset.tracking,
+        ]
+        if data.lightBleedEnabled && preset.glowRadius > 0 {
+            let glow = NSShadow()
+            glow.shadowColor = NSColor(srgbRed: preset.glowColor.0, green: preset.glowColor.1, blue: preset.glowColor.2, alpha: 0.65)
+            glow.shadowBlurRadius = fontSize * preset.glowRadius
+            glow.shadowOffset = .zero
+            attributes[.shadow] = glow
+        }
+
+        NSAttributedString(string: body, attributes: attributes).draw(
+            with: rect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+    }
+
+    private func drawLocationOverlay(_ data: LocationOverlayData, in rect: CGRect) {
+        guard let text = resolvedLocationText(for: data) else { return }
+        let font = NSFont.monospacedSystemFont(ofSize: max(10, rect.height * 0.28), weight: .medium)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraph,
+        ]
+        if let shadow = overlayShadow(for: .soft) {
+            attributes[.shadow] = shadow
+        }
+        NSAttributedString(string: text, attributes: attributes).draw(
+            with: rect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            context: nil
+        )
+    }
+
+    private func drawImageOverlay(_ data: ImageOverlayData, in rect: CGRect) {
+        guard let image = imageFromOverlayAsset(data.asset) else { return }
+        if data.showsBacking {
+            nsColor(from: data.backingColor).setFill()
+            NSBezierPath(
+                roundedRect: rect,
+                xRadius: CGFloat(data.cornerRadius),
+                yRadius: CGFloat(data.cornerRadius)
+            ).fill()
+        }
+
+        NSGraphicsContext.current?.saveGraphicsState()
+        NSBezierPath(
+            roundedRect: rect,
+            xRadius: CGFloat(data.cornerRadius),
+            yRadius: CGFloat(data.cornerRadius)
+        ).addClip()
+
+        let imageRect: CGRect
+        switch data.contentMode {
+        case .fit:
+            imageRect = AVMakeRect(aspectRatio: image.size, insideRect: rect)
+        case .fill:
+            let fitRect = AVMakeRect(aspectRatio: image.size, insideRect: rect)
+            let scale = max(rect.width / max(fitRect.width, 1), rect.height / max(fitRect.height, 1))
+            let scaledSize = CGSize(width: fitRect.width * scale, height: fitRect.height * scale)
+            imageRect = CGRect(
+                x: rect.midX - scaledSize.width / 2,
+                y: rect.midY - scaledSize.height / 2,
+                width: scaledSize.width,
+                height: scaledSize.height
+            )
+        }
+        image.draw(in: imageRect)
+        NSGraphicsContext.current?.restoreGraphicsState()
+    }
+
+    private func drawQRCodeOverlay(_ data: QROverlayData, in rect: CGRect) {
+        guard let image = qrCodeImage(for: data) else { return }
+        let codeRect: CGRect
+        if data.showsCaption {
+            codeRect = CGRect(x: rect.minX, y: rect.minY + rect.height * 0.16, width: rect.width, height: rect.height * 0.84)
+        } else {
+            codeRect = rect
+        }
+        let drawRect = data.includesQuietZone
+            ? codeRect.insetBy(dx: codeRect.width * 0.08, dy: codeRect.height * 0.08)
+            : codeRect
+        image.draw(in: drawRect)
+
+        if data.showsCaption, !data.caption.isEmpty {
+            let font = NSFont.systemFont(ofSize: max(10, rect.height * 0.11), weight: .medium)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: nsColor(from: data.foregroundColor),
+                .paragraphStyle: paragraph,
+            ]
+            NSAttributedString(string: data.caption, attributes: attributes).draw(
+                with: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: rect.height * 0.16),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            )
+        }
+    }
+
+    func composeOverlays(on cgImage: CGImage) -> CGImage? {
+        let visibleOverlays = overlays
+            .filter { !$0.isHidden }
+            .sorted { $0.zIndex < $1.zIndex }
+        guard !visibleOverlays.isEmpty else { return nil }
+
+        let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: cgImage.width,
+            pixelsHigh: cgImage.height,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bitmapFormat: [],
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        )
+        guard let rep,
+              let graphicsContext = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+
+        let baseImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+        let canvasSize = CGSize(width: cgImage.width, height: cgImage.height)
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = graphicsContext
+        graphicsContext.imageInterpolation = .high
+
+        baseImage.draw(in: CGRect(origin: .zero, size: canvasSize))
+        for overlay in visibleOverlays {
+            let rect = overlayRect(for: overlay, canvasSize: canvasSize)
+            NSGraphicsContext.current?.cgContext.saveGState()
+            NSGraphicsContext.current?.cgContext.setAlpha(CGFloat(overlay.opacity))
+            switch overlay.content {
+            case .text(let data):
+                drawTextOverlay(data, in: rect)
+            case .qrCode(let data):
+                drawQRCodeOverlay(data, in: rect)
+            case .timestamp(let data):
+                drawTimestampOverlay(data, in: rect)
+            case .image(let data):
+                drawImageOverlay(data, in: rect)
+            case .location(let data):
+                drawLocationOverlay(data, in: rect)
+            }
+            NSGraphicsContext.current?.cgContext.restoreGState()
+        }
+
+        NSGraphicsContext.restoreGraphicsState()
+        return rep.cgImage
     }
 
     // MARK: - Image Rotation
@@ -1492,6 +1930,7 @@ class ViewModel: ObservableObject {
 
     // MARK: - Print Preparation
 
+    @MainActor
     func prepareImageForPrint() -> (path: String, fit: String, tempFile: String?)? {
         guard let path = selectedImagePath,
               let image = selectedImage,
@@ -1515,8 +1954,8 @@ class ViewModel: ObservableObject {
             processed = true
         }
 
-        if dateStampEnabled, let stamped = stampImage(currentCG) {
-            currentCG = stamped
+        if let composited = composeOverlays(on: currentCG) {
+            currentCG = composited
             processed = true
         }
 
@@ -1549,7 +1988,7 @@ class ViewModel: ObservableObject {
     // MARK: - Printing
 
     func printSelectedImage() async {
-        guard let prepared = prepareImageForPrint() else { return }
+        guard let prepared = await prepareImageForPrint() else { return }
         await MainActor.run {
             isPrinting = true
             printProgress = nil
@@ -1600,7 +2039,7 @@ class ViewModel: ObservableObject {
                 selectQueueItem(at: queueIndex)
             }
 
-            guard let prepared = prepareImageForPrint() else {
+            guard let prepared = await prepareImageForPrint() else {
                 await MainActor.run {
                     isPrinting = false
                     batchPrintTotal = 0
@@ -2102,8 +2541,8 @@ struct CameraView: View {
                             CameraPreviewView(session: session, isMirrored: isFront)
                                 .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                 .aspectRatio(ar, contentMode: .fill)
-                                .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                    DateStampOverlayView()
+                                .overlay {
+                                    OverlayCanvasView()
                                 }
                                 .clipped()
                         } else {
@@ -2142,8 +2581,8 @@ struct CameraView: View {
                             .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .aspectRatio(ar, contentMode: .fit)
-                            .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                DateStampOverlayView()
+                            .overlay {
+                                OverlayCanvasView()
                             }
                             .clipped()
                     } else {
@@ -2762,48 +3201,252 @@ private struct CropFrameSizeKey: PreferenceKey {
     }
 }
 
-// MARK: - Date Stamp Overlay (shared)
+// MARK: - Overlay Preview
 
-struct DateStampOverlayView: View {
+struct OverlayCanvasView: View {
     @EnvironmentObject var viewModel: ViewModel
-    var digitHeight: CGFloat = 11
+    var editable: Bool = false
 
     var body: some View {
-        if viewModel.dateStampEnabled {
-            FontStampView(viewModel: viewModel, digitHeight: digitHeight)
-                .padding(4)
+        GeometryReader { geo in
+            ZStack {
+                ForEach(viewModel.overlays.filter { !$0.isHidden }.sorted(by: { $0.zIndex < $1.zIndex })) { item in
+                    OverlayPreviewItemView(
+                        item: item,
+                        canvasSize: geo.size,
+                        editable: editable,
+                        isSelected: editable && viewModel.selectedOverlayID == item.id
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .allowsHitTesting(editable)
+    }
+}
+
+struct OverlayPreviewItemView: View {
+    @EnvironmentObject var viewModel: ViewModel
+    let item: OverlayItem
+    let canvasSize: CGSize
+    let editable: Bool
+    let isSelected: Bool
+
+    @State private var dragOrigin: OverlayPlacement?
+
+    private var frame: CGRect {
+        item.placement.rect(in: canvasSize)
+    }
+
+    var body: some View {
+        previewContent
+            .frame(width: frame.width, height: frame.height)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(isSelected ? Color.accentColor : Color.clear, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            )
+            .opacity(item.opacity)
+            .position(x: frame.midX, y: frame.midY)
+            .onTapGesture {
+                guard editable else { return }
+                viewModel.selectOverlay(item.id)
+            }
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        guard editable, !item.isLocked else { return }
+                        if dragOrigin == nil {
+                            dragOrigin = item.placement
+                        }
+                        guard let dragOrigin else { return }
+                        viewModel.selectOverlay(item.id)
+                        viewModel.updateOverlay(id: item.id) { overlay in
+                            overlay.placement.normalizedCenterX = dragOrigin.normalizedCenterX + Double(value.translation.width / max(canvasSize.width, 1))
+                            overlay.placement.normalizedCenterY = dragOrigin.normalizedCenterY + Double(value.translation.height / max(canvasSize.height, 1))
+                        }
+                    }
+                    .onEnded { _ in
+                        dragOrigin = nil
+                    }
+            )
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        switch item.content {
+        case .text(let data):
+            OverlayTextPreviewView(data: data, size: frame.size)
+        case .qrCode(let data):
+            OverlayQRCodePreviewView(data: data)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .timestamp(let data):
+            TimestampPreviewView(data: data, size: frame.size)
+        case .image(let data):
+            OverlayImagePreviewView(data: data)
+        case .location(let data):
+            OverlayLocationPreviewView(data: data, size: frame.size)
         }
     }
 }
 
-struct FontStampView: View {
-    @ObservedObject var viewModel: ViewModel
-    var digitHeight: CGFloat = 11
+struct OverlayTextPreviewView: View {
+    let data: TextOverlayData
+    let size: CGSize
 
     var body: some View {
-        let date = viewModel.imageDate ?? Date()
-        let preset = ViewModel.dateStampPresets[viewModel.dateStampStyle]
-            ?? ViewModel.dateStampPresets["classic"]!
-        let (r, g, b) = preset.color
-        let stampColor = Color(red: r, green: g, blue: b)
+        Text(data.text)
+            .font(.system(size: max(12, size.height * CGFloat(max(data.fontScale, 0.05)) * 1.6), weight: .semibold, design: .rounded))
+            .foregroundColor(data.foregroundColor.color)
+            .multilineTextAlignment(textAlignment)
+            .lineLimit(data.allowsMultipleLines ? 3 : 1)
+            .minimumScaleFactor(0.4)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(data.backgroundColor.color)
+            )
+            .shadow(color: shadowColor, radius: shadowRadius)
+    }
 
-        VStack(alignment: .leading, spacing: digitHeight * 0.15) {
-            Text(viewModel.dateStampText(from: date))
-                .font(.custom(preset.fontFamily, size: digitHeight))
-                .tracking(digitHeight * preset.tracking)
+    private var textAlignment: TextAlignment {
+        switch data.textAlignment {
+        case .leading: return .leading
+        case .center: return .center
+        case .trailing: return .trailing
+        }
+    }
+
+    private var shadowColor: Color {
+        switch data.shadowStyle {
+        case .none: return .clear
+        case .soft: return .black.opacity(0.35)
+        case .strong: return .black.opacity(0.65)
+        }
+    }
+
+    private var shadowRadius: CGFloat {
+        switch data.shadowStyle {
+        case .none: return 0
+        case .soft: return 4
+        case .strong: return 8
+        }
+    }
+}
+
+struct OverlayQRCodePreviewView: View {
+    @EnvironmentObject var viewModel: ViewModel
+    let data: QROverlayData
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if let image = viewModel.qrCodeImage(for: data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.none)
+                    .aspectRatio(1, contentMode: .fit)
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.15))
+                    .overlay(Image(systemName: "qrcode").foregroundColor(.secondary))
+            }
+            if data.showsCaption, !data.caption.isEmpty {
+                Text(data.caption)
+                    .font(.caption2)
+                    .foregroundColor(data.foregroundColor.color)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.5)
+            }
+        }
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(data.backgroundColor.color)
+        )
+    }
+}
+
+struct TimestampPreviewView: View {
+    @EnvironmentObject var viewModel: ViewModel
+    let data: TimestampOverlayData
+    let size: CGSize
+
+    var body: some View {
+        let date = viewModel.resolvedTimestampDate(for: data)
+        let preset = ViewModel.dateStampPresets[data.presetKey] ?? ViewModel.dateStampPresets["classic"]!
+        let stampColor = Color(red: preset.color.0, green: preset.color.1, blue: preset.color.2)
+        let fontSize = max(10, size.height * (data.showsTime ? 0.32 : 0.52))
+
+        VStack(spacing: fontSize * 0.12) {
+            Text(viewModel.timestampText(from: date, format: data.format, separator: preset.separator))
+                .font(.custom(preset.fontFamily, size: fontSize))
+                .tracking(fontSize * preset.tracking)
                 .foregroundColor(stampColor)
-            if viewModel.showTimeRow {
+            if data.showsTime {
                 Text(viewModel.timeStampText(from: date))
-                    .font(.custom(preset.fontFamily, size: digitHeight))
-                    .tracking(digitHeight * preset.tracking)
+                    .font(.custom(preset.fontFamily, size: fontSize))
+                    .tracking(fontSize * preset.tracking)
                     .foregroundColor(stampColor)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .shadow(
-            color: viewModel.lightBleedEnabled && preset.glowRadius > 0
-                ? stampColor.opacity(0.8) : .clear,
-            radius: viewModel.lightBleedEnabled ? digitHeight * preset.glowRadius * 0.5 : 0
+            color: data.lightBleedEnabled && preset.glowRadius > 0 ? stampColor.opacity(0.8) : .clear,
+            radius: data.lightBleedEnabled ? fontSize * preset.glowRadius * 0.5 : 0
         )
+    }
+}
+
+struct OverlayImagePreviewView: View {
+    let data: ImageOverlayData
+
+    var body: some View {
+        let image = NSImage(data: data.asset.imageData)
+        ZStack {
+            if data.showsBacking {
+                RoundedRectangle(cornerRadius: data.cornerRadius)
+                    .fill(data.backingColor.color)
+            }
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: data.contentMode == .fit ? .fit : .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: data.cornerRadius))
+            } else {
+                RoundedRectangle(cornerRadius: data.cornerRadius)
+                    .fill(Color.secondary.opacity(0.12))
+                    .overlay(Image(systemName: "photo").foregroundColor(.secondary))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: data.cornerRadius))
+    }
+}
+
+struct OverlayLocationPreviewView: View {
+    @EnvironmentObject var viewModel: ViewModel
+    let data: LocationOverlayData
+    let size: CGSize
+
+    var body: some View {
+        Text(viewModel.resolvedLocationText(for: data) ?? L("No location metadata"))
+            .font(.system(size: max(10, size.height * 0.22), weight: .medium, design: .monospaced))
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(3)
+            .minimumScaleFactor(0.5)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.28))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .shadow(color: .black.opacity(0.35), radius: 4)
     }
 }
 
@@ -2822,17 +3465,6 @@ struct PresetCard: View {
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(
                 isSelected ? Color(red: preset.color.0, green: preset.color.1, blue: preset.color.2).opacity(0.5) : Color.gray.opacity(0.3), lineWidth: 1
             ))
-    }
-}
-
-// MARK: - Stamp Alignment Helper
-
-private var stampAlignmentFor: (ViewModel) -> Alignment = { viewModel in
-    switch viewModel.dateStampPosition {
-    case "topLeft": return .topLeading
-    case "topRight": return .topTrailing
-    case "bottomLeft": return .bottomLeading
-    default: return .bottomTrailing
     }
 }
 
@@ -2917,8 +3549,8 @@ struct MainPreviewView: View {
                                         .offset(effectiveOffset(imageSize: image.size))
                                         .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                                 )
-                                .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                    DateStampOverlayView()
+                                .overlay {
+                                    OverlayCanvasView()
                                 }
                                 .clipped()
                                 .contentShape(Rectangle())
@@ -2960,8 +3592,8 @@ struct MainPreviewView: View {
                                         .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                         .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                                 )
-                                .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                    DateStampOverlayView()
+                                .overlay {
+                                    OverlayCanvasView()
                                 }
                                 .clipped()
                                 .onTapGesture(count: 2) { openEditor() }
@@ -2971,8 +3603,8 @@ struct MainPreviewView: View {
                                 .aspectRatio(contentMode: .fit)
                                 .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                 .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
-                                .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                    DateStampOverlayView()
+                                .overlay {
+                                    OverlayCanvasView()
                                 }
                                 .onTapGesture(count: 2) { openEditor() }
                         }
@@ -3486,8 +4118,8 @@ struct EditorPreviewView: View {
                                     .offset(effectiveOffset(imageSize: image.size))
                                     .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                             )
-                            .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                DateStampOverlayView()
+                            .overlay {
+                                OverlayCanvasView(editable: true)
                             }
                             .clipped()
                             .contentShape(Rectangle())
@@ -3528,8 +4160,8 @@ struct EditorPreviewView: View {
                                     .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                                     .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
                             )
-                            .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                DateStampOverlayView()
+                            .overlay {
+                                OverlayCanvasView(editable: true)
                             }
                             .clipped()
                     } else {
@@ -3538,8 +4170,8 @@ struct EditorPreviewView: View {
                             .aspectRatio(contentMode: .fit)
                             .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
                             .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
-                            .overlay(alignment: stampAlignmentFor(viewModel)) {
-                                DateStampOverlayView()
+                            .overlay {
+                                OverlayCanvasView(editable: true)
                             }
                     }
                 }
@@ -3683,56 +4315,42 @@ struct EditorSidebarView: View {
 
                 Divider()
 
-                // Date Stamp
-                AccordionSection(L("Date Stamp"), icon: "calendar", expanded: false) {
-                    Toggle(L("Enabled"), isOn: $viewModel.dateStampEnabled)
-                        .font(.callout)
+                // Overlays
+                AccordionSection(L("Overlays"), icon: "sparkles", expanded: true) {
+                    Menu {
+                        Button(L("Text")) { viewModel.addOverlay(kind: .text) }
+                        Button(L("QR Code")) { viewModel.addOverlay(kind: .qrCode) }
+                        Button(L("Timestamp")) { viewModel.addOverlay(kind: .timestamp) }
+                        Button(L("Image")) { viewModel.addOverlay(kind: .image) }
+                        Button(L("Location")) { viewModel.addOverlay(kind: .location) }
+                    } label: {
+                        Label(L("Add Overlay"), systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.small)
 
-                    if viewModel.dateStampEnabled {
-                        // Live preview
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(white: 0.15))
-                            .frame(height: 48)
-                            .overlay(FontStampView(viewModel: viewModel, digitHeight: 13))
-
-                        // Preset cards — horizontal scrolling strip
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 6) {
-                                ForEach(ViewModel.presetOrder, id: \.self) { key in
-                                    PresetCard(preset: ViewModel.dateStampPresets[key]!,
-                                               isSelected: viewModel.dateStampStyle == key)
-                                    .onTapGesture {
-                                        viewModel.dateStampStyle = key
-                                        viewModel.lightBleedEnabled = ViewModel.dateStampPresets[key]!.defaultLightBleed
-                                    }
-                                }
+                    if viewModel.overlays.isEmpty {
+                        Text(L("No overlays yet"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                    } else {
+                        VStack(spacing: 6) {
+                            ForEach(viewModel.overlays.sorted(by: { $0.zIndex < $1.zIndex })) { overlay in
+                                OverlayListRowView(overlay: overlay)
                             }
                         }
+                    }
 
-                        // Format + Position — compact menu pickers on one row
-                        HStack(spacing: 8) {
-                            Picker(L("Format"), selection: $viewModel.dateStampFormat) {
-                                Text("YY.MM.DD").tag("ymd")
-                                Text("MM.DD.YY").tag("mdy")
-                                Text("DD.MM.YY").tag("dmy")
-                            }
-                            .pickerStyle(.menu).font(.callout)
-
-                            Picker(L("Position"), selection: $viewModel.dateStampPosition) {
-                                Text("\u{2198} BR").tag("bottomRight")
-                                Text("\u{2199} BL").tag("bottomLeft")
-                                Text("\u{2197} TR").tag("topRight")
-                                Text("\u{2196} TL").tag("topLeft")
-                            }
-                            .pickerStyle(.menu).font(.callout)
-                        }
-
-                        // Toggles on one row
-                        HStack {
-                            Toggle(L("Time"), isOn: $viewModel.showTimeRow).font(.callout)
-                            Spacer()
-                            Toggle(L("Glow"), isOn: $viewModel.lightBleedEnabled).font(.callout)
-                        }
+                    if viewModel.selectedOverlay != nil {
+                        Divider().padding(.vertical, 4)
+                        SelectedOverlayInspectorView()
+                    } else {
+                        Text(L("Select an overlay to edit"))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
@@ -3827,59 +4445,7 @@ struct NewPhotoDefaultsPopover: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(L("Date Stamp"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Toggle(L("Enabled"), isOn: $viewModel.newPhotoDefaults.dateStampEnabled)
-                    .font(.callout)
-
-                if viewModel.newPhotoDefaults.dateStampEnabled {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(ViewModel.presetOrder, id: \.self) { key in
-                                PresetCard(
-                                    preset: ViewModel.dateStampPresets[key]!,
-                                    isSelected: viewModel.newPhotoDefaults.dateStampStyle == key
-                                )
-                                .onTapGesture {
-                                    viewModel.newPhotoDefaults.dateStampStyle = key
-                                    viewModel.newPhotoDefaults.lightBleedEnabled =
-                                        ViewModel.dateStampPresets[key]!.defaultLightBleed
-                                }
-                            }
-                        }
-                    }
-
-                    HStack(spacing: 8) {
-                        Picker(L("Format"), selection: $viewModel.newPhotoDefaults.dateStampFormat) {
-                            Text("YY.MM.DD").tag("ymd")
-                            Text("MM.DD.YY").tag("mdy")
-                            Text("DD.MM.YY").tag("dmy")
-                        }
-                        .pickerStyle(.menu)
-                        .font(.callout)
-
-                        Picker(L("Position"), selection: $viewModel.newPhotoDefaults.dateStampPosition) {
-                            Text("\u{2198} BR").tag("bottomRight")
-                            Text("\u{2199} BL").tag("bottomLeft")
-                            Text("\u{2197} TR").tag("topRight")
-                            Text("\u{2196} TL").tag("topLeft")
-                        }
-                        .pickerStyle(.menu)
-                        .font(.callout)
-                    }
-
-                    HStack {
-                        Toggle(L("Time"), isOn: $viewModel.newPhotoDefaults.showTimeRow)
-                            .font(.callout)
-                        Spacer()
-                        Toggle(L("Glow"), isOn: $viewModel.newPhotoDefaults.lightBleedEnabled)
-                            .font(.callout)
-                    }
-                }
-            }
+            DefaultTimestampOverlayEditor()
 
             Divider()
 
@@ -3899,6 +4465,605 @@ struct NewPhotoDefaultsPopover: View {
         }
         .padding(16)
         .frame(width: 320)
+    }
+}
+
+struct OverlayListRowView: View {
+    @EnvironmentObject var viewModel: ViewModel
+    let overlay: OverlayItem
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbolName)
+                .frame(width: 16)
+                .foregroundColor(isSelected ? .accentColor : .secondary)
+
+            Text(viewModel.overlayTitle(for: overlay))
+                .font(.callout)
+                .lineLimit(1)
+                .foregroundColor(.primary)
+
+            Spacer()
+
+            Button {
+                viewModel.updateOverlay(id: overlay.id) { item in
+                    item.isHidden.toggle()
+                }
+            } label: {
+                Image(systemName: overlay.isHidden ? "eye.slash" : "eye")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                viewModel.deleteOverlay(id: overlay.id)
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 8))
+        .onTapGesture {
+            viewModel.selectOverlay(overlay.id)
+        }
+    }
+
+    private var isSelected: Bool {
+        viewModel.selectedOverlayID == overlay.id
+    }
+
+    private var symbolName: String {
+        switch overlay.kind {
+        case .text: return "textformat"
+        case .qrCode: return "qrcode"
+        case .timestamp: return "calendar"
+        case .image: return "photo"
+        case .location: return "mappin.and.ellipse"
+        }
+    }
+}
+
+struct SelectedOverlayInspectorView: View {
+    @EnvironmentObject var viewModel: ViewModel
+
+    var body: some View {
+        guard let overlay = viewModel.selectedOverlay else {
+            return AnyView(EmptyView())
+        }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(viewModel.overlayTitle(for: overlay))
+                        .font(.callout)
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Button(L("Send Backward")) { viewModel.moveSelectedOverlayBackward() }
+                        .controlSize(.small)
+                    Button(L("Bring Forward")) { viewModel.moveSelectedOverlayForward() }
+                        .controlSize(.small)
+                }
+
+                HStack {
+                    Toggle(L("Lock"), isOn: lockBinding)
+                    Toggle(L("Hidden"), isOn: hiddenBinding)
+                }
+                .font(.caption)
+
+                HStack {
+                    Button(L("Duplicate")) { viewModel.duplicateSelectedOverlay() }
+                    Button(L("Delete")) { viewModel.deleteSelectedOverlay() }
+                }
+                .controlSize(.small)
+
+                Group {
+                    labeledSlider(L("Opacity"), value: opacityBinding, range: 0.1...1.0)
+                    labeledSlider("X", value: positionXBinding, range: 0.05...0.95)
+                    labeledSlider("Y", value: positionYBinding, range: 0.05...0.95)
+                    labeledSlider(L("Width"), value: widthBinding, range: 0.08...0.95)
+                    labeledSlider(L("Height"), value: heightBinding, range: 0.06...0.95)
+                }
+
+                switch overlay.content {
+                case .text:
+                    textControls
+                case .qrCode:
+                    qrControls
+                case .timestamp:
+                    timestampControls
+                case .image:
+                    imageControls
+                case .location:
+                    locationControls
+                }
+            }
+        )
+    }
+
+    private func labeledSlider(_ title: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Slider(value: value, in: range)
+        }
+    }
+
+    private var opacityBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.selectedOverlay?.opacity ?? 1.0 },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.opacity = newValue } }
+        )
+    }
+
+    private var positionXBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.selectedOverlay?.placement.normalizedCenterX ?? 0.5 },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.placement.normalizedCenterX = newValue } }
+        )
+    }
+
+    private var positionYBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.selectedOverlay?.placement.normalizedCenterY ?? 0.5 },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.placement.normalizedCenterY = newValue } }
+        )
+    }
+
+    private var widthBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.selectedOverlay?.placement.normalizedWidth ?? 0.25 },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.placement.normalizedWidth = newValue } }
+        )
+    }
+
+    private var heightBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.selectedOverlay?.placement.normalizedHeight ?? 0.15 },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.placement.normalizedHeight = newValue } }
+        )
+    }
+
+    private var hiddenBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.selectedOverlay?.isHidden ?? false },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.isHidden = newValue } }
+        )
+    }
+
+    private var lockBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.selectedOverlay?.isLocked ?? false },
+            set: { newValue in viewModel.updateSelectedOverlay { $0.isLocked = newValue } }
+        )
+    }
+
+    private var textControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField(L("Text"), text: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .text(let data) = overlay.content else { return "" }
+                    return data.text
+                },
+                set: { newValue in
+                    viewModel.updateSelectedTextOverlay { $0.text = newValue }
+                }
+            ))
+
+            labeledSlider(L("Size"), value: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .text(let data) = overlay.content else { return 0.1 }
+                    return data.fontScale
+                },
+                set: { newValue in
+                    viewModel.updateSelectedTextOverlay { $0.fontScale = newValue }
+                }
+            ), range: 0.05...0.24)
+
+            Picker(L("Alignment"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .text(let data) = overlay.content else { return OverlayTextAlignment.center }
+                    return data.textAlignment
+                },
+                set: { newValue in
+                    viewModel.updateSelectedTextOverlay { $0.textAlignment = newValue }
+                }
+            )) {
+                Text(L("Leading")).tag(OverlayTextAlignment.leading)
+                Text(L("Center")).tag(OverlayTextAlignment.center)
+                Text(L("Trailing")).tag(OverlayTextAlignment.trailing)
+            }
+            .pickerStyle(.segmented)
+
+            Picker(L("Shadow"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .text(let data) = overlay.content else { return OverlayShadowStyle.soft }
+                    return data.shadowStyle
+                },
+                set: { newValue in
+                    viewModel.updateSelectedTextOverlay { $0.shadowStyle = newValue }
+                }
+            )) {
+                Text(L("None")).tag(OverlayShadowStyle.none)
+                Text(L("Soft")).tag(OverlayShadowStyle.soft)
+                Text(L("Strong")).tag(OverlayShadowStyle.strong)
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var qrControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TextField(L("Content"), text: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .qrCode(let data) = overlay.content else { return "" }
+                    return data.payload
+                },
+                set: { newValue in
+                    viewModel.updateSelectedQRCodeOverlay { $0.payload = newValue }
+                }
+            ))
+
+            Toggle(L("Show Caption"), isOn: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .qrCode(let data) = overlay.content else { return false }
+                    return data.showsCaption
+                },
+                set: { newValue in
+                    viewModel.updateSelectedQRCodeOverlay { $0.showsCaption = newValue }
+                }
+            ))
+
+            if let overlay = viewModel.selectedOverlay,
+               case .qrCode(let data) = overlay.content,
+               data.showsCaption {
+                TextField(L("Caption"), text: Binding(
+                    get: { data.caption },
+                    set: { newValue in
+                        viewModel.updateSelectedQRCodeOverlay { $0.caption = newValue }
+                    }
+                ))
+            }
+
+            Toggle(L("Quiet Zone"), isOn: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .qrCode(let data) = overlay.content else { return true }
+                    return data.includesQuietZone
+                },
+                set: { newValue in
+                    viewModel.updateSelectedQRCodeOverlay { $0.includesQuietZone = newValue }
+                }
+            ))
+
+            Picker(L("Error Correction"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .qrCode(let data) = overlay.content else { return QRErrorCorrectionLevel.medium }
+                    return data.correctionLevel
+                },
+                set: { newValue in
+                    viewModel.updateSelectedQRCodeOverlay { $0.correctionLevel = newValue }
+                }
+            )) {
+                Text("L").tag(QRErrorCorrectionLevel.low)
+                Text("M").tag(QRErrorCorrectionLevel.medium)
+                Text("Q").tag(QRErrorCorrectionLevel.quartile)
+                Text("H").tag(QRErrorCorrectionLevel.high)
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
+    private var timestampControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(white: 0.15))
+                .frame(height: 48)
+                .overlay {
+                    if let overlay = viewModel.selectedOverlay,
+                       case .timestamp(let data) = overlay.content {
+                        TimestampPreviewView(data: data, size: CGSize(width: 200, height: 48))
+                    }
+                }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(ViewModel.presetOrder, id: \.self) { key in
+                        PresetCard(
+                            preset: ViewModel.dateStampPresets[key]!,
+                            isSelected: {
+                                guard let overlay = viewModel.selectedOverlay,
+                                      case .timestamp(let data) = overlay.content else { return false }
+                                return data.presetKey == key
+                            }()
+                        )
+                        .onTapGesture {
+                            viewModel.updateSelectedTimestampOverlay {
+                                $0.presetKey = key
+                                $0.lightBleedEnabled = ViewModel.dateStampPresets[key]!.defaultLightBleed
+                            }
+                        }
+                    }
+                }
+            }
+
+            Picker(L("Format"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .timestamp(let data) = overlay.content else { return TimestampFormat.ymd }
+                    return data.format
+                },
+                set: { newValue in
+                    viewModel.updateSelectedTimestampOverlay { $0.format = newValue }
+                }
+            )) {
+                Text("YY.MM.DD").tag(TimestampFormat.ymd)
+                Text("MM.DD.YY").tag(TimestampFormat.mdy)
+                Text("DD.MM.YY").tag(TimestampFormat.dmy)
+            }
+            .pickerStyle(.segmented)
+
+            HStack {
+                Toggle(L("Time"), isOn: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .timestamp(let data) = overlay.content else { return true }
+                        return data.showsTime
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedTimestampOverlay { $0.showsTime = newValue }
+                    }
+                ))
+                Toggle(L("Glow"), isOn: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .timestamp(let data) = overlay.content else { return false }
+                        return data.lightBleedEnabled
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedTimestampOverlay { $0.lightBleedEnabled = newValue }
+                    }
+                ))
+            }
+            .font(.caption)
+        }
+    }
+
+    private var imageControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(L("Replace Image")) {
+                viewModel.replaceSelectedImageOverlayAsset()
+            }
+            .controlSize(.small)
+
+            Picker(L("Fit Mode"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .image(let data) = overlay.content else { return OverlayImageContentMode.fit }
+                    return data.contentMode
+                },
+                set: { newValue in
+                    viewModel.updateSelectedImageOverlay { $0.contentMode = newValue }
+                }
+            )) {
+                Text(L("Contain")).tag(OverlayImageContentMode.fit)
+                Text(L("Crop")).tag(OverlayImageContentMode.fill)
+            }
+            .pickerStyle(.segmented)
+
+            Toggle(L("Background"), isOn: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .image(let data) = overlay.content else { return false }
+                    return data.showsBacking
+                },
+                set: { newValue in
+                    viewModel.updateSelectedImageOverlay { $0.showsBacking = newValue }
+                }
+            ))
+
+            labeledSlider(L("Corner Radius"), value: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .image(let data) = overlay.content else { return 0 }
+                    return data.cornerRadius
+                },
+                set: { newValue in
+                    viewModel.updateSelectedImageOverlay { $0.cornerRadius = newValue }
+                }
+            ), range: 0...32)
+        }
+    }
+
+    private var locationControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker(L("Source"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .location(let data) = overlay.content else { return LocationOverlaySource.photoMetadata }
+                    return data.source
+                },
+                set: { newValue in
+                    viewModel.updateSelectedLocationOverlay { $0.source = newValue }
+                }
+            )) {
+                Text(L("Photo Metadata")).tag(LocationOverlaySource.photoMetadata)
+                Text(L("Manual Coordinates")).tag(LocationOverlaySource.manualCoordinates)
+                Text(L("Manual Text")).tag(LocationOverlaySource.manualText)
+            }
+            .pickerStyle(.menu)
+
+            Picker(L("Display"), selection: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .location(let data) = overlay.content else { return LocationOverlayDisplayStyle.coordinates }
+                    return data.displayStyle
+                },
+                set: { newValue in
+                    viewModel.updateSelectedLocationOverlay { $0.displayStyle = newValue }
+                }
+            )) {
+                Text(L("Coordinates")).tag(LocationOverlayDisplayStyle.coordinates)
+                Text(L("Name")).tag(LocationOverlayDisplayStyle.name)
+                Text(L("Name + Coordinates")).tag(LocationOverlayDisplayStyle.nameAndCoordinates)
+            }
+            .pickerStyle(.menu)
+
+            TextField(L("Name"), text: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .location(let data) = overlay.content else { return "" }
+                    return data.locationName
+                },
+                set: { newValue in
+                    viewModel.updateSelectedLocationOverlay { $0.locationName = newValue }
+                }
+            ))
+
+            HStack {
+                TextField(L("Latitude"), text: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .location(let data) = overlay.content else { return "" }
+                        guard let value = data.coordinate?.latitude else { return "" }
+                        return String(value)
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedLocationOverlay { data in
+                            let latitude = Double(newValue) ?? data.coordinate?.latitude ?? 0
+                            let longitude = data.coordinate?.longitude ?? 0
+                            data.coordinate = GeoCoordinate(latitude: latitude, longitude: longitude)
+                        }
+                    }
+                ))
+                TextField(L("Longitude"), text: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .location(let data) = overlay.content else { return "" }
+                        guard let value = data.coordinate?.longitude else { return "" }
+                        return String(value)
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedLocationOverlay { data in
+                            let latitude = data.coordinate?.latitude ?? 0
+                            let longitude = Double(newValue) ?? data.coordinate?.longitude ?? 0
+                            data.coordinate = GeoCoordinate(latitude: latitude, longitude: longitude)
+                        }
+                    }
+                ))
+            }
+
+            labeledSlider(L("Precision"), value: Binding(
+                get: {
+                    guard let overlay = viewModel.selectedOverlay,
+                          case .location(let data) = overlay.content else { return 4 }
+                    return Double(data.precision)
+                },
+                set: { newValue in
+                    viewModel.updateSelectedLocationOverlay { $0.precision = Int(newValue.rounded()) }
+                }
+            ), range: 0...6)
+        }
+    }
+}
+
+struct DefaultTimestampOverlayEditor: View {
+    @EnvironmentObject var viewModel: ViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L("Timestamp"))
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Toggle(L("Enabled"), isOn: Binding(
+                get: { viewModel.defaultTimestampOverlay != nil },
+                set: { viewModel.setDefaultTimestampOverlayEnabled($0) }
+            ))
+            .font(.callout)
+
+            if let overlay = viewModel.defaultTimestampOverlay,
+               case .timestamp(let data) = overlay.content {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(white: 0.15))
+                    .frame(height: 48)
+                    .overlay {
+                        TimestampPreviewView(data: data, size: CGSize(width: 200, height: 48))
+                            .environmentObject(viewModel)
+                    }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(ViewModel.presetOrder, id: \.self) { key in
+                            PresetCard(
+                                preset: ViewModel.dateStampPresets[key]!,
+                                isSelected: data.presetKey == key
+                            )
+                            .onTapGesture {
+                                viewModel.updateDefaultTimestampOverlay {
+                                    $0.presetKey = key
+                                    $0.lightBleedEnabled = ViewModel.dateStampPresets[key]!.defaultLightBleed
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Picker(L("Format"), selection: Binding(
+                    get: {
+                        guard let overlay = viewModel.defaultTimestampOverlay,
+                              case .timestamp(let data) = overlay.content else { return TimestampFormat.ymd }
+                        return data.format
+                    },
+                    set: { newValue in
+                        viewModel.updateDefaultTimestampOverlay { $0.format = newValue }
+                    }
+                )) {
+                    Text("YY.MM.DD").tag(TimestampFormat.ymd)
+                    Text("MM.DD.YY").tag(TimestampFormat.mdy)
+                    Text("DD.MM.YY").tag(TimestampFormat.dmy)
+                }
+                .pickerStyle(.segmented)
+
+                HStack {
+                    Toggle(L("Time"), isOn: Binding(
+                        get: {
+                            guard let overlay = viewModel.defaultTimestampOverlay,
+                                  case .timestamp(let data) = overlay.content else { return true }
+                            return data.showsTime
+                        },
+                        set: { newValue in
+                            viewModel.updateDefaultTimestampOverlay { $0.showsTime = newValue }
+                        }
+                    ))
+                    Toggle(L("Glow"), isOn: Binding(
+                        get: {
+                            guard let overlay = viewModel.defaultTimestampOverlay,
+                                  case .timestamp(let data) = overlay.content else { return false }
+                            return data.lightBleedEnabled
+                        },
+                        set: { newValue in
+                            viewModel.updateDefaultTimestampOverlay { $0.lightBleedEnabled = newValue }
+                        }
+                    ))
+                }
+                .font(.caption)
+            }
+        }
     }
 }
 

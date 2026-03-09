@@ -99,6 +99,7 @@ swiftc \
   -O \
   -o "$MACOS_DIR/InstantLink" \
   "$REPO_ROOT/macos/InstantLink/InstantLinkApp.swift" \
+  "$REPO_ROOT/macos/InstantLink/OverlayModels.swift" \
   "$REPO_ROOT/macos/InstantLink/Localization.swift" \
   "$REPO_ROOT/macos/InstantLink/InstantLinkFFI.swift" \
   "$REPO_ROOT/macos/InstantLink/InstantLinkCLI.swift" \
@@ -107,6 +108,7 @@ swiftc \
   -framework UniformTypeIdentifiers \
   -framework AVFoundation \
   -framework CoreText \
+  -framework CoreImage \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -parse-as-library
 
