@@ -1009,6 +1009,8 @@
       
         
       
+        
+      
     
     
     
@@ -1332,6 +1334,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plans/011-macos-coordinator-extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 011 macOS Coordinator Extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1548,7 +1578,7 @@
 <p>The macOS app lives in <code>macos/InstantLink/</code> and is split by responsibility.</p>
 <ul>
 <li><code>App/</code> holds the SwiftUI app entry point, restart helper, and app delegate</li>
-<li><code>Core/</code> holds shared app state such as <code>ViewModel</code>, printer orchestration, queue state, and print pipeline logic</li>
+<li><code>Core/</code> holds shared app state (<code>ViewModel</code>), persisted app models, runtime services, and coordinator/service layers for printer connection, queue editing, and print rendering</li>
 <li><code>Features/</code> groups UI by workflow: <code>Camera/</code>, <code>Editor/</code>, <code>Main/</code>, and <code>Settings/</code></li>
 <li><code>Support/</code> holds reusable UI primitives such as film frames, preview helpers, overlay canvas rendering, and shared visual styles</li>
 <li><code>OverlayModels.swift</code> defines the overlay data model and typed payloads</li>
