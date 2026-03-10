@@ -331,6 +331,33 @@ class ViewModel: ObservableObject {
         return printerProfiles[bleId]?.displayName ?? bleId
     }
 
+    var printerStatusIndicatorState: PrinterStatusIndicatorState {
+        if !isConnected {
+            if isPairing || pairingPhase != .idle {
+                return .connecting
+            }
+            return .disconnected
+        }
+
+        if isPrinting {
+            return .busy
+        }
+
+        if isRefreshing {
+            return .refreshing
+        }
+
+        if filmRemaining <= 0 || (battery > 0 && battery <= 10) {
+            return .error
+        }
+
+        if filmRemaining <= 2 || (battery > 0 && battery <= 20) {
+            return .warning
+        }
+
+        return .ready
+    }
+
     func saveProfile(_ profile: PrinterProfile) {
         printerProfiles[profile.bleIdentifier] = profile
         PrinterProfile.save(printerProfiles)

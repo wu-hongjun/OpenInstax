@@ -382,9 +382,9 @@ struct MainView: View {
             }
         } label: {
             HStack(spacing: 4) {
-                Circle()
-                    .fill(.green)
-                    .frame(width: 8, height: 8)
+                Image(systemName: printerStatusSymbolName)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(printerStatusColor)
                 Text(viewModel.currentPrinterDisplayName ?? L("Connected"))
                     .font(.callout)
                     .fontWeight(.medium)
@@ -492,6 +492,44 @@ struct MainView: View {
         case .success: return Color.green.opacity(0.12)
         case .warning: return Color.orange.opacity(0.14)
         case .error: return Color.red.opacity(0.14)
+        }
+    }
+
+    private var printerStatusColor: Color {
+        switch viewModel.printerStatusIndicatorState {
+        case .disconnected:
+            return .secondary
+        case .connecting:
+            return .orange
+        case .refreshing:
+            return .blue
+        case .ready:
+            return .green
+        case .busy:
+            return .blue
+        case .warning:
+            return .orange
+        case .error:
+            return .red
+        }
+    }
+
+    private var printerStatusSymbolName: String {
+        switch viewModel.printerStatusIndicatorState {
+        case .disconnected:
+            return "circle.slash.fill"
+        case .connecting:
+            return "dot.radiowaves.left.and.right"
+        case .refreshing:
+            return "arrow.clockwise.circle.fill"
+        case .ready:
+            return "circle.fill"
+        case .busy:
+            return "clock.fill"
+        case .warning:
+            return "exclamationmark.circle.fill"
+        case .error:
+            return "xmark.octagon.fill"
         }
     }
 }

@@ -177,6 +177,16 @@ enum StatusMessageTone {
     case error
 }
 
+enum PrinterStatusIndicatorState {
+    case disconnected
+    case connecting
+    case refreshing
+    case ready
+    case busy
+    case warning
+    case error
+}
+
 struct DateStampPreset {
     let displayName: String
     let fontStyle: TimestampPresetFontStyle
