@@ -58,6 +58,8 @@ class InstantLinkFFI {
         var isSuccess: Bool { code == 0 }
     }
 
+    private let workQueue = DispatchQueue(label: "com.instantlink.ffi", qos: .userInitiated)
+
     private let handle: UnsafeMutableRawPointer
 
     // MARK: - Function pointers (resolved once at init)
@@ -411,10 +413,10 @@ class InstantLinkFFI {
 
     // MARK: - Helper
 
-    /// Run a blocking FFI call on a detached background thread.
+    /// Run a blocking FFI call on the dedicated serial FFI queue.
     private func blocking<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
         await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            workQueue.async {
                 let result = work()
                 continuation.resume(returning: result)
             }
