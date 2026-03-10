@@ -99,6 +99,9 @@
 "Format" = "형식";
 "Position" = "위치";
 "Time" = "시간";
+"Time Line" = "Time Line";
+"Show Seconds" = "Show Seconds";
+"One Line" = "One Line";
 "Glow" = "발광";
 
 /* Printer Profile Sheet */

@@ -100,6 +100,9 @@
 "Format" = "תבנית";
 "Position" = "מיקום";
 "Time" = "שעה";
+"Time Line" = "Time Line";
+"Show Seconds" = "Show Seconds";
+"One Line" = "One Line";
 "Glow" = "זוהר";
 
 /* Printer Profile Sheet */

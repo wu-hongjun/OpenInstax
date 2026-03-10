@@ -99,6 +99,9 @@
 "Format" = "フォーマット";
 "Position" = "位置";
 "Time" = "時刻";
+"Time Line" = "Time Line";
+"Show Seconds" = "Show Seconds";
+"One Line" = "One Line";
 "Glow" = "グロー";
 
 /* Printer Profile Sheet */

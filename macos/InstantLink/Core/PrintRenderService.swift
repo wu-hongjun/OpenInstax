@@ -171,11 +171,21 @@ enum PrintRenderService {
 
     static func timeStampText(from date: Date) -> String {
         let cal = Calendar.current
-        return String(
-            format: "%02d:%02d",
-            cal.component(.hour, from: date),
-            cal.component(.minute, from: date)
-        )
+        return String(format: "%02d:%02d", cal.component(.hour, from: date), cal.component(.minute, from: date))
+    }
+
+    static func timestampTimeText(from date: Date, data: TimestampOverlayData) -> String {
+        let base = timeStampText(from: date)
+        guard data.showsSeconds else { return base }
+        let cal = Calendar.current
+        return "\(base):\(String(format: "%02d", cal.component(.second, from: date)))"
+    }
+
+    static func timestampBodyText(from date: Date, data: TimestampOverlayData, preset: DateStampPreset) -> String {
+        let dateText = timestampText(from: date, data: data, preset: preset)
+        guard data.showsTime else { return dateText }
+        let timeText = timestampTimeText(from: date, data: data)
+        return data.singleLine ? "\(dateText) \(timeText)" : "\(dateText)\n\(timeText)"
     }
 
     static func resolvedTimestampDate(
@@ -425,9 +435,7 @@ enum PrintRenderService {
         let preset = TimestampPresetCatalog.presets[data.presetKey]
             ?? TimestampPresetCatalog.presets["classic"]!
         let date = resolvedTimestampDate(for: data, imageDate: context.imageDate)
-        let body = data.showsTime
-            ? "\(timestampText(from: date, data: data, preset: preset))\n\(timeStampText(from: date))"
-            : timestampText(from: date, data: data, preset: preset)
+        let body = timestampBodyText(from: date, data: data, preset: preset)
         let fontSize = timestampFontSize(for: data, preset: preset, rectHeight: rect.height)
         let font = timestampFont(for: preset, size: fontSize)
         let paragraph = NSMutableParagraphStyle()
@@ -471,7 +479,14 @@ enum PrintRenderService {
     ) -> CGFloat {
         let classicSize = TimestampPresetCatalog.presets["classic"]?.sizePercent ?? preset.sizePercent
         let relativeScale = CGFloat(preset.sizePercent / max(classicSize, 0.0001))
-        let baseMultiplier: CGFloat = data.showsTime ? 0.34 : 0.58
+        let baseMultiplier: CGFloat
+        if !data.showsTime {
+            baseMultiplier = 0.58
+        } else if data.singleLine {
+            baseMultiplier = 0.42
+        } else {
+            baseMultiplier = 0.34
+        }
         return max(10, rectHeight * baseMultiplier * relativeScale)
     }
 

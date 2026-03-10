@@ -99,6 +99,9 @@
 "Format" = "Format";
 "Position" = "Position";
 "Time" = "Zeit";
+"Time Line" = "Time Line";
+"Show Seconds" = "Show Seconds";
+"One Line" = "One Line";
 "Glow" = "Leuchten";
 
 /* Printer Profile Sheet */

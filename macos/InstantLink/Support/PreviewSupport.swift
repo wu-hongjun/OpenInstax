@@ -500,19 +500,13 @@ struct TimestampPreviewView: View {
         let preset = TimestampPresetCatalog.presets[data.presetKey] ?? TimestampPresetCatalog.presets["classic"]!
         let stampColor = Color(red: preset.color.0, green: preset.color.1, blue: preset.color.2)
         let fontSize = PrintRenderService.timestampFontSize(for: data, preset: preset, rectHeight: size.height)
+        let body = PrintRenderService.timestampBodyText(from: date, data: data, preset: preset)
 
-        VStack(spacing: fontSize * 0.12) {
-            Text(PrintRenderService.timestampText(from: date, data: data, preset: preset))
-                .font(timestampFont(for: preset, size: fontSize))
-                .tracking(fontSize * preset.tracking)
-                .foregroundColor(stampColor)
-            if data.showsTime {
-                Text(PrintRenderService.timeStampText(from: date))
-                    .font(timestampFont(for: preset, size: fontSize))
-                    .tracking(fontSize * preset.tracking)
-                    .foregroundColor(stampColor)
-            }
-        }
+        Text(body)
+            .font(timestampFont(for: preset, size: fontSize))
+            .tracking(fontSize * preset.tracking)
+            .foregroundColor(stampColor)
+            .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .shadow(
             color: data.lightBleedEnabled && preset.glowRadius > 0 ? stampColor.opacity(0.8) : .clear,

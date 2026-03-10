@@ -224,7 +224,7 @@ enum TimestampPresetCatalog {
             glowRadius: 0.15, defaultLightBleed: true
         ),
         "contax": DateStampPreset(
-            displayName: "Contax", fontStyle: .systemMonospaced,
+            displayName: "Contax", fontStyle: .custom("DSEG7ClassicMini-Regular"),
             sizePercent: 0.022, tracking: 0.02, layout: .contax,
             color: (1.0, 153.0 / 255.0, 49.0 / 255.0), glowColor: (1.0, 153.0 / 255.0, 49.0 / 255.0),
             glowRadius: 0.08, defaultLightBleed: false

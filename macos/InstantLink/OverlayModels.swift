@@ -220,6 +220,8 @@ struct TimestampOverlayData: Codable, Equatable {
     var presetKey: String = "classic"
     var format: TimestampFormat = .ymd
     var showsTime: Bool = true
+    var showsSeconds: Bool = false
+    var singleLine: Bool = false
     var lightBleedEnabled: Bool = false
 }
 

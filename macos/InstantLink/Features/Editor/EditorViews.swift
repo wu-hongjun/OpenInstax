@@ -1039,7 +1039,7 @@ struct SelectedOverlayInspectorView: View {
             }
 
             HStack {
-                Toggle(L("Time"), isOn: Binding(
+                Toggle(L("Time Line"), isOn: Binding(
                     get: {
                         guard let overlay = viewModel.selectedOverlay,
                               case .timestamp(let data) = overlay.content else { return true }
@@ -1059,6 +1059,33 @@ struct SelectedOverlayInspectorView: View {
                         viewModel.updateSelectedTimestampOverlay { $0.lightBleedEnabled = newValue }
                     }
                 ))
+            }
+            .font(.caption)
+
+            HStack {
+                Toggle(L("Show Seconds"), isOn: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .timestamp(let data) = overlay.content else { return false }
+                        return data.showsSeconds
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedTimestampOverlay { $0.showsSeconds = newValue }
+                    }
+                ))
+                .disabled(!selectedTimestampShowsTime)
+
+                Toggle(L("One Line"), isOn: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .timestamp(let data) = overlay.content else { return false }
+                        return data.singleLine
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedTimestampOverlay { $0.singleLine = newValue }
+                    }
+                ))
+                .disabled(!selectedTimestampShowsTime)
             }
             .font(.caption)
         }
@@ -1200,6 +1227,14 @@ struct SelectedOverlayInspectorView: View {
         return preset.layout.allowsFormatSelection
     }
 
+    private var selectedTimestampShowsTime: Bool {
+        guard let overlay = viewModel.selectedOverlay,
+              case .timestamp(let data) = overlay.content else {
+            return true
+        }
+        return data.showsTime
+    }
+
     private var selectedLocationDisplayStyle: LocationOverlayDisplayStyle {
         guard let overlay = viewModel.selectedOverlay,
               case .location(let data) = overlay.content else { return .coordinates }
@@ -1327,7 +1362,7 @@ struct DefaultTimestampOverlayEditor: View {
                 }
 
                 HStack {
-                    Toggle(L("Time"), isOn: Binding(
+                    Toggle(L("Time Line"), isOn: Binding(
                         get: {
                             guard let overlay = viewModel.defaultTimestampOverlay,
                                   case .timestamp(let data) = overlay.content else { return true }
@@ -1349,6 +1384,33 @@ struct DefaultTimestampOverlayEditor: View {
                     ))
                 }
                 .font(.caption)
+
+                HStack {
+                    Toggle(L("Show Seconds"), isOn: Binding(
+                        get: {
+                            guard let overlay = viewModel.defaultTimestampOverlay,
+                                  case .timestamp(let data) = overlay.content else { return false }
+                            return data.showsSeconds
+                        },
+                        set: { newValue in
+                            viewModel.updateDefaultTimestampOverlay { $0.showsSeconds = newValue }
+                        }
+                    ))
+                    .disabled(!defaultTimestampShowsTime)
+
+                    Toggle(L("One Line"), isOn: Binding(
+                        get: {
+                            guard let overlay = viewModel.defaultTimestampOverlay,
+                                  case .timestamp(let data) = overlay.content else { return false }
+                            return data.singleLine
+                        },
+                        set: { newValue in
+                            viewModel.updateDefaultTimestampOverlay { $0.singleLine = newValue }
+                        }
+                    ))
+                    .disabled(!defaultTimestampShowsTime)
+                }
+                .font(.caption)
             }
         }
     }
@@ -1360,5 +1422,13 @@ struct DefaultTimestampOverlayEditor: View {
             return true
         }
         return preset.layout.allowsFormatSelection
+    }
+
+    private var defaultTimestampShowsTime: Bool {
+        guard let overlay = viewModel.defaultTimestampOverlay,
+              case .timestamp(let data) = overlay.content else {
+            return true
+        }
+        return data.showsTime
     }
 }
