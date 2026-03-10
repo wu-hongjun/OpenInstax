@@ -131,10 +131,10 @@ struct StatusItem: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.caption)
+                .font(.callout)
                 .foregroundColor(.secondary)
             Text(value)
-                .font(.caption)
+                .font(.callout)
                 .fontWeight(.medium)
         }
     }
@@ -144,7 +144,7 @@ struct HeaderDivider: View {
     var body: some View {
         Rectangle()
             .fill(Color.white.opacity(0.18))
-            .frame(width: 1, height: 14)
+            .frame(width: 1, height: 16)
     }
 }
 

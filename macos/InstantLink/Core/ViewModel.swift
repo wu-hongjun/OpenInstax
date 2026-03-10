@@ -1180,7 +1180,7 @@ class ViewModel: ObservableObject {
         let mergedDevices = discovery.devices.sorted(by: cameraSortOrder)
 
         let nextSelectedCamera = mergedDevices.first(where: { $0.uniqueID == previousSelectedCameraID })
-            ?? mergedDevices.first
+            ?? preferredDefaultCamera(in: mergedDevices)
         let selectionChanged = previousSelectedCameraID != nextSelectedCamera?.uniqueID
 
         availableCameras = mergedDevices
@@ -1222,19 +1222,39 @@ class ViewModel: ObservableObject {
     }
 
     private func cameraSortRank(for device: AVCaptureDevice) -> Int {
-        if device.deviceType == .continuityCamera {
-            return 1
+        defaultCameraRank(for: device)
+    }
+
+    private func preferredDefaultCamera(in devices: [AVCaptureDevice]) -> AVCaptureDevice? {
+        devices.min { lhs, rhs in
+            let lhsRank = defaultCameraRank(for: lhs)
+            let rhsRank = defaultCameraRank(for: rhs)
+            if lhsRank != rhsRank {
+                return lhsRank < rhsRank
+            }
+            return lhs.localizedName.localizedCaseInsensitiveCompare(rhs.localizedName) == .orderedAscending
         }
-        if device.deviceType == .deskViewCamera {
-            return 2
-        }
-        switch device.position {
-        case .front:
-            return 0
-        case .back:
+    }
+
+    private func defaultCameraRank(for device: AVCaptureDevice) -> Int {
+        switch device.deviceType {
+        case .builtInWideAngleCamera:
+            switch device.position {
+            case .front:
+                return 0
+            case .back:
+                return 1
+            default:
+                return 2
+            }
+        case .external:
             return 3
-        default:
+        case .continuityCamera:
             return 4
+        case .deskViewCamera:
+            return 5
+        default:
+            return 6
         }
     }
 

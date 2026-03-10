@@ -385,12 +385,12 @@ struct MainView: View {
                     .fill(.green)
                     .frame(width: 8, height: 8)
                 Text(viewModel.currentPrinterDisplayName ?? L("Connected"))
-                    .font(.caption)
+                    .font(.callout)
                     .fontWeight(.medium)
                     .lineLimit(1)
                 if let tag = viewModel.printerModelTag {
                     Text(tag)
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
@@ -406,13 +406,26 @@ struct MainView: View {
             get: { viewModel.captureMode },
             set: { viewModel.requestCaptureModeChange(to: $0) }
         )) {
-            Text(L("Printer")).tag(CaptureMode.file)
-            Text(L("Camera")).tag(CaptureMode.camera)
+            Label {
+                Text(L("Printer"))
+                    .font(.callout.weight(.medium))
+            } icon: {
+                Image(systemName: "printer")
+            }
+            .tag(CaptureMode.file)
+
+            Label {
+                Text(L("Camera"))
+                    .font(.callout.weight(.medium))
+            } icon: {
+                Image(systemName: "camera")
+            }
+            .tag(CaptureMode.camera)
         }
         .pickerStyle(.segmented)
-        .controlSize(.small)
+        .controlSize(.regular)
         .labelsHidden()
-        .frame(width: 150)
+        .frame(width: 220)
         .onChange(of: viewModel.captureMode) { _, newMode in
             if newMode == .camera {
                 viewModel.requestCameraAccessAndStart()
@@ -457,7 +470,7 @@ struct MainView: View {
             viewModel.showSettings = true
         } label: {
             Image(systemName: "gearshape")
-                .font(.caption)
+                .font(.callout)
                 .foregroundColor(.secondary)
         }
         .buttonStyle(.plain)
