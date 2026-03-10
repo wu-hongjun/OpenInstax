@@ -209,45 +209,16 @@ enum PrintRenderService {
         for data: LocationOverlayData,
         imageLocation: ImageLocationMetadata?
     ) -> String? {
-        let coordinate: GeoCoordinate?
-        switch data.source {
-        case .photoMetadata:
-            coordinate = imageLocation?.coordinate
-        case .manualCoordinates:
-            coordinate = data.coordinate
-        case .manualText:
-            coordinate = nil
-        }
+        let content = LocationOverlayCardRenderer.resolvedContent(
+            for: data,
+            imageLocation: imageLocation,
+            allowsPlaceholder: false
+        )
 
-        let precision = max(0, min(data.precision, 6))
-        let coordinateText: String?
-        if let coordinate {
-            coordinateText = String(
-                format: "%.\(precision)f, %.\(precision)f",
-                coordinate.latitude,
-                coordinate.longitude
-            )
-        } else {
-            coordinateText = nil
+        if let subtitle = content?.subtitle, let title = content?.title {
+            return "\(title)\n\(subtitle)"
         }
-
-        let trimmedName = data.locationName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let body: String?
-        switch data.displayStyle {
-        case .coordinates:
-            body = coordinateText
-        case .name:
-            body = trimmedName.isEmpty ? coordinateText : trimmedName
-        case .nameAndCoordinates:
-            if !trimmedName.isEmpty, let coordinateText {
-                body = "\(trimmedName)\n\(coordinateText)"
-            } else {
-                body = !trimmedName.isEmpty ? trimmedName : coordinateText
-            }
-        }
-
-        guard let body, !body.isEmpty else { return nil }
-        return body
+        return content?.title
     }
 
     static func qrCodeImage(for data: QROverlayData) -> NSImage? {
@@ -502,28 +473,15 @@ enum PrintRenderService {
         in rect: CGRect,
         context: OverlayRenderContext
     ) {
-        guard let text = resolvedLocationText(for: data, imageLocation: context.imageLocation) else {
+        guard let rendered = LocationOverlayCardRenderer.renderedImage(
+            for: data,
+            imageLocation: context.imageLocation,
+            size: rect.size,
+            allowsPlaceholder: false
+        ) else {
             return
         }
-        let font = NSFont.monospacedSystemFont(
-            ofSize: max(10, rect.height * 0.28),
-            weight: .medium
-        )
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.alignment = .center
-        var attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: NSColor.white,
-            .paragraphStyle: paragraph,
-        ]
-        if let shadow = overlayShadow(for: .soft) {
-            attributes[.shadow] = shadow
-        }
-        NSAttributedString(string: text, attributes: attributes).draw(
-            with: rect,
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            context: nil
-        )
+        rendered.draw(in: rect)
     }
 
     private static func drawImageOverlay(_ data: ImageOverlayData, in rect: CGRect) {

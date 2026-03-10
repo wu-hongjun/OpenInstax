@@ -725,24 +725,37 @@ struct OverlayLocationPreviewView: View {
     let data: LocationOverlayData
     let size: CGSize
 
+    @State private var renderedImage: NSImage?
+
     var body: some View {
-        Text(
-            PrintRenderService.resolvedLocationText(
-                for: data,
-                imageLocation: viewModel.imageLocation
-            ) ?? L("No location metadata")
+        Group {
+            if let renderedImage {
+                Image(nsImage: renderedImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.secondary.opacity(0.18))
+                    .overlay(
+                        ProgressView()
+                            .controlSize(.small)
+                    )
+            }
+        }
+        .onAppear(perform: refresh)
+        .onChange(of: data) { _, _ in refresh() }
+        .onChange(of: viewModel.imageLocation) { _, _ in refresh() }
+        .onChange(of: size) { _, _ in refresh() }
+    }
+
+    private func refresh() {
+        renderedImage = LocationOverlayCardRenderer.renderedImage(
+            for: data,
+            imageLocation: viewModel.imageLocation,
+            size: size,
+            allowsPlaceholder: true
         )
-            .font(.system(size: max(10, size.height * 0.22), weight: .medium, design: .monospaced))
-            .foregroundColor(.white)
-            .multilineTextAlignment(.center)
-            .lineLimit(3)
-            .minimumScaleFactor(0.5)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.28))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.35), radius: 4)
     }
 }
 
