@@ -89,15 +89,17 @@ struct MainPreviewView: View {
                                             state = value.translation
                                         }
                                         .onEnded { value in
-                                            let currentOffset = viewModel.cropOffsetInPoints(
-                                                imageSize: image.size,
-                                                frameSize: localFrameSize,
-                                                zoom: viewModel.cropZoom
-                                            )
-                                            let raw = CGSize(
-                                                width: currentOffset.width + value.translation.width,
-                                                height: currentOffset.height + value.translation.height
-                                            )
+                                        let currentOffset = viewModel.cropOffsetInPoints(
+                                            imageSize: image.size,
+                                            frameSize: localFrameSize,
+                                            zoom: viewModel.cropZoom
+                                        )
+                                        // Dragging should move the image with the pointer, so the
+                                        // stored crop-window offset moves in the opposite direction.
+                                        let raw = CGSize(
+                                            width: currentOffset.width - value.translation.width,
+                                            height: currentOffset.height - value.translation.height
+                                        )
                                             let clamped = viewModel.clampedCropOffsetPoints(
                                                 raw: raw,
                                                 imageSize: image.size,
@@ -221,9 +223,11 @@ struct MainPreviewView: View {
             frameSize: localFrameSize,
             zoom: effectiveZoom
         )
+        // The live preview follows the dragged image, while crop state is stored
+        // as the inverse crop-window displacement for render consistency.
         let raw = CGSize(
-            width: currentOffset.width + dragDelta.width,
-            height: currentOffset.height + dragDelta.height
+            width: currentOffset.width - dragDelta.width,
+            height: currentOffset.height - dragDelta.height
         )
         let clamped = viewModel.clampedCropOffsetPoints(
             raw: raw,
