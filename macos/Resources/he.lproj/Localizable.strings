@@ -13,6 +13,7 @@
 
 /* Pairing Flow */
 "Connect to your printer" = "התחבר למדפסת";
+"No printer connected" = "אין מדפסת מחוברת";
 "No printer found" = "לא נמצאה מדפסת";
 "Make sure your printer is turned on" = "ודא שהמדפסת דלוקה";
 "Press the button to enable Bluetooth" = "לחץ על הכפתור כדי להפעיל Bluetooth";
@@ -21,6 +22,7 @@
 
 /* Buttons */
 "Cancel" = "ביטול";
+"Reconnect" = "התחבר מחדש";
 "Try Again" = "נסה שוב";
 "Open File" = "פתח קובץ";
 "Open" = "פתח";

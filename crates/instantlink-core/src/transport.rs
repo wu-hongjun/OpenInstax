@@ -34,6 +34,10 @@ pub const DIS_MODEL_NUMBER_UUID: Uuid = Uuid::from_u128(0x00002a24_0000_1000_800
 pub const DEFAULT_SCAN_DURATION: Duration = Duration::from_secs(5);
 /// Default command timeout.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+/// Timeout for individual BLE write operations.
+pub const DEFAULT_WRITE_TIMEOUT: Duration = Duration::from_secs(2);
+/// Timeout for BLE disconnect/cleanup operations.
+pub const DEFAULT_DISCONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Trait for BLE transport operations (enables mocking in tests).
 #[async_trait]
@@ -260,10 +264,26 @@ impl BleTransport {
 
     async fn disconnect_quietly(peripheral: &Peripheral, notify_char: Option<&Characteristic>) {
         if let Some(notify_char) = notify_char {
-            let _ = peripheral.unsubscribe(notify_char).await;
+            let _ = tokio::time::timeout(
+                DEFAULT_DISCONNECT_TIMEOUT,
+                peripheral.unsubscribe(notify_char),
+            )
+            .await;
         }
-        if peripheral.is_connected().await.unwrap_or(false) {
-            let _ = peripheral.disconnect().await;
+        let is_connected = tokio::time::timeout(
+            DEFAULT_DISCONNECT_TIMEOUT,
+            peripheral.is_connected(),
+        )
+        .await
+        .ok()
+        .and_then(|result| result.ok())
+        .unwrap_or(false);
+        if is_connected {
+            let _ = tokio::time::timeout(
+                DEFAULT_DISCONNECT_TIMEOUT,
+                peripheral.disconnect(),
+            )
+            .await;
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
     }
@@ -280,10 +300,14 @@ impl Transport for BleTransport {
         // Fragment into MTU-sized sub-packets
         let fragments = protocol::fragment(data);
         for frag in fragments {
-            self.peripheral
-                .write(&self.write_char, &frag, WriteType::WithoutResponse)
-                .await
-                .map_err(|e| PrinterError::Ble(format!("write failed: {e}")))?;
+            tokio::time::timeout(
+                DEFAULT_WRITE_TIMEOUT,
+                self.peripheral
+                    .write(&self.write_char, &frag, WriteType::WithoutResponse),
+            )
+            .await
+            .map_err(|_| PrinterError::Timeout)?
+            .map_err(|e| PrinterError::Ble(format!("write failed: {e}")))?;
         }
         Ok(())
     }
@@ -309,17 +333,26 @@ impl Transport for BleTransport {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        let _ = self.peripheral.unsubscribe(&self.notify_char).await;
-        if self
-            .peripheral
-            .is_connected()
+        let _ = tokio::time::timeout(
+            DEFAULT_DISCONNECT_TIMEOUT,
+            self.peripheral.unsubscribe(&self.notify_char),
+        )
+        .await;
+        let is_connected = tokio::time::timeout(
+            DEFAULT_DISCONNECT_TIMEOUT,
+            self.peripheral.is_connected(),
+        )
+        .await
+        .map_err(|_| PrinterError::Timeout)?
+        .map_err(|e| PrinterError::Ble(format!("is_connected failed: {e}")))?;
+        if is_connected {
+            tokio::time::timeout(
+                DEFAULT_DISCONNECT_TIMEOUT,
+                self.peripheral.disconnect(),
+            )
             .await
-            .map_err(|e| PrinterError::Ble(format!("is_connected failed: {e}")))?
-        {
-            self.peripheral
-                .disconnect()
-                .await
-                .map_err(|e| PrinterError::Ble(format!("disconnect failed: {e}")))?;
+            .map_err(|_| PrinterError::Timeout)?
+            .map_err(|e| PrinterError::Ble(format!("disconnect failed: {e}")))?;
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
         Ok(())

@@ -305,12 +305,14 @@ class InstantLinkFFI {
         return String(cString: buf)
     }
 
-    /// Get the connected device's model string.
-    func deviceModel() -> String? {
-        var buf = [CChar](repeating: 0, count: 256)
-        let result = _device_model(&buf, Int32(buf.count))
-        guard result > 0 else { return nil }
-        return String(cString: buf)
+    /// Get the connected device's model string on the dedicated FFI queue.
+    func connectedDeviceModel() async -> String? {
+        await blocking {
+            var buf = [CChar](repeating: 0, count: 256)
+            let result = self._device_model(&buf, Int32(buf.count))
+            guard result > 0 else { return nil }
+            return String(cString: buf)
+        }
     }
 
     // MARK: - Scanning

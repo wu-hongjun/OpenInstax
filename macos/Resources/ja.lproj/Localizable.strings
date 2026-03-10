@@ -12,6 +12,7 @@
 
 /* Pairing Flow */
 "Connect to your printer" = "プリンターに接続";
+"No printer connected" = "プリンター未接続";
 "No printer found" = "プリンターが見つかりません";
 "Make sure your printer is turned on" = "プリンターの電源が入っていることを確認してください";
 "Press the button to enable Bluetooth" = "ボタンを押して Bluetooth を有効にしてください";
@@ -20,6 +21,7 @@
 
 /* Buttons */
 "Cancel" = "キャンセル";
+"Reconnect" = "再接続";
 "Try Again" = "再試行";
 "Open File" = "ファイルを開く";
 "Open" = "開く";

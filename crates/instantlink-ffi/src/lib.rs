@@ -27,6 +27,7 @@ use instantlink_core::error::PrinterError;
 static INIT: Once = Once::new();
 static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
 static DEVICE: OnceLock<Mutex<Option<Box<dyn instantlink_core::PrinterDevice>>>> = OnceLock::new();
+const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 
 fn get_runtime() -> &'static tokio::runtime::Runtime {
     RUNTIME.get_or_init(|| {
@@ -39,6 +40,17 @@ fn get_runtime() -> &'static tokio::runtime::Runtime {
 
 fn get_device_lock() -> &'static Mutex<Option<Box<dyn instantlink_core::PrinterDevice>>> {
     DEVICE.get_or_init(|| Mutex::new(None))
+}
+
+fn disconnect_device(
+    rt: &tokio::runtime::Runtime,
+    device: Box<dyn instantlink_core::PrinterDevice>,
+) -> Result<(), PrinterError> {
+    rt.block_on(async {
+        tokio::time::timeout(DISCONNECT_TIMEOUT, device.disconnect())
+            .await
+            .map_err(|_| PrinterError::Timeout)?
+    })
 }
 
 /// Map an [`PrinterError`] to an FFI error code.
@@ -169,7 +181,7 @@ pub extern "C" fn instantlink_connect() -> i32 {
             }
         };
         if let Some(old_device) = old_device {
-            let _ = rt.block_on(old_device.disconnect());
+            let _ = disconnect_device(rt, old_device);
         }
 
         match rt.block_on(instantlink_core::printer::connect_any(None)) {
@@ -217,7 +229,7 @@ pub unsafe extern "C" fn instantlink_connect_named(name: *const c_char, duration
             }
         };
         if let Some(old_device) = old_device {
-            let _ = rt.block_on(old_device.disconnect());
+            let _ = disconnect_device(rt, old_device);
         }
 
         match rt.block_on(instantlink_core::printer::connect(s, dur)) {
@@ -272,7 +284,7 @@ pub unsafe extern "C" fn instantlink_connect_named_with_progress(
             }
         };
         if let Some(old_device) = old_device {
-            let _ = rt.block_on(old_device.disconnect());
+            let _ = disconnect_device(rt, old_device);
         }
 
         let progress = progress_cb.map(|progress_cb| {
@@ -312,7 +324,7 @@ pub extern "C" fn instantlink_disconnect() -> i32 {
         if let Ok(mut guard) = lock.lock() {
             if let Some(device) = guard.take() {
                 let rt = get_runtime();
-                match rt.block_on(device.disconnect()) {
+                match disconnect_device(rt, device) {
                     Ok(()) => 0,
                     Err(e) => error_code(&e),
                 }

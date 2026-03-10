@@ -12,6 +12,7 @@
 
 /* Pairing Flow */
 "Connect to your printer" = "اتصل بالطابعة";
+"No printer connected" = "لا توجد طابعة متصلة";
 "No printer found" = "لم يتم العثور على طابعة";
 "Make sure your printer is turned on" = "تأكد من أن الطابعة قيد التشغيل";
 "Press the button to enable Bluetooth" = "اضغط الزر لتفعيل البلوتوث";
@@ -20,6 +21,7 @@
 
 /* Buttons */
 "Cancel" = "إلغاء";
+"Reconnect" = "إعادة الاتصال";
 "Try Again" = "إعادة المحاولة";
 "Open File" = "فتح ملف";
 "Open" = "فتح";

@@ -70,9 +70,11 @@ async fn connect_internal(
         let mut partial_matches = Vec::new();
 
         for result in results {
-            if result.1 == device_name {
+            if printer_name_matches(&result.1, device_name) {
                 exact_matches.push(result);
-            } else if result.1.contains(device_name) {
+            } else if normalized_printer_name(&result.1).contains(&normalized_printer_name(device_name))
+                || normalized_printer_name(device_name).contains(&normalized_printer_name(&result.1))
+            {
                 partial_matches.push(result);
             }
         }
@@ -121,6 +123,43 @@ async fn connect_internal(
     result
 }
 
+fn printer_name_matches(discovered_name: &str, target_name: &str) -> bool {
+    if discovered_name == target_name {
+        return true;
+    }
+
+    let discovered_normalized = normalized_printer_name(discovered_name);
+    let target_normalized = normalized_printer_name(target_name);
+    if discovered_normalized == target_normalized {
+        return true;
+    }
+
+    match (
+        extracted_printer_serial(&discovered_normalized),
+        extracted_printer_serial(&target_normalized),
+    ) {
+        (Some(discovered_serial), Some(target_serial)) => discovered_serial == target_serial,
+        _ => false,
+    }
+}
+
+fn normalized_printer_name(name: &str) -> String {
+    let trimmed = name.trim();
+    let without_parenthetical_suffix = trimmed.split('(').next().unwrap_or(trimmed).trim();
+    without_parenthetical_suffix
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_uppercase()
+}
+
+fn extracted_printer_serial(name: &str) -> Option<String> {
+    let normalized = normalized_printer_name(name);
+    let suffix = normalized.strip_prefix("INSTAX-")?;
+    let digits: String = suffix.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+    (!digits.is_empty()).then_some(digits)
+}
+
 /// Connect to the first available Instax printer.
 pub async fn connect_any(duration: Option<Duration>) -> Result<Box<dyn PrinterDevice>> {
     let adapter = transport::get_adapter().await?;
@@ -134,6 +173,39 @@ pub async fn connect_any(duration: Option<Duration>) -> Result<Box<dyn PrinterDe
     let transport = BleTransport::connect(peripheral).await?;
     let device = BlePrinterDevice::new(Box::new(transport), name).await?;
     Ok(Box::new(device))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extracted_printer_serial, normalized_printer_name, printer_name_matches};
+
+    #[test]
+    fn normalizes_parenthetical_suffixes() {
+        assert_eq!(
+            normalized_printer_name("INSTAX-12345678 (iOS)"),
+            "INSTAX-12345678"
+        );
+    }
+
+    #[test]
+    fn matches_same_printer_with_ios_suffix_variants() {
+        assert!(printer_name_matches(
+            "INSTAX-12345678 (iOS)",
+            "INSTAX-12345678"
+        ));
+        assert!(printer_name_matches(
+            "INSTAX-12345678",
+            "INSTAX-12345678 (IOS)"
+        ));
+    }
+
+    #[test]
+    fn extracts_serial_from_instax_name() {
+        assert_eq!(
+            extracted_printer_serial("INSTAX-12345678 (iOS)").as_deref(),
+            Some("12345678")
+        );
+    }
 }
 
 /// One-shot print: connect to a printer, print an image, disconnect.

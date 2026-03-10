@@ -12,6 +12,7 @@
 
 /* Pairing Flow */
 "Connect to your printer" = "Connect to your printer";
+"No printer connected" = "No printer connected";
 "No printer found" = "No printer found";
 "Make sure your printer is turned on" = "Make sure your printer is turned on";
 "Press the button to enable Bluetooth" = "Press the button to enable Bluetooth";
@@ -20,6 +21,7 @@
 
 /* Buttons */
 "Cancel" = "Cancel";
+"Reconnect" = "Reconnect";
 "Try Again" = "Try Again";
 "Open File" = "Open File";
 "Open" = "Open";

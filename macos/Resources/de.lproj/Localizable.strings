@@ -12,6 +12,7 @@
 
 /* Pairing Flow */
 "Connect to your printer" = "Drucker verbinden";
+"No printer connected" = "Kein Drucker verbunden";
 "No printer found" = "Kein Drucker gefunden";
 "Make sure your printer is turned on" = "Stelle sicher, dass der Drucker eingeschaltet ist";
 "Press the button to enable Bluetooth" = "Drücke die Taste, um Bluetooth zu aktivieren";
@@ -20,6 +21,7 @@
 
 /* Buttons */
 "Cancel" = "Abbrechen";
+"Reconnect" = "Erneut verbinden";
 "Try Again" = "Erneut versuchen";
 "Open File" = "Datei öffnen";
 "Open" = "Öffnen";

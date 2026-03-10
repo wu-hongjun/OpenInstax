@@ -12,6 +12,7 @@
 
 /* Pairing Flow */
 "Connect to your printer" = "連接印表機";
+"No printer connected" = "未連接印表機";
 "No printer found" = "找不到印表機";
 "Make sure your printer is turned on" = "確認印表機已開啟";
 "Press the button to enable Bluetooth" = "按下按鈕啟用藍牙";
@@ -20,6 +21,7 @@
 
 /* Buttons */
 "Cancel" = "取消";
+"Reconnect" = "重新連接";
 "Try Again" = "重試";
 "Open File" = "開啟檔案";
 "Open" = "開啟";

@@ -336,6 +336,10 @@ class ViewModel: ObservableObject {
         return printerProfiles[bleId]?.displayName ?? bleId
     }
 
+    var hasKnownPrinterTarget: Bool {
+        selectedPrinter != nil || printerName != nil || printerProfiles.isEmpty == false
+    }
+
     var printerStatusIndicatorState: PrinterStatusIndicatorState {
         if !isConnected {
             if isPairing || pairingPhase != .idle {
@@ -1678,11 +1682,6 @@ class ViewModel: ObservableObject {
     // MARK: - Printing
 
     private func ensurePrinterReadyForPrint() async -> Bool {
-        guard isConnected || ffi.isConnected() else {
-            showError(L("Connect to your printer"))
-            return false
-        }
-
         let isStillConnected = await refreshStatus(forceDisconnectOnFailure: true)
         guard isStillConnected else {
             showError(L("Connect to your printer"))

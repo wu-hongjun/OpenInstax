@@ -24,9 +24,8 @@ protocol PrinterConnectionFFIBoundary: AnyObject {
         progress: @escaping @Sendable (ConnectionStageUpdate) -> Void
     ) async -> Bool
     func disconnectPrinter() async
-    func isPrinterConnected() -> Bool
     func fetchConnectionStatus() async -> PrinterConnectionFFIStatus?
-    func fetchConnectedPrinterModel() -> String?
+    func fetchConnectedPrinterModel() async -> String?
 }
 
 extension InstantLinkFFI: PrinterConnectionFFIBoundary {
@@ -50,10 +49,6 @@ extension InstantLinkFFI: PrinterConnectionFFIBoundary {
         await disconnect()
     }
 
-    func isPrinterConnected() -> Bool {
-        isConnected()
-    }
-
     func fetchConnectionStatus() async -> PrinterConnectionFFIStatus? {
         guard let status = await status() else { return nil }
         return PrinterConnectionFFIStatus(
@@ -64,8 +59,8 @@ extension InstantLinkFFI: PrinterConnectionFFIBoundary {
         )
     }
 
-    func fetchConnectedPrinterModel() -> String? {
-        deviceModel()
+    func fetchConnectedPrinterModel() async -> String? {
+        await connectedDeviceModel()
     }
 }
 
@@ -136,6 +131,7 @@ final class PrinterConnectionCoordinator: ObservableObject {
     private var pairingTask: Task<Void, Never>?
     private var pairingSessionID = UUID()
     private var consecutiveRefreshFailures = 0
+    private var refreshSessionID = UUID()
 
     init(
         ffi: any PrinterConnectionFFIBoundary,
@@ -204,10 +200,12 @@ final class PrinterConnectionCoordinator: ObservableObject {
     ) {
         pairingTask?.cancel()
         let pairingSessionID = beginPairingSession()
+        invalidateRefreshSession()
 
         mutateSnapshot { snapshot in
             snapshot.isConnected = false
             snapshot.isPairing = true
+            snapshot.isRefreshing = false
             snapshot.pairingPhase = .scanning
             snapshot.pairingAttempt = 0
             snapshot.pairingStatus = L("pairing_stage_scanning")
@@ -219,32 +217,31 @@ final class PrinterConnectionCoordinator: ObservableObject {
         pairingTask = Task { [weak self] in
             guard let self else { return }
 
-            if disconnectCurrentPrinter || self.ffi.isPrinterConnected() {
+            if disconnectCurrentPrinter || self.snapshot.isConnected {
                 await self.ffi.disconnectPrinter()
+            } else {
+                await self.ffi.disconnectPrinter()
+            }
+            if self.shouldEndPairingSession(pairingSessionID) {
+                self.finishPairingSession(id: pairingSessionID)
+                return
+            }
+
+            if let reconnectTarget = self.currentReconnectTarget() {
+                let target = self.currentReconnectTarget() ?? reconnectTarget
+                let connected = await self.attemptConnection(
+                    to: target,
+                    connectDuration: connectDuration,
+                    pairingSessionID: pairingSessionID
+                )
                 if self.shouldEndPairingSession(pairingSessionID) {
                     self.finishPairingSession(id: pairingSessionID)
                     return
                 }
-            }
-
-            if let reconnectTarget = self.currentReconnectTarget() {
-                while !self.shouldEndPairingSession(pairingSessionID) {
-                    let target = self.currentReconnectTarget() ?? reconnectTarget
-                    let connected = await self.attemptConnection(
-                        to: target,
-                        connectDuration: connectDuration,
-                        pairingSessionID: pairingSessionID
-                    )
-                    if self.shouldEndPairingSession(pairingSessionID) {
-                        break
-                    }
-                    if connected {
-                        self.clearPairingTaskIfCurrent(id: pairingSessionID)
-                        return
-                    }
-                    try? await Task.sleep(nanoseconds: 500_000_000)
+                if connected {
+                    self.clearPairingTaskIfCurrent(id: pairingSessionID)
+                    return
                 }
-
                 self.finishPairingSession(id: pairingSessionID)
                 return
             }
@@ -295,8 +292,10 @@ final class PrinterConnectionCoordinator: ObservableObject {
         pairingTask?.cancel()
         pairingTask = nil
         pairingSessionID = UUID()
+        invalidateRefreshSession()
         mutateSnapshot { snapshot in
             snapshot.isPairing = false
+            snapshot.isRefreshing = false
             snapshot.pairingPhase = .idle
             snapshot.connectionStage = nil
             snapshot.connectionStageDetail = nil
@@ -304,11 +303,16 @@ final class PrinterConnectionCoordinator: ObservableObject {
     }
 
     func refresh(forceDisconnectOnFailure: Bool = false) async -> Bool {
+        guard snapshot.isPairing == false else { return false }
+        let refreshSessionID = self.refreshSessionID
         mutateSnapshot { snapshot in
             snapshot.isRefreshing = true
         }
 
         let status = await ffi.fetchConnectionStatus()
+        guard self.refreshSessionID == refreshSessionID else {
+            return snapshot.isConnected
+        }
         var isConnectedAfterRefresh = false
 
         mutateSnapshot { snapshot in
@@ -323,13 +327,11 @@ final class PrinterConnectionCoordinator: ObservableObject {
                 isConnectedAfterRefresh = true
             } else {
                 consecutiveRefreshFailures += 1
-                if forceDisconnectOnFailure || snapshot.isConnected == false || consecutiveRefreshFailures >= 2 {
-                    snapshot.isConnected = false
-                    snapshot.connectionStage = nil
-                    snapshot.connectionStageDetail = nil
-                    snapshot.pairingPhase = .idle
-                }
-                isConnectedAfterRefresh = snapshot.isConnected
+                snapshot.isConnected = false
+                snapshot.connectionStage = nil
+                snapshot.connectionStageDetail = nil
+                snapshot.pairingPhase = .idle
+                isConnectedAfterRefresh = false
             }
         }
 
@@ -392,12 +394,12 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.selectedPrinter = name
         }
 
-        if ffi.isPrinterConnected() {
-            await ffi.disconnectPrinter()
-        }
+        await ffi.disconnectPrinter()
+        invalidateRefreshSession()
 
         mutateSnapshot { snapshot in
             snapshot.isConnected = false
+            snapshot.isRefreshing = false
         }
         consecutiveRefreshFailures = 0
 
@@ -501,9 +503,20 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.pairingStatus = L("pairing_stage_reading_info")
         }
 
-        let model = ffi.fetchConnectedPrinterModel() ?? "Unknown"
+        let model = await ffi.fetchConnectedPrinterModel() ?? "Unknown"
         let status = await ffi.fetchConnectionStatus()
         guard isCurrentPairingSession(pairingSessionID), !Task.isCancelled else {
+            return false
+        }
+        guard let status else {
+            await ffi.disconnectPrinter()
+            mutateSnapshot { snapshot in
+                snapshot.isConnected = false
+                snapshot.pairingPhase = .idle
+                snapshot.pairingStatus = L("pairing_stage_connect_failed")
+                snapshot.connectionStage = .failed
+                snapshot.connectionStageDetail = target
+            }
             return false
         }
 
@@ -516,10 +529,10 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.connectionStageDetail = target
             snapshot.printerName = target
             snapshot.printerModel = model
-            snapshot.battery = status?.battery ?? 0
-            snapshot.isCharging = status?.isCharging ?? false
-            snapshot.filmRemaining = status?.filmRemaining ?? 0
-            snapshot.printCount = status?.printCount ?? 0
+            snapshot.battery = status.battery
+            snapshot.isCharging = status.isCharging
+            snapshot.filmRemaining = status.filmRemaining
+            snapshot.printCount = status.printCount
             snapshot.selectedPrinter = target
             snapshot.hasSearchedOnce = true
             if snapshot.availablePrinters.contains(target) == false {
@@ -539,6 +552,10 @@ final class PrinterConnectionCoordinator: ObservableObject {
         let id = UUID()
         pairingSessionID = id
         return id
+    }
+
+    private func invalidateRefreshSession() {
+        refreshSessionID = UUID()
     }
 
     private func isCurrentPairingSession(_ id: UUID) -> Bool {

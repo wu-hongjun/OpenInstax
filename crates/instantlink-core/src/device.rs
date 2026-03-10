@@ -293,13 +293,13 @@ impl PrinterDevice for BlePrinterDevice {
         let mut is_charging = None;
         let mut print_count = None;
 
-        let deadline = tokio::time::Instant::now() + (DEFAULT_TIMEOUT * 3);
+        let deadline = tokio::time::Instant::now() + STATUS_QUERY_TIMEOUT;
 
         while tokio::time::Instant::now() < deadline {
             let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
             let packet = self
                 .transport
-                .receive(remaining.min(DEFAULT_TIMEOUT))
+                .receive(remaining.min(STATUS_RESPONSE_SLICE_TIMEOUT))
                 .await?;
             match Response::decode(&packet) {
                 Response::BatteryStatus { level, .. } => battery = Some(level),
@@ -1050,3 +1050,5 @@ mod tests {
         assert_eq!(device.name(), "TestPrinter");
     }
 }
+const STATUS_QUERY_TIMEOUT: Duration = Duration::from_secs(4);
+const STATUS_RESPONSE_SLICE_TIMEOUT: Duration = Duration::from_millis(1500);

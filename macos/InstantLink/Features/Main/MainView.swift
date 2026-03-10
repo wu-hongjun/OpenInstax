@@ -176,6 +176,33 @@ struct MainView: View {
                                 viewModel.stopPairing()
                             }
                             .controlSize(.large)
+                        } else if viewModel.hasKnownPrinterTarget {
+                            Image(systemName: "printer.dotmatrix")
+                                .font(.system(size: 40))
+                                .foregroundColor(.secondary)
+                            Text(L("No printer connected"))
+                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Label(L("Make sure your printer is turned on"), systemImage: "1.circle")
+                                Label(L("Press the button to enable Bluetooth"), systemImage: "2.circle")
+                                Label(L("Keep the printer nearby"), systemImage: "3.circle")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 4)
+                            HStack(spacing: 10) {
+                                Button(L("Reconnect")) {
+                                    viewModel.reconnectSelectedPrinterOrScan()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+
+                                Button(L("Switch Printer")) {
+                                    viewModel.showPrinterPicker = true
+                                    viewModel.scanNearby()
+                                }
+                                .controlSize(.large)
+                            }
                         } else if viewModel.hasSearchedOnce {
                             Image(systemName: "printer.dotmatrix")
                                 .font(.system(size: 40))
