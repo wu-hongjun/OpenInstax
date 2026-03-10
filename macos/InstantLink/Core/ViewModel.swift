@@ -303,7 +303,7 @@ class ViewModel: ObservableObject {
         loadCoreVersion()
         autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard let self = self, self.isConnected else { return }
+                guard let self = self, self.isConnected, !self.isPrinting else { return }
                 await self.refreshStatus()
             }
         }
@@ -387,7 +387,8 @@ class ViewModel: ObservableObject {
 
     // MARK: - Refresh (quiet — no "searching" spinner, just update numbers)
 
-    func refreshStatus() async {
+    func refreshStatus(allowDuringPrinting: Bool = false) async {
+        guard allowDuringPrinting || !isPrinting else { return }
         await connectionCoordinator.refresh()
     }
 
@@ -1587,7 +1588,7 @@ class ViewModel: ObservableObject {
                 return
             }
 
-            await refreshStatus()
+            await refreshStatus(allowDuringPrinting: true)
 
             let remaining = await MainActor.run { filmRemaining }
             if remaining <= 0 && offset < count - 1 {

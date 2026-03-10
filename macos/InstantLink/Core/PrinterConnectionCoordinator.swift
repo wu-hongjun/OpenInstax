@@ -118,6 +118,7 @@ final class PrinterConnectionCoordinator: ObservableObject {
     private(set) var profiles: [String: PrinterProfile]
 
     private var pairingTask: Task<Void, Never>?
+    private var consecutiveRefreshFailures = 0
 
     init(
         ffi: any PrinterConnectionFFIBoundary,
@@ -268,6 +269,7 @@ final class PrinterConnectionCoordinator: ObservableObject {
                         snapshot.availablePrinters.append(target)
                     }
                 }
+                self.consecutiveRefreshFailures = 0
 
                 self.bootstrapOrUpdateProfile(for: target, detectedModel: model)
                 self.pairingTask = nil
@@ -302,13 +304,17 @@ final class PrinterConnectionCoordinator: ObservableObject {
         mutateSnapshot { snapshot in
             snapshot.isRefreshing = false
             if let status {
+                consecutiveRefreshFailures = 0
                 snapshot.isConnected = true
                 snapshot.battery = status.battery
                 snapshot.filmRemaining = status.filmRemaining
                 snapshot.isCharging = status.isCharging
                 snapshot.printCount = status.printCount
             } else {
-                snapshot.isConnected = false
+                consecutiveRefreshFailures += 1
+                if snapshot.isConnected == false || consecutiveRefreshFailures >= 2 {
+                    snapshot.isConnected = false
+                }
             }
         }
     }
@@ -378,6 +384,7 @@ final class PrinterConnectionCoordinator: ObservableObject {
         mutateSnapshot { snapshot in
             snapshot.isConnected = false
         }
+        consecutiveRefreshFailures = 0
 
         startPairingLoop(connectDuration: connectDuration)
     }
