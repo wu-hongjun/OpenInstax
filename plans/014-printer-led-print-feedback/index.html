@@ -10,13 +10,11 @@
       
       
       
-        <link rel="canonical" href="https://instantlink.hongjunwu.com/plans/011-macos-coordinator-extraction/">
+        <link rel="canonical" href="https://instantlink.hongjunwu.com/plans/014-printer-led-print-feedback/">
       
       
-        <link rel="prev" href="../010-ui-ux-pass-3/">
+        <link rel="prev" href="../013-ffi-connection-stage-callbacks/">
       
-      
-        <link rel="next" href="../012-macos-15-liquid-glass-adoption/">
       
       
         
@@ -27,7 +25,7 @@
     
     
       
-        <title>Plan 011 macOS Coordinator Extraction - InstantLink</title>
+        <title>Plan 014 Printer LED Print Phase Feedback - InstantLink</title>
       
     
     
@@ -78,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#plan-011-macos-coordinator-and-render-service-extraction" class="md-skip">
+        <a href="#plan-014-printer-led-print-phase-feedback" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +110,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Plan 011 macOS Coordinator Extraction
+              Plan 014 Printer LED Print Phase Feedback
             
           </span>
         </div>
@@ -1186,37 +1184,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Plan 011 macOS Coordinator Extraction
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../011-macos-coordinator-extraction/" class="md-nav__link">
         
   
   
@@ -1232,114 +1203,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#goal" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Goal
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#target-structure" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Target Structure
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#extraction-1-printer-connection-coordinator" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Extraction 1: Printer Connection Coordinator
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#extraction-2-queueedit-state-coordinator" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Extraction 2: Queue/Edit-State Coordinator
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#extraction-3-print-preparationrender-service" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Extraction 3: Print Preparation/Render Service
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#migration-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Migration Order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#verification" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Verification
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exit-criteria" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exit Criteria
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1405,10 +1268,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../014-printer-led-print-feedback/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 014 Printer LED Print Phase Feedback
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1424,6 +1314,259 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proposed-ux" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Proposed UX
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-add-a-print-led-coordinator-on-macos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Add a Print LED coordinator on macOS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-keep-led-control-out-of-the-chunk-loop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Keep LED control out of the chunk loop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-add-one-safe-ffi-surface-if-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Add one safe FFI surface if needed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-safe-coordinator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Safe coordinator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-wire-into-print-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Wire into print lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-reconnect-and-cleanup-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Reconnect and cleanup behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Risks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#protocol-interference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol interference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stale-led-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stale LED state
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Verification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-criteria" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit Criteria
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1474,10 +1617,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#target-structure" class="md-nav__link">
+  <a href="#constraints" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Target Structure
+        Constraints
       
     </span>
   </a>
@@ -1485,10 +1628,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extraction-1-printer-connection-coordinator" class="md-nav__link">
+  <a href="#why" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Extraction 1: Printer Connection Coordinator
+        Why
       
     </span>
   </a>
@@ -1496,10 +1639,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extraction-2-queueedit-state-coordinator" class="md-nav__link">
+  <a href="#proposed-ux" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Extraction 2: Queue/Edit-State Coordinator
+        Proposed UX
       
     </span>
   </a>
@@ -1507,24 +1650,141 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#extraction-3-print-preparationrender-service" class="md-nav__link">
+  <a href="#architecture" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Extraction 3: Print Preparation/Render Service
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-add-a-print-led-coordinator-on-macos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Add a Print LED coordinator on macOS
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#migration-order" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#2-keep-led-control-out-of-the-chunk-loop" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Migration Order
+        2. Keep LED control out of the chunk loop
       
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-add-one-safe-ffi-surface-if-needed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Add one safe FFI surface if needed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Steps
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Steps">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-safe-coordinator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Safe coordinator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-wire-into-print-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Wire into print lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-reconnect-and-cleanup-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Reconnect and cleanup behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#risks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Risks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Risks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#protocol-interference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protocol interference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stale-led-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stale LED state
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1536,6 +1796,34 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Verification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1570,95 +1858,127 @@
   
 
 
-<h1 id="plan-011-macos-coordinator-and-render-service-extraction">Plan 011: macOS Coordinator and Render Service Extraction<a class="headerlink" href="#plan-011-macos-coordinator-and-render-service-extraction" title="Permanent link">&para;</a></h1>
-<p><strong>Status:</strong> Proposed</p>
+<h1 id="plan-014-printer-led-print-phase-feedback">Plan 014: Printer LED Print Phase Feedback<a class="headerlink" href="#plan-014-printer-led-print-phase-feedback" title="Permanent link">&para;</a></h1>
 <h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
-<p>Reduce <code>macos/InstantLink/Core/ViewModel.swift</code> further by extracting three non-UI responsibilities behind clear boundaries:</p>
-<ol>
-<li>printer connection and pairing</li>
-<li>queue and per-photo edit-state management</li>
-<li>print preparation and render composition</li>
-</ol>
-<p>This plan is about simplifying ownership and making future UI iteration safer. It is not intended to change user-facing behavior.</p>
-<h2 id="target-structure">Target Structure<a class="headerlink" href="#target-structure" title="Permanent link">&para;</a></h2>
-<p>Add these new files under <code>macos/InstantLink/Core/</code>:</p>
+<p>Use the printer's built-in LED as a simple phase indicator during print operations so the device feels more alive while avoiding any risk to transfer reliability.</p>
+<h2 id="constraints">Constraints<a class="headerlink" href="#constraints" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>PrinterConnectionCoordinator.swift</code></li>
-<li><code>QueueEditCoordinator.swift</code></li>
-<li><code>PrintRenderService.swift</code></li>
+<li>Do not send repeated LED commands during chunk upload.</li>
+<li>Do not try to mirror upload percentage on the printer LED.</li>
+<li>Do not block or delay the print pipeline if LED control fails.</li>
+<li>Keep the app UI as the primary detailed progress surface; LED feedback is secondary.</li>
 </ul>
-<p><code>ViewModel</code> should remain the observable bridge for SwiftUI, but delegate workflow logic into these types.</p>
-<h2 id="extraction-1-printer-connection-coordinator">Extraction 1: Printer Connection Coordinator<a class="headerlink" href="#extraction-1-printer-connection-coordinator" title="Permanent link">&para;</a></h2>
-<p>Own:
-- pairing loop
-- printer discovery and nearby scan
-- selected printer switching
-- connection refresh and status hydration
-- profile bootstrap after first successful connection</p>
-<p>Suggested surface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p">@</span><span class="n">MainActor</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kr">final</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">PrinterConnectionCoordinator</span>
-</code></pre></div>
-<p>Inputs:
-- <code>InstantLinkFFI</code>
-- access to persisted printer profiles
-- callbacks for status/error publishing</p>
-<p>Outputs:
-- connection snapshot struct with <code>isConnected</code>, printer identity, battery, film, charging, print count
-- profile update events</p>
-<h2 id="extraction-2-queueedit-state-coordinator">Extraction 2: Queue/Edit-State Coordinator<a class="headerlink" href="#extraction-2-queueedit-state-coordinator" title="Permanent link">&para;</a></h2>
-<p>Own:
-- queue add/remove/reorder/select
-- queue item edit-state persistence and restoration
-- new-photo defaults seeding
-- camera draft/file-mode edit-state transitions</p>
-<p>Suggested surface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p">@</span><span class="n">MainActor</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kr">final</span><span class="w"> </span><span class="kd">class</span><span class="w"> </span><span class="nc">QueueEditCoordinator</span>
-</code></pre></div>
-<p>Outputs:
-- authoritative queue array
-- selected queue index
-- active edit state for the selected item</p>
-<p>This coordinator should become the only layer allowed to mutate <code>QueueItem</code> and <code>QueueItemEditState</code>.</p>
-<h2 id="extraction-3-print-preparationrender-service">Extraction 3: Print Preparation/Render Service<a class="headerlink" href="#extraction-3-print-preparationrender-service" title="Permanent link">&para;</a></h2>
-<p>Own:
-- crop/flip/rotate pipeline
-- final film canvas rendering
-- overlay composition
-- temporary print-file generation</p>
-<p>Suggested surface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">enum</span><span class="w"> </span><span class="nc">PrintRenderService</span>
-</code></pre></div>
-<p>Key rule:
-- preview math and print math must share the same placement rules</p>
-<p>Longer term, this service should be usable by both print execution and export/share flows.</p>
-<h2 id="migration-order">Migration Order<a class="headerlink" href="#migration-order" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Extract <code>PrintRenderService</code> first. It is the most self-contained and easiest to verify against existing output.</li>
-<li>Extract <code>QueueEditCoordinator</code> next. This removes the largest cluster of state mutation from <code>ViewModel</code>.</li>
-<li>Extract <code>PrinterConnectionCoordinator</code> last. It has the most app-wide touch points and should move after the queue/render seams are stable.</li>
-</ol>
+<h2 id="why">Why<a class="headerlink" href="#why" title="Permanent link">&para;</a></h2>
+<p>The app already shows phase-aware print progress:</p>
+<ul>
+<li><code>Preparing image...</code></li>
+<li><code>Sending to printer...</code></li>
+<li><code>Starting print...</code></li>
+</ul>
+<p>The printer itself stays visually static. Since the protocol already supports LED control, we can add lightweight device feedback that matches those phases without inventing fake progress.</p>
+<h2 id="proposed-ux">Proposed UX<a class="headerlink" href="#proposed-ux" title="Permanent link">&para;</a></h2>
+<p>Use phase-based LED signaling only:</p>
+<ul>
+<li>Idle: LED off</li>
+<li>Preparing image: no LED change yet</li>
+<li>Sending to printer: blue <code>breathe</code></li>
+<li>Starting print: amber <code>solid</code></li>
+<li>Print success: green <code>blink</code> briefly, then off</li>
+<li>Print failure: red <code>blink</code> briefly, then off</li>
+</ul>
+<p>This keeps the meaning obvious:</p>
+<ul>
+<li>blue = working</li>
+<li>amber = final handoff</li>
+<li>green = success</li>
+<li>red = failure</li>
+</ul>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<h3 id="1-add-a-print-led-coordinator-on-macos">1. Add a Print LED coordinator on macOS<a class="headerlink" href="#1-add-a-print-led-coordinator-on-macos" title="Permanent link">&para;</a></h3>
+<p>Create a small helper owned by the macOS app, not by the Rust print pipeline.</p>
+<p>Responsibilities:</p>
+<ul>
+<li>map app-level <code>PrintProgressPhase</code> and final result to LED states</li>
+<li>send one-off LED commands through <code>InstantLinkFFI</code></li>
+<li>debounce duplicate state transitions</li>
+<li>ignore failures so printing is never blocked by LED issues</li>
+</ul>
+<p>Suggested file:</p>
+<ul>
+<li><code>macos/InstantLink/Core/PrinterLedCoordinator.swift</code></li>
+</ul>
+<h3 id="2-keep-led-control-out-of-the-chunk-loop">2. Keep LED control out of the chunk loop<a class="headerlink" href="#2-keep-led-control-out-of-the-chunk-loop" title="Permanent link">&para;</a></h3>
+<p>Do not thread LED updates through <code>progress_cb(sent, total)</code>.</p>
+<p>Only send LED changes on these state transitions:</p>
+<ul>
+<li>before upload starts</li>
+<li>when upload completes and <code>printPhase</code> becomes <code>.starting</code></li>
+<li>after print returns success/failure</li>
+</ul>
+<p>That avoids command interleaving with the ACK-based transfer flow.</p>
+<h3 id="3-add-one-safe-ffi-surface-if-needed">3. Add one safe FFI surface if needed<a class="headerlink" href="#3-add-one-safe-ffi-surface-if-needed" title="Permanent link">&para;</a></h3>
+<p>Current Swift already has:</p>
+<ul>
+<li><code>setLed(r:g:b:pattern:)</code></li>
+<li><code>ledOff()</code></li>
+</ul>
+<p>If current <code>blocking</code> semantics are sufficient, reuse them. If not, add a small fire-and-forget wrapper so LED cleanup does not stall UI flow.</p>
+<h2 id="implementation-steps">Implementation Steps<a class="headerlink" href="#implementation-steps" title="Permanent link">&para;</a></h2>
+<h3 id="phase-1-safe-coordinator">Phase 1: Safe coordinator<a class="headerlink" href="#phase-1-safe-coordinator" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Add <code>PrinterLedCoordinator</code></li>
+<li>Define LED presets:</li>
+<li>sending: <code>(31, 111, 235, breathe)</code></li>
+<li>starting: <code>(248, 120, 67, solid)</code></li>
+<li>success: <code>(38, 222, 109, blink)</code></li>
+<li>failure: <code>(230, 57, 70, blink)</code></li>
+<li>Add a short success/failure auto-off timer</li>
+</ul>
+<h3 id="phase-2-wire-into-print-lifecycle">Phase 2: Wire into print lifecycle<a class="headerlink" href="#phase-2-wire-into-print-lifecycle" title="Permanent link">&para;</a></h3>
+<ul>
+<li>On single print:</li>
+<li>set <code>sending</code> when <code>printPhase = .sending</code></li>
+<li>set <code>starting</code> when <code>printPhase = .starting</code></li>
+<li>set success/failure at completion</li>
+<li>On batch print:</li>
+<li>keep LED in phase state across items</li>
+<li>only show final success blink after the last item</li>
+<li>failure on any item should switch to failure blink and then off</li>
+</ul>
+<h3 id="phase-3-reconnect-and-cleanup-behavior">Phase 3: Reconnect and cleanup behavior<a class="headerlink" href="#phase-3-reconnect-and-cleanup-behavior" title="Permanent link">&para;</a></h3>
+<ul>
+<li>turn LED off when:</li>
+<li>print is cancelled</li>
+<li>printer disconnects mid-print</li>
+<li>reconnect flow starts</li>
+<li>app terminates while connected</li>
+</ul>
+<h2 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">&para;</a></h2>
+<h3 id="protocol-interference">Protocol interference<a class="headerlink" href="#protocol-interference" title="Permanent link">&para;</a></h3>
+<p>The main risk is that LED commands could contend with print commands on the same BLE session. That is why this plan only sends LED commands at coarse phase boundaries.</p>
+<h3 id="stale-led-state">Stale LED state<a class="headerlink" href="#stale-led-state" title="Permanent link">&para;</a></h3>
+<p>If the printer disconnects after a blue or amber state, the LED could remain on. The coordinator should always attempt <code>ledOff()</code> during known teardown paths, but failures must stay non-fatal.</p>
 <h2 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h2>
-<p>For each extraction step:</p>
+<h3 id="manual">Manual<a class="headerlink" href="#manual" title="Permanent link">&para;</a></h3>
+<ul>
+<li>single print success</li>
+<li>single print failure</li>
+<li>batch print success</li>
+<li>batch print failure on item <code>n</code></li>
+<li>disconnect during sending</li>
+<li>disconnect during starting</li>
+</ul>
+<h3 id="code-checks">Code checks<a class="headerlink" href="#code-checks" title="Permanent link">&para;</a></h3>
 <ul>
 <li><code>cargo test --workspace</code></li>
 <li><code>bash scripts/build-app.sh 0.1.3</code></li>
-<li>manual macOS smoke test:</li>
-<li>pair printer</li>
-<li>import/reorder/remove queue items</li>
-<li>edit two different images and switch between them</li>
-<li>print current and batch print</li>
-<li>camera capture, edit, and print</li>
 </ul>
 <h2 id="exit-criteria">Exit Criteria<a class="headerlink" href="#exit-criteria" title="Permanent link">&para;</a></h2>
-<p>This plan is complete when:</p>
 <ul>
-<li><code>ViewModel</code> no longer directly owns pairing loop logic</li>
-<li><code>ViewModel</code> no longer directly mutates queue/edit-state internals</li>
-<li>print preparation lives outside <code>ViewModel</code></li>
-<li>printer-profile flow remains unified through one editor component</li>
-<li>no user-visible behavior regresses during pairing, editing, or printing</li>
+<li>LED feedback is visible and phase-correct</li>
+<li>print reliability is unchanged</li>
+<li>no extra queue/FFI deadlocks are introduced</li>
+<li>LED failures never surface as print failures</li>
 </ul>
 
 
