@@ -715,6 +715,23 @@ struct QuickExposureControlsView: View {
     var showsChrome: Bool = true
     var controlSize: ControlSize = .small
 
+    private var valueButtonMinWidth: CGFloat {
+        switch controlSize {
+        case .mini:
+            return 58
+        case .small:
+            return 68
+        case .regular:
+            return 78
+        case .large:
+            return 86
+        case .extraLarge:
+            return 94
+        @unknown default:
+            return 68
+        }
+    }
+
     var body: some View {
         ControlGroup {
             Button {
@@ -726,8 +743,12 @@ struct QuickExposureControlsView: View {
             .help(L("Exposure"))
             .accessibilityLabel(Text(L("Exposure")))
 
-            Button(viewModel.exposureDisplayValue) {
+            Button {
                 viewModel.resetExposure()
+            } label: {
+                Text(viewModel.exposureDisplayValue)
+                    .monospacedDigit()
+                    .frame(minWidth: valueButtonMinWidth)
             }
             .disabled(!viewModel.canResetExposure)
 
