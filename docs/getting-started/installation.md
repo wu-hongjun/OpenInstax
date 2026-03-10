@@ -45,7 +45,7 @@ cp target/release/instantlink /usr/local/bin/
 The app bundle embeds the CLI binary and the FFI dylib. Runtime printer/device operations use the bundled FFI dylib; the bundled CLI is kept only for lightweight metadata such as version reporting.
 
 ```bash
-bash scripts/build-app.sh 0.1.2
+bash scripts/build-app.sh 0.1.3
 ```
 
 `scripts/build-app.sh` requires a semver version argument. It builds the Rust workspace, compiles the SwiftUI launcher, bundles localizations and fonts, codesigns the app, and creates a `.dmg` when `create-dmg` is installed (`brew install create-dmg`).

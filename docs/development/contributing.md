@@ -33,7 +33,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 ## Build and Release Notes
 
 - Use `bash scripts/build-app.sh <semver>` to build `target/release/InstantLink.app`
-- The script requires a semver argument such as `0.1.2` or `v0.1.2`
+- The script requires a semver argument such as `0.1.3` or `v0.1.3`
 - GitHub Releases are tag-driven via `.github/workflows/release.yml`
 - Tagged releases publish the macOS DMG plus separate CLI and FFI zip archives
 

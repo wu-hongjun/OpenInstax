@@ -51,7 +51,7 @@
 
 ## Versioning
 
-- App version: passed to `build-app.sh` (e.g., `bash scripts/build-app.sh 0.1.2`), written to Info.plist
+- App version: passed to `build-app.sh` (e.g., `bash scripts/build-app.sh 0.1.3`), written to Info.plist
 - CLI/crate versions: in each crate's `Cargo.toml` — **must be bumped in sync with app version**
 - Three Cargo.toml files to bump: `instantlink-core`, `instantlink-ffi`, `instantlink-cli`
 - The About section in Settings shows both App and Core versions to verify they match
