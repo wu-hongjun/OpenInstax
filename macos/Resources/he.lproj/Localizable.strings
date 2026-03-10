@@ -138,6 +138,8 @@
 "No saved printers" = "אין מדפסות שמורות";
 "Delete" = "מחק";
 "delete_printer_confirm" = "האם אתה בטוח שברצונך למחוק מדפסת זו?";
+"delete_printer_bluetooth_message" = "אם המדפסת הזו ממשיכה להופיע, הסר אותה גם בהגדרות המערכת > Bluetooth.";
+"Open Bluetooth Settings" = "פתח הגדרות Bluetooth";
 "GitHub" = "GitHub";
 "Report an Issue" = "דווח על בעיה";
 

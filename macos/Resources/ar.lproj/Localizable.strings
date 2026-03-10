@@ -137,6 +137,8 @@
 "No saved printers" = "لا توجد طابعات محفوظة";
 "Delete" = "حذف";
 "delete_printer_confirm" = "هل أنت متأكد أنك تريد حذف هذه الطابعة؟";
+"delete_printer_bluetooth_message" = "إذا استمرت هذه الطابعة في الظهور، فأزلها أيضًا من إعدادات النظام > Bluetooth.";
+"Open Bluetooth Settings" = "افتح إعدادات Bluetooth";
 "GitHub" = "GitHub";
 "Report an Issue" = "الإبلاغ عن مشكلة";
 

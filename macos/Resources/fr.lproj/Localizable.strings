@@ -138,6 +138,8 @@
 "No saved printers" = "Aucune imprimante enregistrée";
 "Delete" = "Supprimer";
 "delete_printer_confirm" = "Voulez-vous vraiment supprimer cette imprimante ?";
+"delete_printer_bluetooth_message" = "Si cette imprimante continue d’apparaître, supprimez-la aussi dans Réglages Système > Bluetooth.";
+"Open Bluetooth Settings" = "Ouvrir les réglages Bluetooth";
 "GitHub" = "GitHub";
 "Report an Issue" = "Signaler un problème";
 

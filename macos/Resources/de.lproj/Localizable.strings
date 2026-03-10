@@ -137,6 +137,8 @@
 "No saved printers" = "Keine gespeicherten Drucker";
 "Delete" = "Löschen";
 "delete_printer_confirm" = "Möchtest du diesen Drucker wirklich löschen?";
+"delete_printer_bluetooth_message" = "Wenn dieser Drucker weiterhin erscheint, entferne ihn auch in Systemeinstellungen > Bluetooth.";
+"Open Bluetooth Settings" = "Bluetooth-Einstellungen öffnen";
 "GitHub" = "GitHub";
 "Report an Issue" = "Problem melden";
 

@@ -141,13 +141,22 @@ pub unsafe extern "C" fn instantlink_scan(
 pub extern "C" fn instantlink_connect() -> i32 {
     std::panic::catch_unwind(|| {
         let rt = get_runtime();
+        let old_device = {
+            let lock = get_device_lock();
+            if let Ok(mut guard) = lock.lock() {
+                guard.take()
+            } else {
+                return -3;
+            }
+        };
+        if let Some(old_device) = old_device {
+            let _ = rt.block_on(old_device.disconnect());
+        }
+
         match rt.block_on(instantlink_core::printer::connect_any(None)) {
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
-                    if let Some(old_device) = guard.take() {
-                        let _ = rt.block_on(old_device.disconnect());
-                    }
                     *guard = Some(device);
                     0
                 } else {
@@ -180,13 +189,22 @@ pub unsafe extern "C" fn instantlink_connect_named(name: *const c_char, duration
             None
         };
         let rt = get_runtime();
+        let old_device = {
+            let lock = get_device_lock();
+            if let Ok(mut guard) = lock.lock() {
+                guard.take()
+            } else {
+                return -3;
+            }
+        };
+        if let Some(old_device) = old_device {
+            let _ = rt.block_on(old_device.disconnect());
+        }
+
         match rt.block_on(instantlink_core::printer::connect(s, dur)) {
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
-                    if let Some(old_device) = guard.take() {
-                        let _ = rt.block_on(old_device.disconnect());
-                    }
                     *guard = Some(device);
                     0
                 } else {

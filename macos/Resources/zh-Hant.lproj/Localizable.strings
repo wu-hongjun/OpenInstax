@@ -137,6 +137,8 @@
 "No saved printers" = "沒有已儲存的印表機";
 "Delete" = "刪除";
 "delete_printer_confirm" = "確定要刪除此印表機嗎？";
+"delete_printer_bluetooth_message" = "如果這台印表機仍然重複出現，也請在「系統設定 > 藍牙」中將其移除。";
+"Open Bluetooth Settings" = "打開藍牙設定";
 "GitHub" = "GitHub";
 "Report an Issue" = "回報問題";
 

@@ -137,6 +137,8 @@
 "No saved printers" = "저장된 프린터 없음";
 "Delete" = "삭제";
 "delete_printer_confirm" = "이 프린터를 삭제하시겠습니까?";
+"delete_printer_bluetooth_message" = "이 프린터가 계속 다시 나타나면 시스템 설정 > Bluetooth에서도 제거하세요.";
+"Open Bluetooth Settings" = "Bluetooth 설정 열기";
 "GitHub" = "GitHub";
 "Report an Issue" = "문제 신고";
 

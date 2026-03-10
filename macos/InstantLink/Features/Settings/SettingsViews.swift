@@ -484,6 +484,11 @@ struct PrinterManagementSection: View {
             ),
             titleVisibility: .visible
         ) {
+            Button(L("Open Bluetooth Settings")) {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
             Button(L("Delete"), role: .destructive) {
                 if let bleId = deletingBleId {
                     viewModel.deleteProfile(bleId)
@@ -493,6 +498,8 @@ struct PrinterManagementSection: View {
             Button(L("Cancel"), role: .cancel) {
                 deletingBleId = nil
             }
+        } message: {
+            Text(L("delete_printer_bluetooth_message"))
         }
     }
 }

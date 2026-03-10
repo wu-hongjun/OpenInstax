@@ -137,6 +137,8 @@
 "No saved printers" = "No saved printers";
 "Delete" = "Delete";
 "delete_printer_confirm" = "Are you sure you want to delete this printer?";
+"delete_printer_bluetooth_message" = "If this printer keeps reappearing, also remove it in System Settings > Bluetooth.";
+"Open Bluetooth Settings" = "Open Bluetooth Settings";
 "GitHub" = "GitHub";
 "Report an Issue" = "Report an Issue";
 

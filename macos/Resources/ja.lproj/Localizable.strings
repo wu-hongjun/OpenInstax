@@ -137,6 +137,8 @@
 "No saved printers" = "保存済みプリンターなし";
 "Delete" = "削除";
 "delete_printer_confirm" = "このプリンターを削除してもよろしいですか？";
+"delete_printer_bluetooth_message" = "このプリンターが再び表示される場合は、システム設定 > Bluetooth からも削除してください。";
+"Open Bluetooth Settings" = "Bluetooth設定を開く";
 "GitHub" = "GitHub";
 "Report an Issue" = "問題を報告";
 

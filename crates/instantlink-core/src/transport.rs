@@ -126,6 +126,7 @@ pub async fn scan(adapter: &Adapter, duration: Duration) -> Result<Vec<(Peripher
 pub struct BleTransport {
     peripheral: Peripheral,
     write_char: Characteristic,
+    notify_char: Characteristic,
     rx: tokio::sync::Mutex<mpsc::Receiver<Vec<u8>>>,
     assembler: tokio::sync::Mutex<PacketAssembler>,
     /// DIS Model Number string, if available.
@@ -135,29 +136,37 @@ pub struct BleTransport {
 impl BleTransport {
     /// Connect to a peripheral and set up characteristics and notifications.
     pub async fn connect(peripheral: Peripheral) -> Result<Self> {
+        if peripheral.is_connected().await.unwrap_or(false) {
+            Self::disconnect_quietly(&peripheral, None).await;
+        }
+
         peripheral
             .connect()
             .await
             .map_err(|e| PrinterError::Ble(format!("connect failed: {e}")))?;
 
-        peripheral
-            .discover_services()
-            .await
-            .map_err(|e| PrinterError::Ble(format!("service discovery failed: {e}")))?;
+        if let Err(e) = peripheral.discover_services().await {
+            Self::disconnect_quietly(&peripheral, None).await;
+            return Err(PrinterError::Ble(format!("service discovery failed: {e}")));
+        }
 
         let chars = peripheral.characteristics();
 
-        let write_char = chars
-            .iter()
-            .find(|c| c.uuid == WRITE_CHAR_UUID)
-            .cloned()
-            .ok_or_else(|| PrinterError::Ble("write characteristic not found".into()))?;
+        let write_char = match chars.iter().find(|c| c.uuid == WRITE_CHAR_UUID).cloned() {
+            Some(characteristic) => characteristic,
+            None => {
+                Self::disconnect_quietly(&peripheral, None).await;
+                return Err(PrinterError::Ble("write characteristic not found".into()));
+            }
+        };
 
-        let notify_char = chars
-            .iter()
-            .find(|c| c.uuid == NOTIFY_CHAR_UUID)
-            .cloned()
-            .ok_or_else(|| PrinterError::Ble("notify characteristic not found".into()))?;
+        let notify_char = match chars.iter().find(|c| c.uuid == NOTIFY_CHAR_UUID).cloned() {
+            Some(characteristic) => characteristic,
+            None => {
+                Self::disconnect_quietly(&peripheral, None).await;
+                return Err(PrinterError::Ble("notify characteristic not found".into()));
+            }
+        };
 
         // Try to read DIS Model Number characteristic for Link 3 detection
         let dis_model_number = Self::read_dis_model_number(&peripheral, &chars).await;
@@ -167,16 +176,19 @@ impl BleTransport {
 
         // Subscribe to notifications BEFORE spawning the listener task
         // so that a failed subscribe() doesn't leak a spawned task.
-        peripheral
-            .subscribe(&notify_char)
-            .await
-            .map_err(|e| PrinterError::Ble(format!("notification subscribe failed: {e}")))?;
+        if let Err(e) = peripheral.subscribe(&notify_char).await {
+            Self::disconnect_quietly(&peripheral, Some(&notify_char)).await;
+            return Err(PrinterError::Ble(format!("notification subscribe failed: {e}")));
+        }
 
         let (tx, rx) = mpsc::channel(64);
-        let mut notification_stream = peripheral
-            .notifications()
-            .await
-            .map_err(|e| PrinterError::Ble(format!("notification stream failed: {e}")))?;
+        let mut notification_stream = match peripheral.notifications().await {
+            Ok(stream) => stream,
+            Err(e) => {
+                Self::disconnect_quietly(&peripheral, Some(&notify_char)).await;
+                return Err(PrinterError::Ble(format!("notification stream failed: {e}")));
+            }
+        };
 
         tokio::spawn(async move {
             log::debug!("Notification listener task started");
@@ -200,6 +212,7 @@ impl BleTransport {
         Ok(Self {
             peripheral,
             write_char,
+            notify_char,
             rx: tokio::sync::Mutex::new(rx),
             assembler: tokio::sync::Mutex::new(PacketAssembler::new()),
             dis_model_number,
@@ -221,6 +234,19 @@ impl BleTransport {
                 log::debug!("Failed to read DIS Model Number: {e}");
                 None
             }
+        }
+    }
+
+    async fn disconnect_quietly(
+        peripheral: &Peripheral,
+        notify_char: Option<&Characteristic>
+    ) {
+        if let Some(notify_char) = notify_char {
+            let _ = peripheral.unsubscribe(notify_char).await;
+        }
+        if peripheral.is_connected().await.unwrap_or(false) {
+            let _ = peripheral.disconnect().await;
+            tokio::time::sleep(Duration::from_millis(250)).await;
         }
     }
 }
@@ -265,10 +291,19 @@ impl Transport for BleTransport {
     }
 
     async fn disconnect(&self) -> Result<()> {
-        self.peripheral
-            .disconnect()
+        let _ = self.peripheral.unsubscribe(&self.notify_char).await;
+        if self
+            .peripheral
+            .is_connected()
             .await
-            .map_err(|e| PrinterError::Ble(format!("disconnect failed: {e}")))?;
+            .map_err(|e| PrinterError::Ble(format!("is_connected failed: {e}")))?
+        {
+            self.peripheral
+                .disconnect()
+                .await
+                .map_err(|e| PrinterError::Ble(format!("disconnect failed: {e}")))?;
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
         Ok(())
     }
 
