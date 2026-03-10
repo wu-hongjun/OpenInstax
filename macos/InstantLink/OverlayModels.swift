@@ -217,12 +217,12 @@ enum QRErrorCorrectionLevel: String, Codable, CaseIterable, Identifiable {
 }
 
 struct TimestampOverlayData: Codable, Equatable {
-    var presetKey: String = "classic"
+    var presetKey: String = "contax"
     var format: TimestampFormat = .ymd
-    var showsTime: Bool = true
+    var showsTime: Bool = false
     var showsSeconds: Bool = false
-    var singleLine: Bool = false
-    var lightBleedEnabled: Bool = false
+    var singleLine: Bool = true
+    var lightBleedEnabled: Bool = true
 }
 
 enum TimestampFormat: String, Codable, CaseIterable, Identifiable {

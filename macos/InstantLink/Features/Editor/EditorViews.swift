@@ -55,9 +55,6 @@ struct ImageEditorView: View {
 struct EditorPreviewView: View {
     @EnvironmentObject var viewModel: ViewModel
     @State private var isTargeted = false
-    @GestureState private var dragDelta: CGSize = .zero
-    @GestureState private var magnifyDelta: CGFloat = 1.0
-    @State private var localFrameSize: CGSize = .zero
 
     private var showsSimulatedFilmFrame: Bool {
         viewModel.selectedImage != nil && viewModel.printerModelTag != nil
@@ -80,124 +77,7 @@ struct EditorPreviewView: View {
             )
 
             if let image = viewModel.selectedImage {
-                FilmFrameView(filmModel: viewModel.printerModelTag, isRotated: viewModel.filmOrientation == "rotated") {
-                    if viewModel.fitMode == "crop", let ar = viewModel.orientedAspectRatio {
-                        Color.clear
-                            .aspectRatio(ar, contentMode: .fit)
-                            .background(
-                                GeometryReader { geo in
-                                    Color.clear.preference(key: CropFrameSizeKey.self, value: geo.size)
-                                }
-                            )
-                            .onPreferenceChange(CropFrameSizeKey.self) { size in
-                                localFrameSize = size
-                            }
-                            .overlay(
-                                ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
-                                    previewImage
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .scaleEffect(
-                                            x: viewModel.isHorizontallyFlipped ? -effectiveZoom : effectiveZoom,
-                                            y: effectiveZoom
-                                        )
-                                        .offset(effectiveOffset(imageSize: image.size))
-                                        .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
-                                }
-                            )
-                            .overlay {
-                                OverlayCanvasView(editable: true)
-                            }
-                            .clipped()
-                            .contentShape(Rectangle())
-                            .gesture(
-                                DragGesture()
-                                    .updating($dragDelta) { value, state, _ in
-                                        state = value.translation
-                                    }
-                                    .onEnded { value in
-                                        let currentOffset = viewModel.cropOffsetInPoints(
-                                            imageSize: image.size,
-                                            frameSize: localFrameSize,
-                                            zoom: viewModel.cropZoom
-                                        )
-                                        // Dragging should move the image with the pointer, so the
-                                        // stored crop-window offset moves in the opposite direction.
-                                        let raw = CGSize(
-                                            width: currentOffset.width - value.translation.width,
-                                            height: currentOffset.height - value.translation.height
-                                        )
-                                        let clamped = viewModel.clampedCropOffsetPoints(
-                                            raw: raw,
-                                            imageSize: image.size,
-                                            frameSize: localFrameSize,
-                                            zoom: viewModel.cropZoom
-                                        )
-                                        viewModel.cropOffsetNormalized = viewModel.normalizedCropOffset(
-                                            from: clamped,
-                                            imageSize: image.size,
-                                            frameSize: localFrameSize,
-                                            zoom: viewModel.cropZoom
-                                        )
-                                    }
-                            )
-                            .simultaneousGesture(
-                                MagnificationGesture()
-                                    .updating($magnifyDelta) { value, state, _ in
-                                        state = value
-                                    }
-                                    .onEnded { value in
-                                        viewModel.setCropZoom(viewModel.cropZoom * value)
-                                    }
-                            )
-                    } else if viewModel.fitMode == "contain", let ar = viewModel.orientedAspectRatio {
-                        Color.white
-                            .aspectRatio(ar, contentMode: .fit)
-                            .overlay(
-                                ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
-                                    previewImage
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
-                                        .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
-                                }
-                            )
-                            .overlay {
-                                OverlayCanvasView(editable: true)
-                            }
-                            .clipped()
-                    } else if viewModel.fitMode == "stretch", let ar = viewModel.orientedAspectRatio {
-                        Color.white
-                            .aspectRatio(ar, contentMode: .fit)
-                            .overlay(
-                                GeometryReader { geo in
-                                    ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
-                                        previewImage
-                                            .resizable()
-                                            .frame(width: geo.size.width, height: geo.size.height)
-                                            .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
-                                            .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
-                                    }
-                                }
-                            )
-                            .overlay {
-                                OverlayCanvasView(editable: true)
-                            }
-                            .clipped()
-                    } else {
-                        ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
-                            previewImage
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
-                                .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
-                        }
-                        .overlay {
-                            OverlayCanvasView(editable: true)
-                        }
-                    }
-                }
-                .padding(4)
+                PrintImagePreviewSurface(image: image, overlayEditable: true)
             }
         }
         .frame(minHeight: 250, idealHeight: 350)
@@ -212,31 +92,6 @@ struct EditorPreviewView: View {
             }
             return true
         }
-    }
-
-    private var effectiveZoom: CGFloat {
-        min(max(viewModel.cropZoom * magnifyDelta, ViewModel.minCropZoom), ViewModel.maxCropZoom)
-    }
-
-    private func effectiveOffset(imageSize: CGSize) -> CGSize {
-        let currentOffset = viewModel.cropOffsetInPoints(
-            imageSize: imageSize,
-            frameSize: localFrameSize,
-            zoom: effectiveZoom
-        )
-        // The live preview follows the dragged image, while crop state is stored
-        // as the inverse crop-window displacement for render consistency.
-        let raw = CGSize(
-            width: currentOffset.width - dragDelta.width,
-            height: currentOffset.height - dragDelta.height
-        )
-        let clamped = viewModel.clampedCropOffsetPoints(
-            raw: raw,
-            imageSize: imageSize,
-            frameSize: localFrameSize,
-            zoom: effectiveZoom
-        )
-        return CGSize(width: -clamped.width, height: -clamped.height)
     }
 }
 

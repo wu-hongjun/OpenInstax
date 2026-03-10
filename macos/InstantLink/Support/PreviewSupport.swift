@@ -225,6 +225,175 @@ struct ExposureAdjustedImageView<Content: View>: View {
     }
 }
 
+struct PrintImagePreviewSurface: View {
+    @EnvironmentObject var viewModel: ViewModel
+    let image: NSImage
+    var overlayEditable: Bool = false
+    var onOpenEditor: (() -> Void)? = nil
+
+    @GestureState private var dragDelta: CGSize = .zero
+    @GestureState private var magnifyDelta: CGFloat = 1.0
+    @State private var localFrameSize: CGSize = .zero
+
+    var body: some View {
+        FilmFrameView(filmModel: viewModel.printerModelTag, isRotated: viewModel.filmOrientation == "rotated") {
+            if viewModel.fitMode == "crop", let ar = viewModel.orientedAspectRatio {
+                Color.clear
+                    .aspectRatio(ar, contentMode: .fit)
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: CropFrameSizeKey.self, value: geo.size)
+                        }
+                    )
+                    .onPreferenceChange(CropFrameSizeKey.self) { size in
+                        localFrameSize = size
+                    }
+                    .overlay(
+                        ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
+                            previewImage
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .scaleEffect(
+                                    x: viewModel.isHorizontallyFlipped ? -effectiveZoom : effectiveZoom,
+                                    y: effectiveZoom
+                                )
+                                .offset(effectiveOffset(imageSize: image.size))
+                                .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
+                        }
+                    )
+                    .overlay {
+                        OverlayCanvasView(editable: overlayEditable)
+                    }
+                    .clipped()
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture()
+                            .updating($dragDelta) { value, state, _ in
+                                state = value.translation
+                            }
+                            .onEnded { value in
+                                let currentOffset = viewModel.cropOffsetInPoints(
+                                    imageSize: image.size,
+                                    frameSize: localFrameSize,
+                                    zoom: viewModel.cropZoom
+                                )
+                                let raw = CGSize(
+                                    width: currentOffset.width - value.translation.width,
+                                    height: currentOffset.height - value.translation.height
+                                )
+                                let clamped = viewModel.clampedCropOffsetPoints(
+                                    raw: raw,
+                                    imageSize: image.size,
+                                    frameSize: localFrameSize,
+                                    zoom: viewModel.cropZoom
+                                )
+                                viewModel.cropOffsetNormalized = viewModel.normalizedCropOffset(
+                                    from: clamped,
+                                    imageSize: image.size,
+                                    frameSize: localFrameSize,
+                                    zoom: viewModel.cropZoom
+                                )
+                            }
+                    )
+                    .simultaneousGesture(
+                        MagnificationGesture()
+                            .updating($magnifyDelta) { value, state, _ in
+                                state = value
+                            }
+                            .onEnded { value in
+                                viewModel.setCropZoom(viewModel.cropZoom * value)
+                            }
+                    )
+                    .modifier(DoubleClickOpenEditorModifier(onOpenEditor: onOpenEditor))
+            } else if viewModel.fitMode == "contain", let ar = viewModel.orientedAspectRatio {
+                Color.white
+                    .aspectRatio(ar, contentMode: .fit)
+                    .overlay(
+                        ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
+                            previewImage
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
+                                .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
+                        }
+                    )
+                    .overlay {
+                        OverlayCanvasView(editable: overlayEditable)
+                    }
+                    .clipped()
+                    .modifier(DoubleClickOpenEditorModifier(onOpenEditor: onOpenEditor))
+            } else if viewModel.fitMode == "stretch", let ar = viewModel.orientedAspectRatio {
+                Color.white
+                    .aspectRatio(ar, contentMode: .fit)
+                    .overlay(
+                        GeometryReader { geo in
+                            ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
+                                previewImage
+                                    .resizable()
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
+                                    .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
+                            }
+                        }
+                    )
+                    .overlay {
+                        OverlayCanvasView(editable: overlayEditable)
+                    }
+                    .clipped()
+                    .modifier(DoubleClickOpenEditorModifier(onOpenEditor: onOpenEditor))
+            } else {
+                ExposureAdjustedImageView(image: image, exposureEV: viewModel.exposureEV) { previewImage in
+                    previewImage
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .scaleEffect(x: viewModel.isHorizontallyFlipped ? -1 : 1, y: 1)
+                        .rotationEffect(.degrees(Double(viewModel.rotationAngle)))
+                }
+                .overlay {
+                    OverlayCanvasView(editable: overlayEditable)
+                }
+                .modifier(DoubleClickOpenEditorModifier(onOpenEditor: onOpenEditor))
+            }
+        }
+        .padding(4)
+    }
+
+    private var effectiveZoom: CGFloat {
+        min(max(viewModel.cropZoom * magnifyDelta, ViewModel.minCropZoom), ViewModel.maxCropZoom)
+    }
+
+    private func effectiveOffset(imageSize: CGSize) -> CGSize {
+        let currentOffset = viewModel.cropOffsetInPoints(
+            imageSize: imageSize,
+            frameSize: localFrameSize,
+            zoom: effectiveZoom
+        )
+        let raw = CGSize(
+            width: currentOffset.width - dragDelta.width,
+            height: currentOffset.height - dragDelta.height
+        )
+        let clamped = viewModel.clampedCropOffsetPoints(
+            raw: raw,
+            imageSize: imageSize,
+            frameSize: localFrameSize,
+            zoom: effectiveZoom
+        )
+        return CGSize(width: -clamped.width, height: -clamped.height)
+    }
+}
+
+private struct DoubleClickOpenEditorModifier: ViewModifier {
+    let onOpenEditor: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if let onOpenEditor {
+            content.onTapGesture(count: 2, perform: onOpenEditor)
+        } else {
+            content
+        }
+    }
+}
+
 struct CropFrameSizeKey: PreferenceKey {
     static var defaultValue: CGSize = .zero
 
@@ -507,6 +676,7 @@ struct TimestampPreviewView: View {
             .tracking(fontSize * preset.tracking)
             .foregroundColor(stampColor)
             .multilineTextAlignment(.center)
+            .lineSpacing(PrintRenderService.timestampLineSpacing(for: data, fontSize: fontSize))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .shadow(
             color: data.lightBleedEnabled && preset.glowRadius > 0 ? stampColor.opacity(0.8) : .clear,

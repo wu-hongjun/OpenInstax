@@ -955,9 +955,15 @@ class ViewModel: ObservableObject {
 
     func updateSelectedTimestampOverlay(_ mutate: (inout TimestampOverlayData) -> Void) {
         updateSelectedOverlay { overlay in
-            guard case .timestamp(var data) = overlay.content else { return }
+            guard case .timestamp(let existingData) = overlay.content else { return }
+            var data = existingData
             mutate(&data)
             overlay.content = .timestamp(data)
+            overlay.placement = adjustedTimestampPlacement(
+                overlay.placement,
+                from: existingData,
+                to: data
+            )
         }
     }
 
@@ -1045,11 +1051,36 @@ class ViewModel: ObservableObject {
         }) else { return }
 
         var overlay = newPhotoDefaults.overlays[index]
-        guard case .timestamp(var data) = overlay.content else { return }
+        guard case .timestamp(let existingData) = overlay.content else { return }
+        var data = existingData
         mutate(&data)
         overlay.content = .timestamp(data)
+        overlay.placement = adjustedTimestampPlacement(
+            overlay.placement,
+            from: existingData,
+            to: data
+        )
         newPhotoDefaults.overlays[index] = overlay
         syncDefaultTimestampOverlayToSelectedImage()
+    }
+
+    private func adjustedTimestampPlacement(
+        _ placement: OverlayPlacement,
+        from _: TimestampOverlayData,
+        to updated: TimestampOverlayData
+    ) -> OverlayPlacement {
+        guard updated.singleLine, updated.showsTime else {
+            return placement
+        }
+
+        var adjusted = placement
+        let minimumAspectRatio: Double = updated.showsSeconds ? 6.8 : 5.8
+        let targetWidth = min(0.82, max(adjusted.normalizedWidth, adjusted.normalizedHeight * minimumAspectRatio))
+        adjusted.normalizedWidth = targetWidth
+
+        let halfWidth = targetWidth / 2.0
+        adjusted.normalizedCenterX = min(max(adjusted.normalizedCenterX, halfWidth), 1.0 - halfWidth)
+        return adjusted.clamped
     }
 
     private func syncDefaultTimestampOverlayToSelectedImage() {

@@ -440,6 +440,7 @@ enum PrintRenderService {
         let font = timestampFont(for: preset, size: fontSize)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
+        paragraph.lineSpacing = timestampLineSpacing(for: data, fontSize: fontSize)
 
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
@@ -480,14 +481,20 @@ enum PrintRenderService {
         let classicSize = TimestampPresetCatalog.presets["classic"]?.sizePercent ?? preset.sizePercent
         let relativeScale = CGFloat(preset.sizePercent / max(classicSize, 0.0001))
         let baseMultiplier: CGFloat
-        if !data.showsTime {
-            baseMultiplier = 0.58
-        } else if data.singleLine {
+        if data.showsTime && data.singleLine {
             baseMultiplier = 0.42
         } else {
             baseMultiplier = 0.34
         }
         return max(10, rectHeight * baseMultiplier * relativeScale)
+    }
+
+    static func timestampLineSpacing(
+        for data: TimestampOverlayData,
+        fontSize: CGFloat
+    ) -> CGFloat {
+        guard data.showsTime, !data.singleLine else { return 0 }
+        return fontSize * 0.16
     }
 
     private static func drawLocationOverlay(
