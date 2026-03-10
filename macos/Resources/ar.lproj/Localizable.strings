@@ -197,6 +197,9 @@
 "print_n_images" = "طباعة %d صور";
 "print_next_n" = "طباعة %d التالية";
 "No Film" = "لا توجد أفلام";
+"Low Battery" = "بطارية منخفضة";
+"Cover Open" = "الغطاء مفتوح";
+"Printer Busy" = "الطابعة مشغولة";
 "printing_n_of_m" = "طباعة %d من %d";
 "printed_n_images" = "تمت طباعة %d صور!";
 "print_failed_at" = "فشلت الطباعة عند الصورة %d من %d";

@@ -197,6 +197,9 @@
 "print_n_images" = "%d 枚を印刷";
 "print_next_n" = "次の %d 枚を印刷";
 "No Film" = "フィルムなし";
+"Low Battery" = "バッテリー残量不足";
+"Cover Open" = "カバーが開いています";
+"Printer Busy" = "プリンター使用中";
 "printing_n_of_m" = "%d / %d 印刷中";
 "printed_n_images" = "%d 枚印刷しました！";
 "print_failed_at" = "%d / %d 枚目で印刷失敗";

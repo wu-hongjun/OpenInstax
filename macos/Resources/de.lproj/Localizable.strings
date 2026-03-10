@@ -197,6 +197,9 @@
 "print_n_images" = "%d Bilder drucken";
 "print_next_n" = "Nächste %d drucken";
 "No Film" = "Kein Film";
+"Low Battery" = "Akku schwach";
+"Cover Open" = "Abdeckung offen";
+"Printer Busy" = "Drucker beschäftigt";
 "printing_n_of_m" = "Drucke %d von %d";
 "printed_n_images" = "%d Bilder gedruckt!";
 "print_failed_at" = "Druck fehlgeschlagen bei Bild %d von %d";

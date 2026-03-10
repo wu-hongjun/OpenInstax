@@ -22,6 +22,7 @@ class ViewModel: ObservableObject {
     static let quickExposureStep = 0.5
 
     let ffi: InstantLinkFFI
+    private let printerLedCoordinator = PrinterLedCoordinator()
     private var isApplyingQueueItemEditState = false
     private var isApplyingConnectionSnapshot = false
     private lazy var queueCoordinator = QueueEditCoordinator(
@@ -316,16 +317,25 @@ class ViewModel: ObservableObject {
 
     deinit {
         autoRefreshTimer?.invalidate()
+        ffi.ledOffSync()
         ffi.disconnectSync()
     }
 
     // MARK: - Pairing Mode (continuous scan loop)
 
     func startPairing() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.printerLedCoordinator.turnOff(using: self.ffi)
+        }
         connectionCoordinator.startPairingLoop()
     }
 
     func stopPairing() {
+        Task { [weak self] in
+            guard let self else { return }
+            await self.printerLedCoordinator.turnOff(using: self.ffi)
+        }
         connectionCoordinator.stopPairingLoop()
     }
 
@@ -407,11 +417,11 @@ class ViewModel: ObservableObject {
         case -8:
             return "\(L("No Film")) (-8)"
         case -9:
-            return "\(L("Print failed")) (-9)"
+            return "\(L("Low Battery")) (-9)"
         case -10:
-            return "\(L("Print failed")) (-10)"
+            return "\(L("Cover Open")) (-10)"
         case -11:
-            return "\(L("Print failed")) (-11)"
+            return "\(L("Printer Busy")) (-11)"
         case -7:
             return "\(L("Print failed")) (-7)"
         default:
@@ -1333,7 +1343,7 @@ class ViewModel: ObservableObject {
         case .timestamp:
             return OverlayPlacement(normalizedCenterX: 0.82, normalizedCenterY: 0.93, normalizedWidth: 0.34, normalizedHeight: 0.1)
         case .location:
-            return OverlayPlacement(normalizedCenterX: 0.24, normalizedCenterY: 0.9, normalizedWidth: 0.34, normalizedHeight: 0.12)
+            return OverlayPlacement(normalizedCenterX: 0.24, normalizedCenterY: 0.9, normalizedWidth: 0.21, normalizedHeight: 0.25)
         case .text:
             return OverlayPlacement(normalizedCenterX: 0.5, normalizedCenterY: 0.16, normalizedWidth: 0.42, normalizedHeight: 0.14)
         }
@@ -1712,6 +1722,7 @@ class ViewModel: ObservableObject {
         await MainActor.run {
             printPhase = .sending
         }
+        await printerLedCoordinator.beginSending(using: ffi)
         let progressRelay = PrintProgressRelay(viewModel: self)
 
         let result = await ffi.printImage(
@@ -1730,9 +1741,15 @@ class ViewModel: ObservableObject {
             isPrinting = false
             printProgress = nil
             printPhase = nil
-            if result.isSuccess {
+        }
+        if result.isSuccess {
+            await printerLedCoordinator.signalSuccess(using: ffi)
+            await MainActor.run {
                 showStatus(L("Printed!"), tone: .success)
-            } else {
+            }
+        } else {
+            await printerLedCoordinator.signalFailure(using: ffi)
+            await MainActor.run {
                 showError(printFailureMessage(for: result.code))
             }
         }
@@ -1780,6 +1797,7 @@ class ViewModel: ObservableObject {
             await MainActor.run {
                 printPhase = .sending
             }
+            await printerLedCoordinator.beginSending(using: ffi)
             let progressRelay = PrintProgressRelay(viewModel: self)
 
             let result = await ffi.printImage(
@@ -1795,8 +1813,10 @@ class ViewModel: ObservableObject {
             }
 
             if !result.isSuccess {
+                await printerLedCoordinator.signalFailure(using: ffi)
                 await MainActor.run {
                     isPrinting = false
+                    printProgress = nil
                     printPhase = nil
                     batchPrintTotal = 0
                     showError("\(L("print_failed_at", offset + 1, count)) (\(result.code))")
@@ -1808,8 +1828,10 @@ class ViewModel: ObservableObject {
 
             let remaining = await MainActor.run { filmRemaining }
             if remaining <= 0 && offset < count - 1 {
+                await printerLedCoordinator.signalFailure(using: ffi)
                 await MainActor.run {
                     isPrinting = false
+                    printProgress = nil
                     printPhase = nil
                     batchPrintTotal = 0
                     showError(L("film_ran_out", offset + 1, count))
@@ -1818,6 +1840,7 @@ class ViewModel: ObservableObject {
             }
         }
 
+        await printerLedCoordinator.signalSuccess(using: ffi)
         await MainActor.run {
             isPrinting = false
             printProgress = nil

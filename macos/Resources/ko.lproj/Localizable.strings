@@ -197,6 +197,9 @@
 "print_n_images" = "%d장 인쇄";
 "print_next_n" = "다음 %d장 인쇄";
 "No Film" = "필름 없음";
+"Low Battery" = "배터리 부족";
+"Cover Open" = "덮개 열림";
+"Printer Busy" = "프린터 사용 중";
 "printing_n_of_m" = "%d / %d 인쇄 중";
 "printed_n_images" = "%d장 인쇄 완료!";
 "print_failed_at" = "%d / %d번째에서 인쇄 실패";

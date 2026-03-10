@@ -401,6 +401,11 @@ class InstantLinkFFI {
         await blocking { self._led_off() == 0 }
     }
 
+    /// Synchronous LED off for teardown paths.
+    func ledOffSync() {
+        _ = _led_off()
+    }
+
     // MARK: - Device Commands
 
     /// Shut down (power off) the printer.

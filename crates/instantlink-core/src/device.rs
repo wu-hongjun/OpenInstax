@@ -112,6 +112,9 @@ pub struct BlePrinterDevice {
     name: String,
 }
 
+const LED_PATTERN_SOLID: u8 = 0;
+const PRINT_START_LED_COLOR: (u8, u8, u8) = (248, 120, 67);
+
 impl BlePrinterDevice {
     /// Create a new BLE Instax device with a connected transport.
     ///
@@ -185,6 +188,20 @@ impl BlePrinterDevice {
             _ => Err(PrinterError::PrintRejected(format!(
                 "{context} rejected with status {status}"
             ))),
+        }
+    }
+
+    async fn signal_print_handoff(&self) {
+        if let Err(error) = self
+            .set_led(
+                PRINT_START_LED_COLOR.0,
+                PRINT_START_LED_COLOR.1,
+                PRINT_START_LED_COLOR.2,
+                LED_PATTERN_SOLID,
+            )
+            .await
+        {
+            log::debug!("failed to set print handoff LED: {error}");
         }
     }
 
@@ -392,6 +409,8 @@ impl PrinterDevice for BlePrinterDevice {
         self.send_image_data(&jpeg_data, &chunks, print_option, progress)
             .await?;
 
+        self.signal_print_handoff().await;
+
         // Pre-execute delay (critical for Link 3 and Square)
         let pre_delay = self.model.spec().pre_execute_delay_ms;
         if pre_delay > 0 {
@@ -420,6 +439,8 @@ impl PrinterDevice for BlePrinterDevice {
         let (jpeg_data, chunks) = image::prepare_image_from_bytes(data, self.model, fit, quality)?;
         self.send_image_data(&jpeg_data, &chunks, print_option, progress)
             .await?;
+
+        self.signal_print_handoff().await;
 
         // Pre-execute delay (critical for Link 3 and Square)
         let pre_delay = self.model.spec().pre_execute_delay_ms;

@@ -197,6 +197,9 @@
 "print_n_images" = "列印 %d 張";
 "print_next_n" = "列印接下來的 %d 張";
 "No Film" = "無底片";
+"Low Battery" = "電量低";
+"Cover Open" = "蓋子已打開";
+"Printer Busy" = "印表機忙碌";
 "printing_n_of_m" = "正在列印 %d / %d";
 "printed_n_images" = "已列印 %d 張！";
 "print_failed_at" = "第 %d / %d 張列印失敗";

@@ -197,6 +197,9 @@
 "print_n_images" = "打印 %d 张";
 "print_next_n" = "打印接下来的 %d 张";
 "No Film" = "无胶片";
+"Low Battery" = "低电量";
+"Cover Open" = "盖子打开";
+"Printer Busy" = "打印机忙碌";
 "printing_n_of_m" = "正在打印 %d / %d";
 "printed_n_images" = "已打印 %d 张！";
 "print_failed_at" = "第 %d / %d 张打印失败";

@@ -198,6 +198,9 @@
 "print_n_images" = "הדפס %d תמונות";
 "print_next_n" = "הדפס %d הבאות";
 "No Film" = "אין סרט";
+"Low Battery" = "סוללה חלשה";
+"Cover Open" = "המכסה פתוח";
+"Printer Busy" = "המדפסת תפוסה";
 "printing_n_of_m" = "מדפיס %d מתוך %d";
 "printed_n_images" = "הודפסו %d תמונות!";
 "print_failed_at" = "ההדפסה נכשלה בתמונה %d מתוך %d";

@@ -197,6 +197,9 @@
 "print_n_images" = "Print %d Images";
 "print_next_n" = "Print Next %d";
 "No Film" = "No Film";
+"Low Battery" = "Low Battery";
+"Cover Open" = "Cover Open";
+"Printer Busy" = "Printer Busy";
 "printing_n_of_m" = "Printing %d of %d";
 "printed_n_images" = "Printed %d images!";
 "print_failed_at" = "Print failed at image %d of %d";

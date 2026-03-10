@@ -198,6 +198,9 @@
 "print_n_images" = "Imprimir %d imagens";
 "print_next_n" = "Imprimir próximas %d";
 "No Film" = "Sem filme";
+"Low Battery" = "Bateria fraca";
+"Cover Open" = "Tampa aberta";
+"Printer Busy" = "Impressora ocupada";
 "printing_n_of_m" = "Imprimindo %d de %d";
 "printed_n_images" = "%d imagens impressas!";
 "print_failed_at" = "Impressão falhou na imagem %d de %d";

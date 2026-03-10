@@ -224,7 +224,7 @@ enum TimestampPresetLayout {
 }
 
 enum TimestampPresetCatalog {
-    static let presetOrder: [String] = ["classic", "olympus", "contax", "modern", "dotMatrix", "labPrint", "machinePrint"]
+    static let presetOrder: [String] = ["classic", "olympus", "contax", "modern", "labPrint"]
 
     static let presets: [String: DateStampPreset] = [
         "classic": DateStampPreset(
@@ -251,21 +251,9 @@ enum TimestampPresetCatalog {
             color: (0.180, 0.871, 0.412), glowColor: (0.180, 0.871, 0.412),
             glowRadius: 0.12, defaultLightBleed: true
         ),
-        "dotMatrix": DateStampPreset(
-            displayName: "Data Back", fontStyle: .custom("MatrixSansScreen"),
-            sizePercent: 0.024, tracking: 0.08, layout: .userSelectable(separator: "."),
-            color: (1.0, 0.435, 0.165), glowColor: (1.0, 0.435, 0.165),
-            glowRadius: 0.10, defaultLightBleed: true
-        ),
         "labPrint": DateStampPreset(
             displayName: "Lab Print", fontStyle: .custom("MatrixSansPrint"),
             sizePercent: 0.022, tracking: 0.06, layout: .userSelectable(separator: "-"),
-            color: (0.953, 0.933, 0.890), glowColor: (0.953, 0.933, 0.890),
-            glowRadius: 0.0, defaultLightBleed: false
-        ),
-        "machinePrint": DateStampPreset(
-            displayName: "Machine", fontStyle: .custom("IBMPlexMono-Medium"),
-            sizePercent: 0.020, tracking: 0.03, layout: .userSelectable(separator: "-"),
             color: (0.953, 0.933, 0.890), glowColor: (0.953, 0.933, 0.890),
             glowRadius: 0.0, defaultLightBleed: false
         ),
