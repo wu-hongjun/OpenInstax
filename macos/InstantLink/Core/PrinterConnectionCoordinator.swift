@@ -139,13 +139,51 @@ final class PrinterConnectionCoordinator: ObservableObject {
         self.profiles = profiles
     }
 
+    func deleteProfile(_ bleIdentifier: String) {
+        guard profiles.removeValue(forKey: bleIdentifier) != nil else { return }
+        callbacks.onProfilesChanged(profiles)
+
+        let deletedConnectedPrinter = snapshot.printerName == bleIdentifier
+        let deletedSelectedPrinter = snapshot.selectedPrinter == bleIdentifier
+        let fallbackSelection = nextSelectedPrinter(excluding: bleIdentifier)
+
+        mutateSnapshot { snapshot in
+            snapshot.availablePrinters.removeAll { $0 == bleIdentifier }
+            snapshot.nearbyPrinters.removeAll { $0 == bleIdentifier }
+
+            if deletedSelectedPrinter {
+                snapshot.selectedPrinter = fallbackSelection
+            }
+
+            if deletedConnectedPrinter {
+                snapshot.isConnected = false
+                snapshot.printerName = nil
+                snapshot.printerModel = nil
+                snapshot.battery = 0
+                snapshot.isCharging = false
+                snapshot.filmRemaining = 0
+                snapshot.printCount = 0
+            }
+        }
+
+        guard deletedConnectedPrinter || (deletedSelectedPrinter && snapshot.isConnected == false) else {
+            return
+        }
+
+        startPairingLoop(disconnectCurrentPrinter: deletedConnectedPrinter)
+    }
+
     func setSelectedPrinter(_ printer: String?) {
         mutateSnapshot { snapshot in
             snapshot.selectedPrinter = printer
         }
     }
 
-    func startPairingLoop(scanDuration: Int = 3, connectDuration: Int = 3) {
+    func startPairingLoop(
+        scanDuration: Int = 3,
+        connectDuration: Int = 3,
+        disconnectCurrentPrinter: Bool = false
+    ) {
         pairingTask?.cancel()
 
         mutateSnapshot { snapshot in
@@ -158,6 +196,19 @@ final class PrinterConnectionCoordinator: ObservableObject {
 
         pairingTask = Task { [weak self] in
             guard let self else { return }
+
+            if disconnectCurrentPrinter, self.ffi.isPrinterConnected() {
+                await self.ffi.disconnectPrinter()
+                if Task.isCancelled {
+                    self.mutateSnapshot { snapshot in
+                        snapshot.isPairing = false
+                        snapshot.pairingPhase = .idle
+                        snapshot.hasSearchedOnce = true
+                    }
+                    self.pairingTask = nil
+                    return
+                }
+            }
 
             while !Task.isCancelled {
                 self.mutateSnapshot { snapshot in
@@ -348,6 +399,20 @@ final class PrinterConnectionCoordinator: ObservableObject {
         profiles[bleIdentifier] = profile
         callbacks.onProfilesChanged(profiles)
         callbacks.onProfileBootstrapRequested(profile)
+    }
+
+    private func nextSelectedPrinter(excluding bleIdentifier: String) -> String? {
+        let remainingSaved = Set(profiles.keys)
+
+        if let availableSaved = snapshot.availablePrinters.first(where: { $0 != bleIdentifier && remainingSaved.contains($0) }) {
+            return availableSaved
+        }
+
+        if let nearbySaved = snapshot.nearbyPrinters.first(where: { $0 != bleIdentifier && remainingSaved.contains($0) }) {
+            return nearbySaved
+        }
+
+        return profiles.keys.sorted().first
     }
 
     private func mutateSnapshot(_ mutate: (inout PrinterConnectionSnapshot) -> Void) {

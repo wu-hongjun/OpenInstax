@@ -339,9 +339,7 @@ class ViewModel: ObservableObject {
     }
 
     func deleteProfile(_ bleIdentifier: String) {
-        printerProfiles.removeValue(forKey: bleIdentifier)
-        PrinterProfile.save(printerProfiles)
-        connectionCoordinator.replaceProfiles(printerProfiles)
+        connectionCoordinator.deleteProfile(bleIdentifier)
     }
 
     private func applyPrinterProfiles(_ profiles: [String: PrinterProfile]) {
