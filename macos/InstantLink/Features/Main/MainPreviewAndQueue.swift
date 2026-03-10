@@ -562,11 +562,7 @@ struct QuickPrintToolbarView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            QuickZoomControlsView(
-                resetTitle: L("Reset Zoom"),
-                showsChrome: false,
-                controlSize: .regular
-            )
+            QuickZoomControlsView(showsChrome: false, controlSize: .regular)
             QuickExposureControlsView(
                 showsChrome: false,
                 controlSize: .regular
@@ -660,9 +656,16 @@ struct QuickPrintToolbarView: View {
 
 struct QuickZoomControlsView: View {
     @EnvironmentObject var viewModel: ViewModel
-    let resetTitle: String
     var showsChrome: Bool = true
     var controlSize: ControlSize = .small
+
+    private var middleTitle: String {
+        viewModel.canResetCropAdjustments ? L("Reset") : L("Zoom")
+    }
+
+    private var canUseMiddleAction: Bool {
+        viewModel.canResetCropAdjustments || viewModel.selectedImage != nil
+    }
 
     var body: some View {
         ControlGroup {
@@ -675,10 +678,14 @@ struct QuickZoomControlsView: View {
             .help(L("Zoom Out"))
             .accessibilityLabel(Text(L("Zoom Out")))
 
-            Button(resetTitle) {
-                viewModel.resetCropAdjustments()
+            Button(middleTitle) {
+                if viewModel.canResetCropAdjustments {
+                    viewModel.resetCropAdjustments()
+                } else {
+                    viewModel.quickZoomIn()
+                }
             }
-            .disabled(!viewModel.canResetCropAdjustments)
+            .disabled(!canUseMiddleAction)
 
             Button {
                 viewModel.quickZoomIn()

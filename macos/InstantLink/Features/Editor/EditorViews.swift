@@ -290,7 +290,7 @@ struct EditorSidebarView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    QuickZoomControlsView(resetTitle: L("Reset Zoom"), showsChrome: false)
+                    QuickZoomControlsView(showsChrome: false)
                 }
 
                 AccordionSection(L("Exposure"), icon: "sun.max") {
