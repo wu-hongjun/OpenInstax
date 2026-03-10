@@ -216,6 +216,7 @@
 "Opacity" = "العتامة";
 "Width" = "العرض";
 "Height" = "الارتفاع";
+"Lock Aspect Ratio" = "قفل نسبة الأبعاد";
 "Size" = "الحجم";
 "Alignment" = "المحاذاة";
 "Leading" = "البداية";

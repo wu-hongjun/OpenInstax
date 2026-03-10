@@ -216,6 +216,7 @@
 "Opacity" = "Deckkraft";
 "Width" = "Breite";
 "Height" = "Höhe";
+"Lock Aspect Ratio" = "Seitenverhältnis sperren";
 "Size" = "Größe";
 "Alignment" = "Ausrichtung";
 "Leading" = "Links";

@@ -6,14 +6,119 @@ struct OverlayItem: Identifiable, Codable, Equatable {
     var content: OverlayContent
     var customName: String? = nil
     var placement: OverlayPlacement = .defaultPlacement
+    var aspectRatioReference: Double? = nil
+    var preservesAspectRatio: Bool = true
     var opacity: Double = 1.0
     var zIndex: Int = 0
     var isHidden: Bool = false
     var isLocked: Bool = false
     var createdAt: Date = Date()
 
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case content
+        case customName
+        case placement
+        case aspectRatioReference
+        case preservesAspectRatio
+        case opacity
+        case zIndex
+        case isHidden
+        case isLocked
+        case createdAt
+    }
+
+    init(
+        id: UUID = UUID(),
+        content: OverlayContent,
+        customName: String? = nil,
+        placement: OverlayPlacement = .defaultPlacement,
+        aspectRatioReference: Double? = nil,
+        preservesAspectRatio: Bool = true,
+        opacity: Double = 1.0,
+        zIndex: Int = 0,
+        isHidden: Bool = false,
+        isLocked: Bool = false,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.content = content
+        self.customName = customName
+        self.placement = placement
+        self.aspectRatioReference = aspectRatioReference
+        self.preservesAspectRatio = preservesAspectRatio
+        self.opacity = opacity
+        self.zIndex = zIndex
+        self.isHidden = isHidden
+        self.isLocked = isLocked
+        self.createdAt = createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        content = try container.decode(OverlayContent.self, forKey: .content)
+        customName = try container.decodeIfPresent(String.self, forKey: .customName)
+        placement = try container.decodeIfPresent(OverlayPlacement.self, forKey: .placement) ?? .defaultPlacement
+        aspectRatioReference = try container.decodeIfPresent(Double.self, forKey: .aspectRatioReference)
+        preservesAspectRatio = try container.decodeIfPresent(Bool.self, forKey: .preservesAspectRatio) ?? true
+        opacity = try container.decodeIfPresent(Double.self, forKey: .opacity) ?? 1.0
+        zIndex = try container.decodeIfPresent(Int.self, forKey: .zIndex) ?? 0
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(content, forKey: .content)
+        try container.encodeIfPresent(customName, forKey: .customName)
+        try container.encode(placement, forKey: .placement)
+        try container.encodeIfPresent(aspectRatioReference, forKey: .aspectRatioReference)
+        try container.encode(preservesAspectRatio, forKey: .preservesAspectRatio)
+        try container.encode(opacity, forKey: .opacity)
+        try container.encode(zIndex, forKey: .zIndex)
+        try container.encode(isHidden, forKey: .isHidden)
+        try container.encode(isLocked, forKey: .isLocked)
+        try container.encode(createdAt, forKey: .createdAt)
+    }
+
     var kind: OverlayKind {
         content.kind
+    }
+
+    var effectiveAspectRatio: Double {
+        max(aspectRatioReference ?? placement.aspectRatio, 0.1)
+    }
+
+    mutating func syncAspectRatioToPlacement() {
+        aspectRatioReference = placement.aspectRatio
+    }
+
+    mutating func setPreservesAspectRatio(_ preserves: Bool) {
+        if preserves && !preservesAspectRatio {
+            syncAspectRatioToPlacement()
+        }
+        preservesAspectRatio = preserves
+    }
+
+    mutating func setNormalizedWidth(_ width: Double) {
+        placement.normalizedWidth = width
+        if preservesAspectRatio {
+            placement.normalizedHeight = width / effectiveAspectRatio
+        } else {
+            syncAspectRatioToPlacement()
+        }
+    }
+
+    mutating func setNormalizedHeight(_ height: Double) {
+        placement.normalizedHeight = height
+        if preservesAspectRatio {
+            placement.normalizedWidth = height * effectiveAspectRatio
+        } else {
+            syncAspectRatioToPlacement()
+        }
     }
 }
 
@@ -101,12 +206,18 @@ struct OverlayPlacement: Codable, Equatable {
         normalizedHeight: 0.14
     )
 
+    var aspectRatio: Double {
+        max(normalizedWidth, 0.05) / max(normalizedHeight, 0.05)
+    }
+
     var clamped: OverlayPlacement {
-        OverlayPlacement(
-            normalizedCenterX: Self.clamp(normalizedCenterX),
-            normalizedCenterY: Self.clamp(normalizedCenterY),
-            normalizedWidth: max(0.05, min(normalizedWidth, 1.0)),
-            normalizedHeight: max(0.05, min(normalizedHeight, 1.0))
+        let width = max(0.05, min(normalizedWidth, 1.0))
+        let height = max(0.05, min(normalizedHeight, 1.0))
+        return OverlayPlacement(
+            normalizedCenterX: min(max(normalizedCenterX, width / 2.0), 1.0 - width / 2.0),
+            normalizedCenterY: min(max(normalizedCenterY, height / 2.0), 1.0 - height / 2.0),
+            normalizedWidth: width,
+            normalizedHeight: height
         )
     }
 
@@ -116,10 +227,6 @@ struct OverlayPlacement: Codable, Equatable {
         let height = size.height * clamped.normalizedHeight
         let center = CGPoint(x: size.width * clamped.normalizedCenterX, y: size.height * clamped.normalizedCenterY)
         return CGRect(x: center.x - width / 2.0, y: center.y - height / 2.0, width: width, height: height)
-    }
-
-    private static func clamp(_ value: Double) -> Double {
-        max(0.0, min(value, 1.0))
     }
 }
 

@@ -216,6 +216,7 @@
 "Opacity" = "不透明度";
 "Width" = "宽度";
 "Height" = "高度";
+"Lock Aspect Ratio" = "锁定宽高比";
 "Size" = "大小";
 "Alignment" = "对齐";
 "Leading" = "左对齐";

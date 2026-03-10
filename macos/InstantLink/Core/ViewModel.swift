@@ -985,9 +985,13 @@ class ViewModel: ObservableObject {
             content = defaultOverlayContent(for: kind)
         }
 
+        let initialPlacement = defaultOverlayPlacement(for: kind)
+        let aspectRatioReference = defaultOverlayAspectRatio(for: content, placement: initialPlacement)
         let overlay = OverlayItem(
             content: content,
-            placement: defaultOverlayPlacement(for: kind),
+            placement: placement(initialPlacement, adjustedToAspectRatio: aspectRatioReference),
+            aspectRatioReference: aspectRatioReference,
+            preservesAspectRatio: true,
             opacity: 1.0,
             zIndex: (overlays.map(\.zIndex).max() ?? -1) + 1
         )
@@ -1042,6 +1046,9 @@ class ViewModel: ObservableObject {
         guard let index = selectedOverlayIndex else { return }
         var updated = overlays[index]
         mutate(&updated)
+        if updated.aspectRatioReference == nil || !updated.preservesAspectRatio {
+            updated.syncAspectRatioToPlacement()
+        }
         updated.placement = updated.placement.clamped
         overlays[index] = updated
     }
@@ -1050,8 +1057,29 @@ class ViewModel: ObservableObject {
         guard let index = overlays.firstIndex(where: { $0.id == id }) else { return }
         var updated = overlays[index]
         mutate(&updated)
+        if updated.aspectRatioReference == nil || !updated.preservesAspectRatio {
+            updated.syncAspectRatioToPlacement()
+        }
         updated.placement = updated.placement.clamped
         overlays[index] = updated
+    }
+
+    func setSelectedOverlayPreservesAspectRatio(_ preserves: Bool) {
+        updateSelectedOverlay { overlay in
+            overlay.setPreservesAspectRatio(preserves)
+        }
+    }
+
+    func setSelectedOverlayWidth(_ width: Double) {
+        updateSelectedOverlay { overlay in
+            overlay.setNormalizedWidth(width)
+        }
+    }
+
+    func setSelectedOverlayHeight(_ height: Double) {
+        updateSelectedOverlay { overlay in
+            overlay.setNormalizedHeight(height)
+        }
     }
 
     func updateSelectedTextOverlay(_ mutate: (inout TextOverlayData) -> Void) {
@@ -1081,6 +1109,7 @@ class ViewModel: ObservableObject {
                 from: existingData,
                 to: data
             )
+            overlay.syncAspectRatioToPlacement()
         }
     }
 
@@ -1103,8 +1132,14 @@ class ViewModel: ObservableObject {
     func replaceSelectedImageOverlayAsset() {
         guard let selectedOverlay, case .image = selectedOverlay.content else { return }
         guard let asset = selectOverlayImageAsset() else { return }
-        updateSelectedImageOverlay { data in
+        updateSelectedOverlay { overlay in
+            guard case .image(var data) = overlay.content else { return }
             data.asset = asset
+            overlay.content = .image(data)
+            if let aspectRatio = overlayImageAspectRatio(for: asset) {
+                overlay.aspectRatioReference = aspectRatio
+                overlay.placement = placement(overlay.placement, adjustedToAspectRatio: aspectRatio)
+            }
         }
     }
 
@@ -1120,6 +1155,13 @@ class ViewModel: ObservableObject {
               let image = NSImage(contentsOf: url),
               let tiff = image.tiffRepresentation else { return nil }
         return OverlayImageAsset(fileName: url.lastPathComponent, imageData: tiff)
+    }
+
+    private func overlayImageAspectRatio(for asset: OverlayImageAsset) -> Double? {
+        guard let image = NSImage(data: asset.imageData), image.size.height > 0 else {
+            return nil
+        }
+        return Double(image.size.width / image.size.height)
     }
 
     var defaultTimestampOverlay: OverlayItem? {
@@ -1291,6 +1333,24 @@ class ViewModel: ObservableObject {
         case .text:
             return OverlayPlacement(normalizedCenterX: 0.5, normalizedCenterY: 0.16, normalizedWidth: 0.42, normalizedHeight: 0.14)
         }
+    }
+
+    private func defaultOverlayAspectRatio(for content: OverlayContent, placement: OverlayPlacement) -> Double {
+        switch content {
+        case .image(let data):
+            return overlayImageAspectRatio(for: data.asset) ?? placement.aspectRatio
+        default:
+            return placement.aspectRatio
+        }
+    }
+
+    private func placement(_ placement: OverlayPlacement, adjustedToAspectRatio aspectRatio: Double?) -> OverlayPlacement {
+        guard let aspectRatio, aspectRatio > 0 else {
+            return placement.clamped
+        }
+        var adjusted = placement
+        adjusted.normalizedHeight = adjusted.normalizedWidth / aspectRatio
+        return adjusted.clamped
     }
 
     // MARK: - Camera Session

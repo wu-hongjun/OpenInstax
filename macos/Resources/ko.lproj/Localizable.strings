@@ -216,6 +216,7 @@
 "Opacity" = "불투명도";
 "Width" = "너비";
 "Height" = "높이";
+"Lock Aspect Ratio" = "가로세로 비율 고정";
 "Size" = "크기";
 "Alignment" = "정렬";
 "Leading" = "왼쪽";

@@ -217,6 +217,7 @@
 "Opacity" = "Opacidade";
 "Width" = "Largura";
 "Height" = "Altura";
+"Lock Aspect Ratio" = "Bloquear proporção";
 "Size" = "Tamanho";
 "Alignment" = "Alinhamento";
 "Leading" = "Esquerda";

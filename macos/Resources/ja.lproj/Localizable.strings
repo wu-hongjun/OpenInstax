@@ -216,6 +216,7 @@
 "Opacity" = "不透明度";
 "Width" = "幅";
 "Height" = "高さ";
+"Lock Aspect Ratio" = "縦横比を固定";
 "Size" = "サイズ";
 "Alignment" = "配置";
 "Leading" = "左揃え";

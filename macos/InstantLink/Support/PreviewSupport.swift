@@ -471,7 +471,7 @@ struct OverlayPreviewItemView: View {
         .gesture(
             DragGesture()
                 .onChanged { value in
-                    guard editable, !item.isLocked else { return }
+                    guard editable, !item.isLocked, resizeOrigin == nil else { return }
                     if dragOrigin == nil {
                         dragOrigin = item.placement
                     }
@@ -483,6 +483,7 @@ struct OverlayPreviewItemView: View {
                     }
                 }
                 .onEnded { _ in
+                    guard resizeOrigin == nil else { return }
                     dragOrigin = nil
                 }
         )
@@ -529,20 +530,91 @@ struct OverlayPreviewItemView: View {
             .gesture(
                 DragGesture()
                     .onChanged { value in
+                        guard editable, !item.isLocked else { return }
                         if resizeOrigin == nil {
                             resizeOrigin = item.placement
+                            dragOrigin = nil
                         }
                         guard let resizeOrigin else { return }
                         viewModel.selectOverlay(item.id)
                         viewModel.updateOverlay(id: item.id) { overlay in
-                            overlay.placement.normalizedWidth = resizeOrigin.normalizedWidth + (2 * Double(value.translation.width) / max(canvasSize.width, 1)) * xSign
-                            overlay.placement.normalizedHeight = resizeOrigin.normalizedHeight + (2 * Double(value.translation.height) / max(canvasSize.height, 1)) * ySign
+                            overlay.placement = resizedPlacement(
+                                from: resizeOrigin,
+                                translation: value.translation,
+                                xSign: xSign,
+                                ySign: ySign,
+                                overlay: overlay
+                            )
                         }
                     }
                     .onEnded { _ in
                         resizeOrigin = nil
                     }
             )
+    }
+
+    private func resizedPlacement(
+        from origin: OverlayPlacement,
+        translation: CGSize,
+        xSign: Double,
+        ySign: Double,
+        overlay: OverlayItem
+    ) -> OverlayPlacement {
+        let normalizedDX = Double(translation.width / max(canvasSize.width, 1))
+        let normalizedDY = Double(translation.height / max(canvasSize.height, 1))
+
+        let minX = origin.normalizedCenterX - (origin.normalizedWidth / 2.0)
+        let maxX = origin.normalizedCenterX + (origin.normalizedWidth / 2.0)
+        let minY = origin.normalizedCenterY - (origin.normalizedHeight / 2.0)
+        let maxY = origin.normalizedCenterY + (origin.normalizedHeight / 2.0)
+
+        let fixedX = xSign > 0 ? minX : maxX
+        let fixedY = ySign > 0 ? minY : maxY
+        let movingX = (xSign > 0 ? maxX : minX) + normalizedDX
+        let movingY = (ySign > 0 ? maxY : minY) + normalizedDY
+
+        if !overlay.preservesAspectRatio {
+            let resolvedMinX = xSign > 0 ? fixedX : movingX
+            let resolvedMaxX = xSign > 0 ? movingX : fixedX
+            let resolvedMinY = ySign > 0 ? fixedY : movingY
+            let resolvedMaxY = ySign > 0 ? movingY : fixedY
+
+            return OverlayPlacement(
+                normalizedCenterX: (resolvedMinX + resolvedMaxX) / 2.0,
+                normalizedCenterY: (resolvedMinY + resolvedMaxY) / 2.0,
+                normalizedWidth: abs(resolvedMaxX - resolvedMinX),
+                normalizedHeight: abs(resolvedMaxY - resolvedMinY)
+            ).clamped
+        }
+
+        let widthFromDrag = max(0.05, abs(movingX - fixedX))
+        let heightFromDrag = max(0.05, abs(movingY - fixedY))
+        let scaleFromX = widthFromDrag / max(origin.normalizedWidth, 0.0001)
+        let scaleFromY = heightFromDrag / max(origin.normalizedHeight, 0.0001)
+        let useHorizontalScale = abs(scaleFromX - 1.0) >= abs(scaleFromY - 1.0)
+        let aspectRatio = overlay.effectiveAspectRatio
+
+        let resizedWidth: Double
+        let resizedHeight: Double
+        if useHorizontalScale {
+            resizedWidth = widthFromDrag
+            resizedHeight = resizedWidth / aspectRatio
+        } else {
+            resizedHeight = heightFromDrag
+            resizedWidth = resizedHeight * aspectRatio
+        }
+
+        let resolvedMinX = xSign > 0 ? fixedX : fixedX - resizedWidth
+        let resolvedMaxX = xSign > 0 ? fixedX + resizedWidth : fixedX
+        let resolvedMinY = ySign > 0 ? fixedY : fixedY - resizedHeight
+        let resolvedMaxY = ySign > 0 ? fixedY + resizedHeight : fixedY
+
+        return OverlayPlacement(
+            normalizedCenterX: (resolvedMinX + resolvedMaxX) / 2.0,
+            normalizedCenterY: (resolvedMinY + resolvedMaxY) / 2.0,
+            normalizedWidth: resizedWidth,
+            normalizedHeight: resizedHeight
+        ).clamped
     }
 
     @ViewBuilder

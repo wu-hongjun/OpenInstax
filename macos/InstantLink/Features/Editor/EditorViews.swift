@@ -625,6 +625,8 @@ struct SelectedOverlayInspectorView: View {
                     labeledSlider("Y", value: positionYBinding, range: 0.05...0.95, decimals: 1, displayMultiplier: 100, suffix: "%")
                     labeledSlider(L("Width"), value: widthBinding, range: 0.08...0.95, decimals: 1, displayMultiplier: 100, suffix: "%")
                     labeledSlider(L("Height"), value: heightBinding, range: 0.06...0.95, decimals: 1, displayMultiplier: 100, suffix: "%")
+                    Toggle(L("Lock Aspect Ratio"), isOn: aspectRatioLockBinding)
+                        .font(.caption)
                 }
                 .disabled(isLocked)
 
@@ -745,14 +747,21 @@ struct SelectedOverlayInspectorView: View {
     private var widthBinding: Binding<Double> {
         Binding(
             get: { viewModel.selectedOverlay?.placement.normalizedWidth ?? 0.25 },
-            set: { newValue in viewModel.updateSelectedOverlay { $0.placement.normalizedWidth = newValue } }
+            set: { newValue in viewModel.setSelectedOverlayWidth(newValue) }
         )
     }
 
     private var heightBinding: Binding<Double> {
         Binding(
             get: { viewModel.selectedOverlay?.placement.normalizedHeight ?? 0.15 },
-            set: { newValue in viewModel.updateSelectedOverlay { $0.placement.normalizedHeight = newValue } }
+            set: { newValue in viewModel.setSelectedOverlayHeight(newValue) }
+        )
+    }
+
+    private var aspectRatioLockBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.selectedOverlay?.preservesAspectRatio ?? true },
+            set: { newValue in viewModel.setSelectedOverlayPreservesAspectRatio(newValue) }
         )
     }
 
