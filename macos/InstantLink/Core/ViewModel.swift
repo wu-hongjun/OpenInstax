@@ -387,6 +387,23 @@ class ViewModel: ObservableObject {
         return "\(Int((fraction * 100).rounded()))%"
     }
 
+    private func printFailureMessage(for code: Int32) -> String {
+        switch code {
+        case -8:
+            return "\(L("No Film")) (-8)"
+        case -9:
+            return "\(L("Print failed")) (-9)"
+        case -10:
+            return "\(L("Print failed")) (-10)"
+        case -11:
+            return "\(L("Print failed")) (-11)"
+        case -7:
+            return "\(L("Print failed")) (-7)"
+        default:
+            return "\(L("Print failed")) (\(code))"
+        }
+    }
+
     func saveProfile(_ profile: PrinterProfile) {
         printerProfiles[profile.bleIdentifier] = profile
         PrinterProfile.save(printerProfiles)
@@ -1578,7 +1595,7 @@ class ViewModel: ObservableObject {
         }
         let progressRelay = PrintProgressRelay(viewModel: self)
 
-        let success = await ffi.printImage(
+        let result = await ffi.printImage(
             path: prepared.path,
             quality: 100,
             fit: prepared.fit
@@ -1594,10 +1611,10 @@ class ViewModel: ObservableObject {
             isPrinting = false
             printProgress = nil
             printPhase = nil
-            if success {
+            if result.isSuccess {
                 showStatus(L("Printed!"), tone: .success)
             } else {
-                showError(L("Print failed"))
+                showError(printFailureMessage(for: result.code))
             }
         }
         await refreshStatus()
@@ -1645,7 +1662,7 @@ class ViewModel: ObservableObject {
             }
             let progressRelay = PrintProgressRelay(viewModel: self)
 
-            let success = await ffi.printImage(
+            let result = await ffi.printImage(
                 path: prepared.path,
                 quality: 100,
                 fit: prepared.fit
@@ -1657,12 +1674,12 @@ class ViewModel: ObservableObject {
                 try? FileManager.default.removeItem(atPath: temp)
             }
 
-            if !success {
+            if !result.isSuccess {
                 await MainActor.run {
                     isPrinting = false
                     printPhase = nil
                     batchPrintTotal = 0
-                    showError(L("print_failed_at", offset + 1, count))
+                    showError("\(L("print_failed_at", offset + 1, count)) (\(result.code))")
                 }
                 return
             }

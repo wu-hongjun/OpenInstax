@@ -6,6 +6,12 @@ import Foundation
 /// Swift async method. FFI calls block the calling thread (`block_on`),
 /// so every call is dispatched to a background queue via `Task.detached`.
 class InstantLinkFFI {
+    struct PrintResult {
+        let code: Int32
+
+        var isSuccess: Bool { code == 0 }
+    }
+
     private let handle: UnsafeMutableRawPointer
 
     // MARK: - Function pointers (resolved once at init)
@@ -236,7 +242,7 @@ class InstantLinkFFI {
     ///   - quality: JPEG quality 1-100
     ///   - fit: "crop" (0), "contain" (1), or "stretch" (2)
     ///   - printOption: 0 = Rich, 1 = Natural
-    func printImage(path: String, quality: Int = 100, fit: String = "crop", printOption: Int = 0) async -> Bool {
+    func printImage(path: String, quality: Int = 100, fit: String = "crop", printOption: Int = 0) async -> PrintResult {
         let fitMode: UInt8
         switch fit {
         case "contain": fitMode = 1
@@ -245,7 +251,7 @@ class InstantLinkFFI {
         }
         return await blocking {
             path.withCString { cPath in
-                self._print(cPath, UInt8(quality), fitMode, UInt8(printOption)) == 0
+                PrintResult(code: self._print(cPath, UInt8(quality), fitMode, UInt8(printOption)))
             }
         }
     }
@@ -254,7 +260,7 @@ class InstantLinkFFI {
     ///
     /// `progress` is called with (chunksSent, totalChunks) from a background thread.
     func printImage(path: String, quality: Int = 100, fit: String = "crop", printOption: Int = 0,
-                    progress: @escaping @Sendable (UInt32, UInt32) -> Void) async -> Bool {
+                    progress: @escaping @Sendable (UInt32, UInt32) -> Void) async -> PrintResult {
         let fitMode: UInt8
         switch fit {
         case "contain": fitMode = 1
@@ -273,15 +279,15 @@ class InstantLinkFFI {
             ProgressBox.current?.takeUnretainedValue().callback(sent, total)
         }
 
-        let success = await blocking {
+        let result = await blocking {
             path.withCString { cPath in
-                self._print_with_progress(cPath, UInt8(quality), fitMode, UInt8(printOption), cb) == 0
+                PrintResult(code: self._print_with_progress(cPath, UInt8(quality), fitMode, UInt8(printOption), cb))
             }
         }
 
         boxPtr.release()
         ProgressBox.current = nil
-        return success
+        return result
     }
 
     // MARK: - LED Control
