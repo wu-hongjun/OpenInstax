@@ -4,6 +4,9 @@
 
 Open-source CLI and native macOS app for printing to Fujifilm Instax Link printers via Bluetooth Low Energy. Supports the Instax Mini Link, Square Link, and Wide Link.
 
+<img width="1346" height="1362" alt="85f25fd250a079acc1ed95fa903955c9" src="https://github.com/user-attachments/assets/90b0f6a6-4400-4bd0-b468-e0afe79e15b5" />
+
+
 The Instax Link BLE protocol was reverse-engineered by the open-source community ([javl/InstaxBLE](https://github.com/javl/InstaxBLE), [linssenste/instax-link-web](https://github.com/linssenste/instax-link-web)). InstantLink provides a clean Rust implementation.
 
 ## What's Included
