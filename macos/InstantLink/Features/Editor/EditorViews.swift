@@ -254,10 +254,11 @@ struct AccordionSection<Content: View>: View {
             .buttonStyle(.plain)
 
             if isExpanded {
-                VStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
                     content()
                 }
                 .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -286,25 +287,26 @@ struct EditorSidebarView: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    QuickZoomControlsView(resetTitle: L("Reset Zoom"))
+                    QuickZoomControlsView(resetTitle: L("Reset Zoom"), showsChrome: false)
                 }
 
                 Divider()
 
                 AccordionSection(L("Exposure"), icon: "sun.max") {
-                    QuickExposureControlsView()
+                    QuickExposureControlsView(showsChrome: false)
                 }
 
                 Divider()
 
                 AccordionSection(L("Rotate"), icon: "rotate.right") {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 8) {
                         Button {
                             viewModel.rotateCounterClockwise()
                         } label: {
                             Label(L("Rotate Left"), systemImage: "rotate.left")
                         }
                         .controlSize(.small)
+                        .buttonStyle(.bordered)
 
                         Button {
                             viewModel.rotateClockwise()
@@ -312,6 +314,7 @@ struct EditorSidebarView: View {
                             Label(L("Rotate Right"), systemImage: "rotate.right")
                         }
                         .controlSize(.small)
+                        .buttonStyle(.bordered)
 
                         Button {
                             viewModel.toggleHorizontalFlip()
@@ -321,8 +324,6 @@ struct EditorSidebarView: View {
                         .controlSize(.small)
                         .buttonStyle(.bordered)
                         .tint(viewModel.isHorizontallyFlipped ? .accentColor : .secondary)
-
-                        Spacer()
                     }
                 }
 

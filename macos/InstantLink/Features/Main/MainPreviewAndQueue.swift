@@ -595,11 +595,6 @@ struct QuickPrintToolbarView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.18))
-        )
         .frame(maxWidth: .infinity)
         .disabled(viewModel.isPrinting)
     }
