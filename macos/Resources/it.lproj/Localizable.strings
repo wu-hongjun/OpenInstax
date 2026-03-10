@@ -231,4 +231,5 @@
 "Lock" = "Blocca";
 "No location metadata" = "Nessun metadato di posizione";
 "Camera" = "Fotocamera";
+"Printer" = "Stampante";
 "failed_to_save_captured_image" = "Impossibile salvare l'immagine acquisita: %@";

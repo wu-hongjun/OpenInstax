@@ -231,4 +231,5 @@
 "Lock" = "Verrouiller";
 "No location metadata" = "Aucune métadonnée de localisation";
 "Camera" = "Caméra";
+"Printer" = "Imprimante";
 "failed_to_save_captured_image" = "Impossible d’enregistrer l’image capturée : %@";

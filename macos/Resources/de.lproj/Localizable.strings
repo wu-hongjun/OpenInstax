@@ -230,4 +230,5 @@
 "Lock" = "Sperren";
 "No location metadata" = "Keine Standortmetadaten";
 "Camera" = "Kamera";
+"Printer" = "Drucker";
 "failed_to_save_captured_image" = "Erfasstes Bild konnte nicht gespeichert werden: %@";

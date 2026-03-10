@@ -47,9 +47,19 @@ struct PrinterPickerSheet: View {
                                     Text(profile.displayName)
                                         .font(.body)
                                         .foregroundColor(.primary)
-                                    Text(profile.effectiveModel)
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 6) {
+                                        Text(profile.effectiveModel)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                        if let tag = profile.filmFormatTag {
+                                            Text(tag)
+                                                .font(.system(size: 9, weight: .semibold))
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 1)
+                                                .background(Capsule().fill(.secondary))
+                                        }
+                                    }
                                 }
 
                                 Spacer()
@@ -424,9 +434,19 @@ struct PrinterManagementSection: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(profile.displayName)
                                 .font(.body)
-                            Text(profile.effectiveModel)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            HStack(spacing: 6) {
+                                Text(profile.effectiveModel)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                if let tag = profile.filmFormatTag {
+                                    Text(tag)
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(Capsule().fill(.secondary))
+                                }
+                            }
                         }
 
                         Spacer()

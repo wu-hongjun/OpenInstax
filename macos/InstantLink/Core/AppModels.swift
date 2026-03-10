@@ -22,6 +22,7 @@ struct PrinterProfile: Codable, Equatable, Identifiable {
     }
 
     var effectiveModel: String { overriddenModel ?? detectedModel }
+    var filmFormatTag: String? { PrinterModelCatalog.filmFormatTag(for: effectiveModel) }
 
     static let availableModels = [
         "Instax Mini Link", "Instax Mini Link 2", "Instax Mini Link 3",
@@ -55,6 +56,38 @@ struct PrinterProfile: Codable, Equatable, Identifiable {
     static func save(_ profiles: [String: PrinterProfile]) {
         if let data = try? JSONEncoder().encode(profiles) {
             UserDefaults.standard.set(data, forKey: defaultsKey)
+        }
+    }
+}
+
+enum PrinterModelCatalog {
+    static func aspectRatio(for model: String?) -> CGFloat? {
+        switch model {
+        case "Instax Square Link":
+            return 1.0
+        case "Instax Mini Link",
+             "Instax Mini Link 2",
+             "Instax Mini Link 3":
+            return 600.0 / 800.0
+        case "Instax Wide Link":
+            return 1260.0 / 840.0
+        default:
+            return nil
+        }
+    }
+
+    static func filmFormatTag(for model: String?) -> String? {
+        switch model {
+        case "Instax Square Link":
+            return "Sqre"
+        case "Instax Mini Link",
+             "Instax Mini Link 2",
+             "Instax Mini Link 3":
+            return "Mini"
+        case "Instax Wide Link":
+            return "Wide"
+        default:
+            return nil
         }
     }
 }

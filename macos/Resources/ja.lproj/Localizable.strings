@@ -230,4 +230,5 @@
 "Lock" = "ロック";
 "No location metadata" = "位置情報のメタデータがありません";
 "Camera" = "カメラ";
+"Printer" = "プリンター";
 "failed_to_save_captured_image" = "撮影画像を保存できませんでした: %@";

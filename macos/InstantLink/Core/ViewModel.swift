@@ -214,14 +214,7 @@ class ViewModel: ObservableObject {
         } else {
             model = printerModel
         }
-        switch model {
-        case "Instax Square Link":  return 1.0          // 800×800
-        case "Instax Mini Link",
-             "Instax Mini Link 2",
-             "Instax Mini Link 3":  return 600.0/800.0  // 600×800
-        case "Instax Wide Link":    return 1260.0/840.0  // 1260×840
-        default: return nil
-        }
+        return PrinterModelCatalog.aspectRatio(for: model)
     }
 
     /// Aspect ratio adjusted for film orientation.
@@ -245,14 +238,7 @@ class ViewModel: ObservableObject {
         } else {
             model = printerModel
         }
-        switch model {
-        case "Instax Square Link":  return "Sqre"
-        case "Instax Mini Link",
-             "Instax Mini Link 2",
-             "Instax Mini Link 3":  return "Mini"
-        case "Instax Wide Link":    return "Wide"
-        default: return nil
-        }
+        return PrinterModelCatalog.filmFormatTag(for: model)
     }
 
     // UI state

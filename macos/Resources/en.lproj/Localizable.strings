@@ -230,4 +230,5 @@
 "Lock" = "Lock";
 "No location metadata" = "No location metadata";
 "Camera" = "Camera";
+"Printer" = "Printer";
 "failed_to_save_captured_image" = "Failed to save captured image: %@";

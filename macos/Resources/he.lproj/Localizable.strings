@@ -231,4 +231,5 @@
 "Lock" = "נעל";
 "No location metadata" = "אין מטא-נתוני מיקום";
 "Camera" = "מצלמה";
+"Printer" = "מדפסת";
 "failed_to_save_captured_image" = "שמירת התמונה שצולמה נכשלה: %@";
