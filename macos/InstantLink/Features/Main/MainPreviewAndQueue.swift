@@ -593,6 +593,13 @@ struct QuickPrintToolbarView: View {
             )
             .disabled(viewModel.selectedImage == nil || viewModel.isPrinting)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.18))
+        )
         .frame(maxWidth: .infinity)
         .disabled(viewModel.isPrinting)
     }
@@ -642,8 +649,7 @@ struct QuickZoomControlsView: View {
             .accessibilityLabel(Text(L("Zoom In")))
         }
         .controlSize(.small)
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 36)
+        .frame(minHeight: 30)
         .background {
             if showsChrome {
                 RoundedRectangle(cornerRadius: 8)
@@ -689,8 +695,7 @@ struct QuickExposureControlsView: View {
             .accessibilityLabel(Text(L("Exposure")))
         }
         .controlSize(.small)
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 36)
+        .frame(minHeight: 30)
         .background {
             if showsChrome {
                 RoundedRectangle(cornerRadius: 8)
