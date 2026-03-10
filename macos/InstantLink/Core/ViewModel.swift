@@ -647,7 +647,7 @@ class ViewModel: ObservableObject {
     }
 
     func resetExposure() {
-        setExposureEV(0)
+        exposureEV = 0
     }
 
     var canQuickZoomIn: Bool {

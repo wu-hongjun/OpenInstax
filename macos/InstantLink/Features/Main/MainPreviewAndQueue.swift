@@ -426,6 +426,7 @@ struct QueueThumbnailView: View {
 struct MainActionsView: View {
     @EnvironmentObject var viewModel: ViewModel
     var openEditor: () -> Void
+    @Binding var isQueueStripVisible: Bool
 
     private var singlePrintLabel: String {
         if viewModel.isPrinting {
@@ -450,7 +451,10 @@ struct MainActionsView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            QuickPrintToolbarView(openEditor: openEditor)
+            QuickPrintToolbarView(
+                openEditor: openEditor,
+                isQueueStripVisible: $isQueueStripVisible
+            )
 
             if viewModel.queue.count > 1 {
                 VStack(alignment: .leading, spacing: 6) {
@@ -519,6 +523,7 @@ struct MainActionsView: View {
 struct QuickPrintToolbarView: View {
     @EnvironmentObject var viewModel: ViewModel
     var openEditor: () -> Void
+    @Binding var isQueueStripVisible: Bool
 
     private var isHorizontalOrientation: Bool {
         (viewModel.orientedAspectRatio ?? 1.0) > 1.0
@@ -558,6 +563,21 @@ struct QuickPrintToolbarView: View {
                 .disabled(viewModel.selectedImage == nil)
                 .help(L("Film Orientation"))
                 .accessibilityLabel(Text(L("Film Orientation")))
+            }
+
+            if !viewModel.queue.isEmpty {
+                quickToolbarButton(
+                    title: "\(viewModel.queue.count)",
+                    systemImage: isQueueStripVisible ? "square.stack.3d.up.fill" : "square.stack.3d.up",
+                    action: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isQueueStripVisible.toggle()
+                        }
+                    }
+                )
+                .tint(isQueueStripVisible ? .accentColor : .secondary)
+                .help(L("Queue"))
+                .accessibilityLabel(Text(L("Queue")))
             }
 
             quickToolbarButton(

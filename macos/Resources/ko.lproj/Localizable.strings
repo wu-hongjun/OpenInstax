@@ -233,4 +233,5 @@
 "No location metadata" = "위치 메타데이터가 없습니다";
 "Camera" = "카메라";
 "Printer" = "프린터";
+"Queue" = "대기열";
 "failed_to_save_captured_image" = "촬영한 이미지를 저장하지 못했습니다: %@";

@@ -233,4 +233,5 @@
 "No location metadata" = "Keine Standortmetadaten";
 "Camera" = "Kamera";
 "Printer" = "Drucker";
+"Queue" = "Warteschlange";
 "failed_to_save_captured_image" = "Erfasstes Bild konnte nicht gespeichert werden: %@";

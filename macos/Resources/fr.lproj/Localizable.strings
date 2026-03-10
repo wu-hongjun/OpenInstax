@@ -234,4 +234,5 @@
 "No location metadata" = "Aucune métadonnée de localisation";
 "Camera" = "Caméra";
 "Printer" = "Imprimante";
+"Queue" = "File d'attente";
 "failed_to_save_captured_image" = "Impossible d’enregistrer l’image capturée : %@";

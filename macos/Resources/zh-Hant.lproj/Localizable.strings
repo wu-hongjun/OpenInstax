@@ -233,4 +233,5 @@
 "No location metadata" = "沒有位置中繼資料";
 "Camera" = "相機";
 "Printer" = "印表機";
+"Queue" = "佇列";
 "failed_to_save_captured_image" = "無法儲存拍攝的影像：%@";

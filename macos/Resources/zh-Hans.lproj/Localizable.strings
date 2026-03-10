@@ -233,4 +233,5 @@
 "No location metadata" = "没有位置信息元数据";
 "Camera" = "相机";
 "Printer" = "打印机";
+"Queue" = "队列";
 "failed_to_save_captured_image" = "保存拍摄图像失败：%@";

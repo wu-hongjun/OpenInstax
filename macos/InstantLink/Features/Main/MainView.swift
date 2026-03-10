@@ -128,7 +128,10 @@ struct MainView: View {
                 Spacer(minLength: 0)
 
                 if viewModel.captureMode == .file {
-                    MainActionsView(openEditor: { viewModel.showImageEditor = true })
+                    MainActionsView(
+                        openEditor: { viewModel.showImageEditor = true },
+                        isQueueStripVisible: $isQueueStripVisible
+                    )
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -337,13 +340,7 @@ struct MainView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 8) {
-                captureModeControl
-                if viewModel.captureMode == .file && !viewModel.queue.isEmpty {
-                    HeaderDivider()
-                    queueToggleControl
-                }
-            }
+            captureModeControl
 
             HStack(spacing: 8) {
                 batteryStatusControl
@@ -362,10 +359,6 @@ struct MainView: View {
             Spacer()
 
             captureModeControl
-
-            if viewModel.captureMode == .file && !viewModel.queue.isEmpty {
-                queueToggleControl
-            }
 
             batteryStatusControl
             filmStatusControl
@@ -427,26 +420,6 @@ struct MainView: View {
                 syncQueueStripVisibility(for: viewModel.queue.count, force: true)
             }
         }
-    }
-
-    private var queueToggleControl: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isQueueStripVisible.toggle()
-            }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: isQueueStripVisible ? "square.stack.3d.up.fill" : "square.stack.3d.up")
-                    .font(.caption)
-                Text("\(viewModel.queue.count)")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .monospacedDigit()
-            }
-            .foregroundColor(isQueueStripVisible ? .accentColor : .secondary)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private var batteryStatusControl: some View {

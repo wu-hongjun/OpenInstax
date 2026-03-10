@@ -233,4 +233,5 @@
 "No location metadata" = "لا توجد بيانات موقع";
 "Camera" = "الكاميرا";
 "Printer" = "الطابعة";
+"Queue" = "قائمة الانتظار";
 "failed_to_save_captured_image" = "تعذر حفظ الصورة الملتقطة: %@";
