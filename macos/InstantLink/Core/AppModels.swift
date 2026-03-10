@@ -179,47 +179,77 @@ enum StatusMessageTone {
 
 struct DateStampPreset {
     let displayName: String
-    let fontFamily: String
+    let fontStyle: TimestampPresetFontStyle
     let sizePercent: CGFloat
     let tracking: CGFloat
-    let separator: String
+    let layout: TimestampPresetLayout
     let color: (CGFloat, CGFloat, CGFloat)
     let glowColor: (CGFloat, CGFloat, CGFloat)
     let glowRadius: CGFloat
     let defaultLightBleed: Bool
 }
 
+enum TimestampPresetFontStyle {
+    case custom(String)
+    case systemMonospaced
+}
+
+enum TimestampPresetLayout {
+    case userSelectable(separator: String, padMonth: Bool = true, padDay: Bool = true)
+    case olympus
+    case contax
+
+    var allowsFormatSelection: Bool {
+        if case .userSelectable = self {
+            return true
+        }
+        return false
+    }
+}
+
 enum TimestampPresetCatalog {
-    static let presetOrder: [String] = ["classic", "modern", "dotMatrix", "labPrint", "machinePrint"]
+    static let presetOrder: [String] = ["classic", "olympus", "contax", "modern", "dotMatrix", "labPrint", "machinePrint"]
 
     static let presets: [String: DateStampPreset] = [
         "classic": DateStampPreset(
-            displayName: "Quartz Date", fontFamily: "DSEG7ClassicMini-Regular",
-            sizePercent: 0.026, tracking: 0.05, separator: ".",
-            color: (0.961, 0.541, 0.122), glowColor: (0.961, 0.541, 0.122),
+            displayName: "Quartz Date", fontStyle: .custom("DSEG7ClassicMini-Regular"),
+            sizePercent: 0.026, tracking: 0.05, layout: .userSelectable(separator: "."),
+            color: (248.0 / 255.0, 120.0 / 255.0, 67.0 / 255.0), glowColor: (248.0 / 255.0, 120.0 / 255.0, 67.0 / 255.0),
             glowRadius: 0.15, defaultLightBleed: true
         ),
+        "olympus": DateStampPreset(
+            displayName: "Olympus", fontStyle: .custom("DSEG7ClassicMini-Regular"),
+            sizePercent: 0.026, tracking: 0.05, layout: .olympus,
+            color: (248.0 / 255.0, 120.0 / 255.0, 67.0 / 255.0), glowColor: (248.0 / 255.0, 120.0 / 255.0, 67.0 / 255.0),
+            glowRadius: 0.15, defaultLightBleed: true
+        ),
+        "contax": DateStampPreset(
+            displayName: "Contax", fontStyle: .systemMonospaced,
+            sizePercent: 0.022, tracking: 0.02, layout: .contax,
+            color: (1.0, 153.0 / 255.0, 49.0 / 255.0), glowColor: (1.0, 153.0 / 255.0, 49.0 / 255.0),
+            glowRadius: 0.08, defaultLightBleed: false
+        ),
         "modern": DateStampPreset(
-            displayName: "Modern", fontFamily: "DSEG7ModernMini-Regular",
-            sizePercent: 0.026, tracking: 0.05, separator: ".",
+            displayName: "Modern", fontStyle: .custom("DSEG7ModernMini-Regular"),
+            sizePercent: 0.026, tracking: 0.05, layout: .userSelectable(separator: "."),
             color: (0.180, 0.871, 0.412), glowColor: (0.180, 0.871, 0.412),
             glowRadius: 0.12, defaultLightBleed: true
         ),
         "dotMatrix": DateStampPreset(
-            displayName: "Data Back", fontFamily: "MatrixSansScreen",
-            sizePercent: 0.024, tracking: 0.08, separator: ".",
+            displayName: "Data Back", fontStyle: .custom("MatrixSansScreen"),
+            sizePercent: 0.024, tracking: 0.08, layout: .userSelectable(separator: "."),
             color: (1.0, 0.435, 0.165), glowColor: (1.0, 0.435, 0.165),
             glowRadius: 0.10, defaultLightBleed: true
         ),
         "labPrint": DateStampPreset(
-            displayName: "Lab Print", fontFamily: "MatrixSansPrint",
-            sizePercent: 0.022, tracking: 0.06, separator: "-",
+            displayName: "Lab Print", fontStyle: .custom("MatrixSansPrint"),
+            sizePercent: 0.022, tracking: 0.06, layout: .userSelectable(separator: "-"),
             color: (0.953, 0.933, 0.890), glowColor: (0.953, 0.933, 0.890),
             glowRadius: 0.0, defaultLightBleed: false
         ),
         "machinePrint": DateStampPreset(
-            displayName: "Machine", fontFamily: "IBMPlexMono-Medium",
-            sizePercent: 0.020, tracking: 0.03, separator: "-",
+            displayName: "Machine", fontStyle: .custom("IBMPlexMono-Medium"),
+            sizePercent: 0.020, tracking: 0.03, layout: .userSelectable(separator: "-"),
             color: (0.953, 0.933, 0.890), glowColor: (0.953, 0.933, 0.890),
             glowRadius: 0.0, defaultLightBleed: false
         ),

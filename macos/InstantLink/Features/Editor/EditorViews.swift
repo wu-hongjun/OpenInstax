@@ -1020,21 +1020,23 @@ struct SelectedOverlayInspectorView: View {
                 }
             }
 
-            Picker(L("Format"), selection: Binding(
-                get: {
-                    guard let overlay = viewModel.selectedOverlay,
-                          case .timestamp(let data) = overlay.content else { return TimestampFormat.ymd }
-                    return data.format
-                },
-                set: { newValue in
-                    viewModel.updateSelectedTimestampOverlay { $0.format = newValue }
+            if selectedTimestampAllowsFormatSelection {
+                Picker(L("Format"), selection: Binding(
+                    get: {
+                        guard let overlay = viewModel.selectedOverlay,
+                              case .timestamp(let data) = overlay.content else { return TimestampFormat.ymd }
+                        return data.format
+                    },
+                    set: { newValue in
+                        viewModel.updateSelectedTimestampOverlay { $0.format = newValue }
+                    }
+                )) {
+                    Text("YY.MM.DD").tag(TimestampFormat.ymd)
+                    Text("MM.DD.YY").tag(TimestampFormat.mdy)
+                    Text("DD.MM.YY").tag(TimestampFormat.dmy)
                 }
-            )) {
-                Text("YY.MM.DD").tag(TimestampFormat.ymd)
-                Text("MM.DD.YY").tag(TimestampFormat.mdy)
-                Text("DD.MM.YY").tag(TimestampFormat.dmy)
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
 
             HStack {
                 Toggle(L("Time"), isOn: Binding(
@@ -1189,6 +1191,15 @@ struct SelectedOverlayInspectorView: View {
         return data.source
     }
 
+    private var selectedTimestampAllowsFormatSelection: Bool {
+        guard let overlay = viewModel.selectedOverlay,
+              case .timestamp(let data) = overlay.content,
+              let preset = TimestampPresetCatalog.presets[data.presetKey] else {
+            return true
+        }
+        return preset.layout.allowsFormatSelection
+    }
+
     private var selectedLocationDisplayStyle: LocationOverlayDisplayStyle {
         guard let overlay = viewModel.selectedOverlay,
               case .location(let data) = overlay.content else { return .coordinates }
@@ -1297,21 +1308,23 @@ struct DefaultTimestampOverlayEditor: View {
                     }
                 }
 
-                Picker(L("Format"), selection: Binding(
-                    get: {
-                        guard let overlay = viewModel.defaultTimestampOverlay,
-                              case .timestamp(let data) = overlay.content else { return TimestampFormat.ymd }
-                        return data.format
-                    },
-                    set: { newValue in
-                        viewModel.updateDefaultTimestampOverlay { $0.format = newValue }
+                if defaultTimestampAllowsFormatSelection {
+                    Picker(L("Format"), selection: Binding(
+                        get: {
+                            guard let overlay = viewModel.defaultTimestampOverlay,
+                                  case .timestamp(let data) = overlay.content else { return TimestampFormat.ymd }
+                            return data.format
+                        },
+                        set: { newValue in
+                            viewModel.updateDefaultTimestampOverlay { $0.format = newValue }
+                        }
+                    )) {
+                        Text("YY.MM.DD").tag(TimestampFormat.ymd)
+                        Text("MM.DD.YY").tag(TimestampFormat.mdy)
+                        Text("DD.MM.YY").tag(TimestampFormat.dmy)
                     }
-                )) {
-                    Text("YY.MM.DD").tag(TimestampFormat.ymd)
-                    Text("MM.DD.YY").tag(TimestampFormat.mdy)
-                    Text("DD.MM.YY").tag(TimestampFormat.dmy)
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
 
                 HStack {
                     Toggle(L("Time"), isOn: Binding(
@@ -1338,5 +1351,14 @@ struct DefaultTimestampOverlayEditor: View {
                 .font(.caption)
             }
         }
+    }
+
+    private var defaultTimestampAllowsFormatSelection: Bool {
+        guard let overlay = viewModel.defaultTimestampOverlay,
+              case .timestamp(let data) = overlay.content,
+              let preset = TimestampPresetCatalog.presets[data.presetKey] else {
+            return true
+        }
+        return preset.layout.allowsFormatSelection
     }
 }

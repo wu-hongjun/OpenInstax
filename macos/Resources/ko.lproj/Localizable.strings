@@ -90,6 +90,8 @@
 /* Editor — Date Stamp Options */
 "Enabled" = "사용";
 "Quartz Date" = "Quartz Date";
+"Olympus" = "Olympus";
+"Contax" = "Contax";
 "Modern" = "Modern";
 "Data Back" = "Data Back";
 "Lab Print" = "Lab Print";

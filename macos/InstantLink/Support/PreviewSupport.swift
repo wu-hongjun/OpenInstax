@@ -445,31 +445,48 @@ struct OverlayQRCodePreviewView: View {
     let data: QROverlayData
 
     var body: some View {
-        VStack(spacing: 4) {
-            if let image = PrintRenderService.qrCodeImage(for: data) {
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.none)
-                    .aspectRatio(1, contentMode: .fit)
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.secondary.opacity(0.15))
-                    .overlay(Image(systemName: "qrcode").foregroundColor(.secondary))
+        GeometryReader { proxy in
+            let size = proxy.size
+            let captionHeight = (data.showsCaption && !data.caption.isEmpty) ? size.height * 0.16 : 0
+            let codeHeight = max(0, size.height - captionHeight)
+            let quietZonePadding = data.includesQuietZone ? min(size.width, codeHeight) * 0.08 : 0
+
+            VStack(spacing: 0) {
+                Group {
+                    if let image = PrintRenderService.qrCodeImage(for: data) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .interpolation(.none)
+                            .aspectRatio(1, contentMode: .fit)
+                            .padding(quietZonePadding)
+                    } else {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.secondary.opacity(0.15))
+                            .overlay(Image(systemName: "qrcode").foregroundColor(.secondary))
+                            .padding(quietZonePadding)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(height: codeHeight)
+
+                if captionHeight > 0 {
+                    Text(data.caption)
+                        .font(.caption2)
+                        .foregroundColor(data.foregroundColor.color)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.5)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .frame(height: captionHeight)
+                }
             }
-            if data.showsCaption, !data.caption.isEmpty {
-                Text(data.caption)
-                    .font(.caption2)
-                    .foregroundColor(data.foregroundColor.color)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.5)
-            }
+            .frame(width: size.width, height: size.height)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(data.backgroundColor.color)
+            )
         }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(data.backgroundColor.color)
-        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -485,13 +502,13 @@ struct TimestampPreviewView: View {
         let fontSize = PrintRenderService.timestampFontSize(for: data, preset: preset, rectHeight: size.height)
 
         VStack(spacing: fontSize * 0.12) {
-            Text(PrintRenderService.timestampText(from: date, format: data.format, separator: preset.separator))
-                .font(.custom(preset.fontFamily, size: fontSize))
+            Text(PrintRenderService.timestampText(from: date, data: data, preset: preset))
+                .font(timestampFont(for: preset, size: fontSize))
                 .tracking(fontSize * preset.tracking)
                 .foregroundColor(stampColor)
             if data.showsTime {
                 Text(PrintRenderService.timeStampText(from: date))
-                    .font(.custom(preset.fontFamily, size: fontSize))
+                    .font(timestampFont(for: preset, size: fontSize))
                     .tracking(fontSize * preset.tracking)
                     .foregroundColor(stampColor)
             }
@@ -501,6 +518,15 @@ struct TimestampPreviewView: View {
             color: data.lightBleedEnabled && preset.glowRadius > 0 ? stampColor.opacity(0.8) : .clear,
             radius: data.lightBleedEnabled ? fontSize * preset.glowRadius * 0.5 : 0
         )
+    }
+
+    private func timestampFont(for preset: DateStampPreset, size: CGFloat) -> Font {
+        switch preset.fontStyle {
+        case .custom(let name):
+            return .custom(name, size: size)
+        case .systemMonospaced:
+            return .system(size: size, weight: .medium, design: .monospaced)
+        }
     }
 }
 

@@ -144,21 +144,28 @@ enum PrintRenderService {
         }
     }
 
-    static func timestampText(from date: Date, format: TimestampFormat, separator: String) -> String {
+    static func timestampText(from date: Date, data: TimestampOverlayData, preset: DateStampPreset) -> String {
         let cal = Calendar.current
         let y = cal.component(.year, from: date) % 100
         let m = cal.component(.month, from: date)
         let d = cal.component(.day, from: date)
         let yy = String(format: "%02d", y)
-        let mm = String(format: "%02d", m)
-        let dd = String(format: "%02d", d)
-        switch format {
-        case .mdy:
-            return "\(mm)\(separator)\(dd)\(separator)\(yy)"
-        case .dmy:
-            return "\(dd)\(separator)\(mm)\(separator)\(yy)"
-        case .ymd:
-            return "\(yy)\(separator)\(mm)\(separator)\(dd)"
+        switch preset.layout {
+        case .userSelectable(let separator, let padMonth, let padDay):
+            let mm = padMonth ? String(format: "%02d", m) : "\(m)"
+            let dd = padDay ? String(format: "%02d", d) : "\(d)"
+            switch data.format {
+            case .mdy:
+                return "\(mm)\(separator)\(dd)\(separator)\(yy)"
+            case .dmy:
+                return "\(dd)\(separator)\(mm)\(separator)\(yy)"
+            case .ymd:
+                return "\(yy)\(separator)\(mm)\(separator)\(dd)"
+            }
+        case .olympus:
+            return "\(yy) \(m) \(d)"
+        case .contax:
+            return "'\(yy) \(m)ᴹ \(d)"
         }
     }
 
@@ -176,6 +183,16 @@ enum PrintRenderService {
         imageDate: Date?
     ) -> Date {
         imageDate ?? Date()
+    }
+
+    static func timestampFont(for preset: DateStampPreset, size: CGFloat) -> NSFont {
+        switch preset.fontStyle {
+        case .custom(let name):
+            return NSFont(name: name, size: size)
+                ?? NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+        case .systemMonospaced:
+            return NSFont.monospacedSystemFont(ofSize: size, weight: .medium)
+        }
     }
 
     static func resolvedLocationText(
@@ -409,11 +426,10 @@ enum PrintRenderService {
             ?? TimestampPresetCatalog.presets["classic"]!
         let date = resolvedTimestampDate(for: data, imageDate: context.imageDate)
         let body = data.showsTime
-            ? "\(timestampText(from: date, format: data.format, separator: preset.separator))\n\(timeStampText(from: date))"
-            : timestampText(from: date, format: data.format, separator: preset.separator)
+            ? "\(timestampText(from: date, data: data, preset: preset))\n\(timeStampText(from: date))"
+            : timestampText(from: date, data: data, preset: preset)
         let fontSize = timestampFontSize(for: data, preset: preset, rectHeight: rect.height)
-        let font = NSFont(name: preset.fontFamily, size: fontSize)
-            ?? NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .medium)
+        let font = timestampFont(for: preset, size: fontSize)
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
 
