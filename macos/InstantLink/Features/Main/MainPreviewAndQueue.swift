@@ -424,6 +424,17 @@ struct MainActionsView: View {
     var openEditor: () -> Void
     @Binding var isQueueStripVisible: Bool
 
+    private var canPrintCurrent: Bool {
+        viewModel.selectedImage != nil && viewModel.isConnected && !viewModel.isPrinting
+    }
+
+    private var canPrintNextBatch: Bool {
+        viewModel.selectedImage != nil &&
+        viewModel.isConnected &&
+        !viewModel.isPrinting &&
+        viewModel.printableQueueCountFromSelection > 0
+    }
+
     private var singlePrintLabel: String {
         if viewModel.isPrinting {
             if viewModel.batchPrintTotal > 1 {
@@ -445,6 +456,21 @@ struct MainActionsView: View {
         return nil
     }
 
+    @ViewBuilder
+    private func styledPrintButton<Label: View>(
+        isProminent: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder label: @escaping () -> Label
+    ) -> some View {
+        if isProminent {
+            Button(action: action, label: label)
+                .buttonStyle(.borderedProminent)
+        } else {
+            Button(action: action, label: label)
+                .buttonStyle(.bordered)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             QuickPrintToolbarView(
@@ -455,7 +481,7 @@ struct MainActionsView: View {
             if viewModel.queue.count > 1 {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 10) {
-                        Button {
+                        styledPrintButton(isProminent: canPrintCurrent) {
                             Task { await viewModel.printSelectedImage() }
                         } label: {
                             HStack {
@@ -465,9 +491,9 @@ struct MainActionsView: View {
                             .frame(maxWidth: .infinity)
                         }
                         .controlSize(.large)
-                        .disabled(viewModel.selectedImage == nil || !viewModel.isConnected || viewModel.isPrinting)
+                        .disabled(!canPrintCurrent)
 
-                        Button {
+                        styledPrintButton(isProminent: canPrintNextBatch) {
                             Task { await viewModel.printQueue(startingAt: viewModel.selectedQueueIndex) }
                         } label: {
                             HStack {
@@ -476,14 +502,8 @@ struct MainActionsView: View {
                             }
                             .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
                         .controlSize(.large)
-                        .disabled(
-                            viewModel.selectedImage == nil ||
-                            !viewModel.isConnected ||
-                            viewModel.isPrinting ||
-                            viewModel.printableQueueCountFromSelection == 0
-                        )
+                        .disabled(!canPrintNextBatch)
                     }
 
                     if let printNextHint {
@@ -493,7 +513,7 @@ struct MainActionsView: View {
                     }
                 }
             } else {
-                Button {
+                styledPrintButton(isProminent: canPrintCurrent) {
                     Task { await viewModel.printSelectedImage() }
                 } label: {
                     HStack {
@@ -508,9 +528,8 @@ struct MainActionsView: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .disabled(viewModel.selectedImage == nil || !viewModel.isConnected || viewModel.isPrinting)
+                .disabled(!canPrintCurrent)
             }
         }
     }
@@ -520,6 +539,14 @@ struct QuickPrintToolbarView: View {
     @EnvironmentObject var viewModel: ViewModel
     var openEditor: () -> Void
     @Binding var isQueueStripVisible: Bool
+
+    private var canEditSelectedImage: Bool {
+        viewModel.selectedImage != nil && !viewModel.isPrinting
+    }
+
+    private var shouldPromoteOpenButton: Bool {
+        viewModel.selectedImage == nil && !viewModel.isPrinting
+    }
 
     private var isHorizontalOrientation: Bool {
         (viewModel.orientedAspectRatio ?? 1.0) > 1.0
@@ -579,16 +606,17 @@ struct QuickPrintToolbarView: View {
             quickToolbarButton(
                 title: L("Open"),
                 systemImage: "plus",
-                action: { viewModel.selectImage() }
+                action: { viewModel.selectImage() },
+                prominent: shouldPromoteOpenButton
             )
 
             quickToolbarButton(
                 title: L("Edit"),
                 systemImage: "slider.horizontal.3",
                 action: openEditor,
-                prominent: true
+                prominent: canEditSelectedImage
             )
-            .disabled(viewModel.selectedImage == nil || viewModel.isPrinting)
+            .disabled(!canEditSelectedImage)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .disabled(viewModel.isPrinting)
