@@ -158,11 +158,10 @@ struct MainView: View {
                         Spacer()
 
                         if viewModel.isPairing {
-                            ProgressView()
-                                .controlSize(.regular)
-                            Text(viewModel.pairingStatus)
-                                .font(.callout)
-                                .foregroundColor(.secondary)
+                            PairingChecklistCard(
+                                title: viewModel.pairingStatus,
+                                steps: pairingChecklistSteps
+                            )
                             if !viewModel.isConnectingSpecificPrinter {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Label(L("Make sure your printer is turned on"), systemImage: "1.circle")
@@ -527,6 +526,210 @@ struct MainView: View {
             return "exclamationmark.circle.fill"
         case .error:
             return "xmark.octagon.fill"
+        }
+    }
+
+    private var pairingChecklistSteps: [PairingChecklistStep] {
+        let currentStage = viewModel.pairingConnectionStage
+        let currentIndex = pairingChecklistIndex(for: currentStage)
+
+        return [
+            PairingChecklistStep(
+                title: L("pairing_stage_scanning"),
+                detail: nil,
+                state: checklistState(for: 0, currentIndex: currentIndex, stage: currentStage)
+            ),
+            PairingChecklistStep(
+                title: L("pairing_stage_found", viewModel.pairingConnectionStageDetail ?? viewModel.selectedPrinter ?? L("Printer")),
+                detail: nil,
+                state: checklistState(for: 1, currentIndex: currentIndex, stage: currentStage)
+            ),
+            PairingChecklistStep(
+                title: L("pairing_stage_opening_bluetooth"),
+                detail: nil,
+                state: checklistState(for: 2, currentIndex: currentIndex, stage: currentStage)
+            ),
+            PairingChecklistStep(
+                title: L("pairing_stage_setting_up_services"),
+                detail: nil,
+                state: checklistState(for: 3, currentIndex: currentIndex, stage: currentStage)
+            ),
+            PairingChecklistStep(
+                title: L("pairing_stage_reading_info"),
+                detail: nil,
+                state: checklistState(for: 4, currentIndex: currentIndex, stage: currentStage)
+            ),
+        ]
+    }
+
+    private func pairingChecklistIndex(for stage: ConnectionStage?) -> Int {
+        switch stage {
+        case .scanStarted, .scanFinished, nil:
+            return viewModel.pairingPhase == .connecting ? 2 : 0
+        case .deviceMatched:
+            return 1
+        case .bleConnecting:
+            return 2
+        case .servicesDiscovering, .characteristicsResolving, .notificationsSubscribing:
+            return 3
+        case .modelDetecting, .statusFetching:
+            return 4
+        case .connected:
+            return 4
+        case .failed, .unknown:
+            return max(0, viewModel.isConnectingSpecificPrinter ? 2 : 0)
+        }
+    }
+
+    private func checklistState(
+        for index: Int,
+        currentIndex: Int,
+        stage: ConnectionStage?
+    ) -> PairingChecklistStep.State {
+        if case .failed = stage, index == currentIndex {
+            return .failed
+        }
+        if index < currentIndex {
+            return .completed
+        }
+        if index == currentIndex && viewModel.isPairing {
+            return .active
+        }
+        return .pending
+    }
+}
+
+private struct PairingChecklistStep: Identifiable {
+    enum State {
+        case pending
+        case active
+        case completed
+        case failed
+    }
+
+    let id = UUID()
+    let title: String
+    let detail: String?
+    let state: State
+}
+
+private struct PairingChecklistCard: View {
+    let title: String
+    let steps: [PairingChecklistStep]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.10))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: "printer.dotmatrix")
+                        .font(.headline)
+                        .foregroundStyle(Color.accentColor)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                    Text("InstantLink")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(steps) { step in
+                    PairingChecklistRow(step: step)
+                }
+            }
+        }
+        .frame(maxWidth: 360, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.regularMaterial.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+private struct PairingChecklistRow: View {
+    let step: PairingChecklistStep
+
+    var body: some View {
+        HStack(spacing: 10) {
+            statusIcon
+                .frame(width: 18, height: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(step.title)
+                    .font(.callout)
+                    .foregroundStyle(step.state == .pending ? .secondary : .primary)
+                if let detail = step.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(rowBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(rowBorderColor, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.18), value: step.state)
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch step.state {
+        case .pending:
+            Image(systemName: "circle")
+                .foregroundStyle(.tertiary)
+        case .active:
+            ProgressView()
+                .controlSize(.small)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+        case .failed:
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(.red)
+        }
+    }
+
+    private var rowBackground: some ShapeStyle {
+        switch step.state {
+        case .pending:
+            return AnyShapeStyle(Color.clear)
+        case .active:
+            return AnyShapeStyle(Color.accentColor.opacity(0.08))
+        case .completed:
+            return AnyShapeStyle(Color.green.opacity(0.08))
+        case .failed:
+            return AnyShapeStyle(Color.red.opacity(0.10))
+        }
+    }
+
+    private var rowBorderColor: Color {
+        switch step.state {
+        case .pending:
+            return Color.white.opacity(0.06)
+        case .active:
+            return Color.accentColor.opacity(0.20)
+        case .completed:
+            return Color.green.opacity(0.18)
+        case .failed:
+            return Color.red.opacity(0.20)
         }
     }
 }
