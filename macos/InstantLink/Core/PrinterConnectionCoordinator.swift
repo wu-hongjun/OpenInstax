@@ -204,6 +204,7 @@ final class PrinterConnectionCoordinator: ObservableObject {
         pairingTask?.cancel()
 
         mutateSnapshot { snapshot in
+            snapshot.isConnected = false
             snapshot.isPairing = true
             snapshot.pairingPhase = .scanning
             snapshot.pairingAttempt = 0
