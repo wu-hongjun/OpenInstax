@@ -99,7 +99,7 @@ Longer term, this service should be usable by both print execution and export/sh
 For each extraction step:
 
 - `cargo test --workspace`
-- `bash scripts/build-app.sh 0.1.3`
+- `bash scripts/build-app.sh 0.1.4`
 - manual macOS smoke test:
   - pair printer
   - import/reorder/remove queue items

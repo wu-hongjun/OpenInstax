@@ -56,7 +56,7 @@ The FFI crate exposes the Rust core through a C ABI.
 - Global `tokio` runtime via `OnceLock<Runtime>`
 - `Mutex`-protected connected device handle
 - `catch_unwind` on all extern entry points
-- 19 exported functions, including lifecycle, status, printing, LED control, and printer `shutdown` / `reset`
+- 20 exported functions, including lifecycle, status, printing, LED control, printer `shutdown` / `reset`, and connection-stage progress callbacks
 
 ## macOS App
 

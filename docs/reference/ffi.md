@@ -38,6 +38,30 @@ All exported functions return `i32` status codes:
 | `-10` | Printer cover is open |
 | `-11` | Printer is busy |
 
+## Connection Progress Callback
+
+Specific reconnect/pairing flows can use `instantlink_connect_named_with_progress(...)` to receive connection-stage events.
+
+```c
+typedef void (*instantlink_connect_stage_cb)(int32_t stage, const char *detail);
+```
+
+| Stage | Code | Meaning |
+|------|------|---------|
+| `scan_started` | `0` | BLE scan started |
+| `scan_finished` | `1` | BLE scan finished |
+| `device_matched` | `2` | Matching printer advertisement found |
+| `ble_connecting` | `3` | CoreBluetooth connection starting |
+| `service_discovery` | `4` | GATT service discovery |
+| `characteristic_lookup` | `5` | Write/notify characteristic resolution |
+| `notification_subscribe` | `6` | Notification subscription |
+| `model_detecting` | `7` | Printer model detection |
+| `status_fetching` | `8` | Initial status fetch |
+| `connected` | `9` | Connection is ready for use |
+| `failed` | `10` | Connection failed |
+
+`detail` is optional stage-specific context and is only valid during the callback invocation. Like the print progress callback, the connect-stage callback is invoked from the runtime thread, so UI callers must marshal updates back to the main thread.
+
 ## Exported Functions
 
 ### Lifecycle
@@ -46,6 +70,9 @@ All exported functions return `i32` status codes:
 void instantlink_init(void);
 int32_t instantlink_connect(void);
 int32_t instantlink_connect_named(const char *name, int32_t duration_secs);
+int32_t instantlink_connect_named_with_progress(const char *name,
+                                                int32_t duration_secs,
+                                                instantlink_connect_stage_cb progress_cb);
 int32_t instantlink_disconnect(void);
 int32_t instantlink_is_connected(void);
 int32_t instantlink_shutdown(void);
@@ -53,6 +80,7 @@ int32_t instantlink_reset(void);
 ```
 
 - `instantlink_is_connected` returns `1` when connected, `0` when disconnected, or a negative error code
+- `instantlink_connect_named_with_progress` is the preferred entry point for UI-driven reconnect flows because it exposes real connection stages
 - `instantlink_shutdown` powers off the connected printer
 - `instantlink_reset` resets the connected printer
 
@@ -102,7 +130,7 @@ int32_t instantlink_led_off(void);
 
 ## Swift Usage
 
-The macOS app loads the dylib via `dlopen` and resolves 19 symbols in `InstantLinkFFI.swift`.
+The macOS app loads the dylib via `dlopen` and resolves the exported symbols in `InstantLinkFFI.swift`.
 
 ```swift
 import Foundation
@@ -120,5 +148,7 @@ The FFI layer owns:
 - a global `tokio` runtime via `OnceLock<Runtime>`
 - a `Mutex`-protected connected device handle
 - `catch_unwind` guards on all exported functions
+
+The macOS wrapper serializes FFI calls on a dedicated queue so reconnect, status, and print operations do not race each other.
 
 The progress callback passed to `instantlink_print_with_progress` is invoked from the runtime thread. Native callers should synchronize any UI state they mutate from that callback.

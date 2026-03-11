@@ -132,7 +132,7 @@ If the printer disconnects after a blue or amber state, the LED could remain on.
 ### Code checks
 
 - `cargo test --workspace`
-- `bash scripts/build-app.sh 0.1.3`
+- `bash scripts/build-app.sh 0.1.4`
 
 ## Exit Criteria
 

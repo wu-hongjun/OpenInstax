@@ -29,8 +29,8 @@ The Instax Link BLE protocol was reverse-engineered by the open-source community
 - Automatic JPEG quality reduction to model-specific limits: Mini `105KB`, Mini Link 3 `55KB`, Square `105KB`, Wide `225KB`
 - Battery, film remaining, charging, and print-count queries
 - LED color control with solid, blink, and breathe patterns
-- Native macOS app with camera capture, queue-based editing, film simulation, and overlays for text, QR code, timestamp, image, and location
-- C FFI with 19 exported functions for native app integrations
+- Native macOS app with camera capture, queue-based editing, film simulation, overlays for text/QR/timestamp/image/location, stage-aware reconnect UI, and experimental LED diagnostics in Settings
+- C FFI with 20 exported functions for native app integrations, including connect-stage progress callbacks
 
 ## Architecture
 

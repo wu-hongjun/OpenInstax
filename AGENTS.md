@@ -13,7 +13,7 @@ cargo fmt --all
 cargo clippy --workspace -- -D warnings
 ```
 
-Build the release app bundle with `bash scripts/build-app.sh 0.1.3`. The macOS app baseline is 15.0 (`arm64-apple-macosx15.0` + `LSMinimumSystemVersion 15.0`). Install the CLI locally with `cargo install --path crates/instantlink-cli`. Preview docs with `mkdocs serve` after `pip install mkdocs-material`.
+Build the release app bundle with `bash scripts/build-app.sh 0.1.4`. The macOS app baseline is 15.0 (`arm64-apple-macosx15.0` + `LSMinimumSystemVersion 15.0`). Install the CLI locally with `cargo install --path crates/instantlink-cli`. Preview docs with `mkdocs serve` after `pip install mkdocs-material`.
 
 ## Coding Style & Naming Conventions
 This repository uses Rust 2024 and default `rustfmt` formatting with 4-space indentation. Follow the existing naming scheme: `snake_case` for functions/modules, `PascalCase` for types/enums, and `SCREAMING_SNAKE_CASE` for constants. Keep CLI-facing error messages contextual with `anyhow::Context`; keep reusable core errors in `PrinterError`. In Swift, follow the current SwiftUI style in `macos/InstantLink` and keep FFI loading isolated from UI logic.

@@ -14,12 +14,12 @@ The Instax Link BLE protocol was reverse-engineered by the open-source community
 | Crate | Description |
 |-------|-------------|
 | **instantlink-core** | Core library — BLE protocol, image processing, device communication |
-| **instantlink** (CLI) | Command-line tool to scan, query, and print |
+| **instantlink-cli** (`instantlink` binary) | Command-line tool to scan, query, and print |
 | **instantlink-ffi** | C FFI bindings for building native GUIs (Swift, etc.) |
 
 ## Install
 
-Pre-built releases will be available on the [Releases](https://github.com/wu-hongjun/InstantLink/releases) page once tagged.
+Pre-built artifacts are published on the [Releases](https://github.com/wu-hongjun/InstantLink/releases) page for each tagged version.
 
 Build from source:
 
@@ -55,13 +55,14 @@ instantlink led set "#FF6600" --pattern breathe
 instantlink led off
 ```
 
-All commands support `--json` for machine-readable output.
+Structured `--json` output is currently implemented for `scan`, `info`, and `status`.
 
 ## Supported Printers
 
 | Model | Resolution | Film Type |
 |-------|-----------|-----------|
 | Instax Mini Link | 600x800 | Instax Mini |
+| Instax Mini Link 3 | 600x800 | Instax Mini |
 | Instax Square Link | 800x800 | Instax Square |
 | Instax Wide Link | 1260x840 | Instax Wide |
 
@@ -72,7 +73,7 @@ The printer model is auto-detected after connecting.
 - Print any image (JPEG, PNG, etc.) to Instax Link printers via BLE
 - Auto-resize with crop, contain, or stretch fit modes
 - Rich and Natural color modes (vivid vs classic film look)
-- Automatic JPEG quality reduction to fit printer limits (105KB)
+- Automatic JPEG quality reduction to fit model-specific printer limits (Mini `105KB`, Mini Link 3 `55KB`, Square `105KB`, Wide `225KB`)
 - Battery level, film count, charging state, and print history queries
 - LED color control with solid, blink, and breathe patterns
 - BLE scanner to discover nearby printers
@@ -83,10 +84,12 @@ The printer model is auto-detected after connecting.
   - Camera capture mode with self-timer (2s / 10s countdown)
   - Film orientation toggle (portrait/landscape) with print-time rotation
   - Film border preview showing the physical Instax film shape
+  - Stage-aware pairing and reconnect UI
   - Multi-printer management with saved profiles
+  - Experimental in-app LED diagnostics in Settings
   - Auto-update via GitHub releases
   - Localized in 12 languages
-- C FFI (19 functions) for building native UIs
+- C FFI (20 exported functions) for building native UIs, including connection-stage callbacks
 
 ## Project Structure
 
@@ -111,12 +114,12 @@ Features include drag-and-drop image printing, a built-in image editor, overlays
 
 ```bash
 # Build the app bundle
-bash scripts/build-app.sh 0.1.3
+bash scripts/build-app.sh 0.1.4
 ```
 
 ## Documentation
 
-Full docs are available at [wu-hongjun.github.io/InstantLink](https://wu-hongjun.github.io/InstantLink/).
+Full docs are available at [instantlink.hongjunwu.com](https://instantlink.hongjunwu.com/).
 
 ## License
 

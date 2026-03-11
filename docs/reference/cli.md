@@ -5,7 +5,7 @@
 | Flag | Description |
 |------|-------------|
 | `--device <NAME>` | Target a specific printer by BLE name |
-| `--json` | JSON output where supported (`scan`, `info`, `status`) |
+| `--json` | Structured JSON output where implemented (`scan`, `info`, `status`). The flag is global, so it also appears in `print` and `led` help even though those commands still use human-readable output. |
 | `--help` | Show help |
 | `--version` | Show version |
 
