@@ -359,15 +359,19 @@ class ViewModel: ObservableObject {
                 let didSet = await self.ffi.setLed(r: step.r, g: step.g, b: step.b, pattern: step.pattern)
                 guard didSet else {
                     self.showError(L("LED test failed"))
-                    _ = await self.ffi.ledOff()
+                    _ = await self.restoreNeutralPrinterLed()
                     return
                 }
                 try? await Task.sleep(nanoseconds: step.delay)
             }
 
-            _ = await self.ffi.ledOff()
+            _ = await self.restoreNeutralPrinterLed()
             self.showStatus(L("LED test finished"), tone: .success)
         }
+    }
+
+    private func restoreNeutralPrinterLed() async -> Bool {
+        await ffi.setLed(r: 255, g: 255, b: 255, pattern: 0)
     }
 
     // MARK: - Printer Profiles
