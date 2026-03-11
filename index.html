@@ -1541,8 +1541,8 @@
 <li>Automatic JPEG quality reduction to model-specific limits: Mini <code>105KB</code>, Mini Link 3 <code>55KB</code>, Square <code>105KB</code>, Wide <code>225KB</code></li>
 <li>Battery, film remaining, charging, and print-count queries</li>
 <li>LED color control with solid, blink, and breathe patterns</li>
-<li>Native macOS app with camera capture, queue-based editing, film simulation, and overlays for text, QR code, timestamp, image, and location</li>
-<li>C FFI with 19 exported functions for native app integrations</li>
+<li>Native macOS app with camera capture, queue-based editing, film simulation, overlays for text/QR/timestamp/image/location, stage-aware reconnect UI, and experimental LED diagnostics in Settings</li>
+<li>C FFI with 20 exported functions for native app integrations, including connect-stage progress callbacks</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <p>InstantLink mirrors the structure of <a href="https://github.com/wu-hongjun/StatusLight">StatusLight</a>: a reusable async Rust core, a thin CLI, and an FFI layer loaded by the SwiftUI macOS app via <code>dlopen</code>/<code>dlsym</code>.</p>
