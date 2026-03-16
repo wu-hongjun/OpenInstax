@@ -16,7 +16,7 @@
 
 #![allow(unsafe_op_in_unsafe_fn)]
 
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, c_void};
 use std::os::raw::c_char;
 use std::sync::{Mutex, Once, OnceLock};
 use std::time::Duration;
@@ -87,6 +87,104 @@ fn emit_connect_progress(
         .as_ref()
         .map_or(std::ptr::null(), |detail| detail.as_ptr());
     progress_cb(connect_stage_code(event.stage), detail_ptr);
+}
+
+fn emit_connect_progress_with_context(
+    progress_cb: Option<extern "C" fn(i32, *const c_char, *mut c_void)>,
+    context: *mut c_void,
+    event: ConnectProgressEvent,
+) {
+    let Some(progress_cb) = progress_cb else {
+        return;
+    };
+    let detail = event.detail.and_then(|detail| CString::new(detail).ok());
+    let detail_ptr = detail
+        .as_ref()
+        .map_or(std::ptr::null(), |detail| detail.as_ptr());
+    progress_cb(connect_stage_code(event.stage), detail_ptr, context);
+}
+
+fn connect_named_internal(
+    device_name: &str,
+    duration: Option<Duration>,
+    progress: Option<Box<dyn Fn(ConnectProgressEvent) + Send + Sync>>,
+) -> i32 {
+    let rt = get_runtime();
+    let old_device = {
+        let lock = get_device_lock();
+        if let Ok(mut guard) = lock.lock() {
+            guard.take()
+        } else {
+            return -3;
+        }
+    };
+    if let Some(old_device) = old_device {
+        let _ = disconnect_device(rt, old_device);
+    }
+
+    let progress_ref = progress
+        .as_ref()
+        .map(|callback| callback.as_ref() as &(dyn Fn(ConnectProgressEvent) + Send + Sync));
+    match rt.block_on(instantlink_core::printer::connect_with_progress(
+        device_name,
+        duration,
+        progress_ref,
+    )) {
+        Ok(device) => {
+            let lock = get_device_lock();
+            if let Ok(mut guard) = lock.lock() {
+                *guard = Some(device);
+                0
+            } else {
+                -3
+            }
+        }
+        Err(e) => error_code(&e),
+    }
+}
+
+fn print_with_progress_internal(
+    path: &str,
+    quality: u8,
+    fit_mode: u8,
+    print_option: u8,
+    progress: Option<Box<dyn Fn(usize, usize) + Send + Sync>>,
+) -> i32 {
+    let fit = match fit_mode {
+        1 => instantlink_core::FitMode::Contain,
+        2 => instantlink_core::FitMode::Stretch,
+        _ => instantlink_core::FitMode::Crop,
+    };
+
+    let lock = get_device_lock();
+    let device = if let Ok(mut guard) = lock.lock() {
+        if let Some(device) = guard.take() {
+            device
+        } else {
+            return -1;
+        }
+    } else {
+        return -3;
+    };
+
+    let rt = get_runtime();
+    let path = std::path::Path::new(path);
+    let progress_ref = progress
+        .as_ref()
+        .map(|callback| callback.as_ref() as &(dyn Fn(usize, usize) + Send + Sync));
+    let print_result =
+        rt.block_on(device.print_file(path, fit, quality, print_option, progress_ref));
+
+    if let Ok(mut guard) = lock.lock() {
+        *guard = Some(device);
+    } else {
+        return -3;
+    }
+
+    match print_result {
+        Ok(()) => 0,
+        Err(e) => error_code(&e),
+    }
 }
 
 /// Helper: read a C string pointer into a `&str`, returning `-5` on error.
@@ -269,49 +367,54 @@ pub unsafe extern "C" fn instantlink_connect_named_with_progress(
             Ok(s) => s,
             Err(code) => return code,
         };
-        let dur = if duration_secs > 0 {
+        let duration = if duration_secs > 0 {
             Some(Duration::from_secs(duration_secs as u64))
         } else {
             None
         };
-        let rt = get_runtime();
-        let old_device = {
-            let lock = get_device_lock();
-            if let Ok(mut guard) = lock.lock() {
-                guard.take()
-            } else {
-                return -3;
-            }
-        };
-        if let Some(old_device) = old_device {
-            let _ = disconnect_device(rt, old_device);
-        }
-
         let progress = progress_cb.map(|progress_cb| {
             Box::new(move |event: ConnectProgressEvent| {
                 emit_connect_progress(Some(progress_cb), event)
             }) as Box<dyn Fn(ConnectProgressEvent) + Send + Sync>
         });
-        let progress_ref = progress
-            .as_ref()
-            .map(|callback| callback.as_ref() as &(dyn Fn(ConnectProgressEvent) + Send + Sync));
+        connect_named_internal(s, duration, progress)
+    }))
+    .unwrap_or(-3)
+}
 
-        match rt.block_on(instantlink_core::printer::connect_with_progress(
-            s,
-            dur,
-            progress_ref,
-        )) {
-            Ok(device) => {
-                let lock = get_device_lock();
-                if let Ok(mut guard) = lock.lock() {
-                    *guard = Some(device);
-                    0
-                } else {
-                    -3
-                }
-            }
-            Err(e) => error_code(&e),
-        }
+/// Connect to a specific printer by name with configurable scan duration and progress callback
+/// plus an opaque context pointer.
+///
+/// This is the context-safe variant used by the macOS app so callback state
+/// remains per-call instead of global.
+///
+/// # Safety
+///
+/// `name` must be a valid, non-null, null-terminated UTF-8 C string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn instantlink_connect_named_with_progress_ctx(
+    name: *const c_char,
+    duration_secs: i32,
+    progress_cb: Option<extern "C" fn(i32, *const c_char, *mut c_void)>,
+    context: *mut c_void,
+) -> i32 {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let s = match cstr_to_str(name) {
+            Ok(s) => s,
+            Err(code) => return code,
+        };
+        let duration = if duration_secs > 0 {
+            Some(Duration::from_secs(duration_secs as u64))
+        } else {
+            None
+        };
+        let context = context as usize;
+        let progress = progress_cb.map(|progress_cb| {
+            Box::new(move |event: ConnectProgressEvent| {
+                emit_connect_progress_with_context(Some(progress_cb), context as *mut c_void, event)
+            }) as Box<dyn Fn(ConnectProgressEvent) + Send + Sync>
+        });
+        connect_named_internal(s, duration, progress)
     }))
     .unwrap_or(-3)
 }
@@ -608,48 +711,96 @@ pub unsafe extern "C" fn instantlink_print_with_progress(
             Err(code) => return code,
         };
 
-        let fit = match fit_mode {
-            1 => instantlink_core::FitMode::Contain,
-            2 => instantlink_core::FitMode::Stretch,
-            _ => instantlink_core::FitMode::Crop,
-        };
-
-        let lock = get_device_lock();
-        let device = if let Ok(mut guard) = lock.lock() {
-            if let Some(device) = guard.take() {
-                device
-            } else {
-                return -1;
-            }
-        } else {
-            return -3;
-        };
-
-        let rt = get_runtime();
-        let path = std::path::Path::new(s);
         let progress: Option<Box<dyn Fn(usize, usize) + Send + Sync>> = progress_cb.map(|cb| {
             Box::new(move |sent: usize, total: usize| {
                 cb(sent as u32, total as u32);
             }) as Box<dyn Fn(usize, usize) + Send + Sync>
         });
-        let progress_ref = progress
-            .as_ref()
-            .map(|callback| callback.as_ref() as &(dyn Fn(usize, usize) + Send + Sync));
-        let print_result =
-            rt.block_on(device.print_file(path, fit, quality, print_option, progress_ref));
-
-        if let Ok(mut guard) = lock.lock() {
-            *guard = Some(device);
-        } else {
-            return -3;
-        };
-
-        match print_result {
-            Ok(()) => 0,
-            Err(e) => error_code(&e),
-        }
+        print_with_progress_internal(s, quality, fit_mode, print_option, progress)
     }))
     .unwrap_or(-3)
+}
+
+/// Print an image file with progress callback and opaque context pointer.
+///
+/// # Safety
+///
+/// `path` must be a valid, non-null, null-terminated UTF-8 C string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn instantlink_print_with_progress_ctx(
+    path: *const c_char,
+    quality: u8,
+    fit_mode: u8,
+    print_option: u8,
+    progress_cb: Option<extern "C" fn(u32, u32, *mut c_void)>,
+    context: *mut c_void,
+) -> i32 {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let s = match cstr_to_str(path) {
+            Ok(s) => s,
+            Err(code) => return code,
+        };
+
+        let context = context as usize;
+        let progress: Option<Box<dyn Fn(usize, usize) + Send + Sync>> = progress_cb.map(|cb| {
+            Box::new(move |sent: usize, total: usize| {
+                cb(sent as u32, total as u32, context as *mut c_void);
+            }) as Box<dyn Fn(usize, usize) + Send + Sync>
+        });
+        print_with_progress_internal(s, quality, fit_mode, print_option, progress)
+    }))
+    .unwrap_or(-3)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
+
+    extern "C" fn connect_progress_recorder(
+        stage: i32,
+        detail: *const c_char,
+        context: *mut c_void,
+    ) {
+        let stage_slot = unsafe { &*(context as *const AtomicI32) };
+        stage_slot.store(stage, Ordering::SeqCst);
+        assert!(!detail.is_null());
+    }
+
+    extern "C" fn print_progress_recorder(sent: u32, total: u32, context: *mut c_void) {
+        let slots = unsafe { &*(context as *const (AtomicU32, AtomicU32)) };
+        slots.0.store(sent, Ordering::SeqCst);
+        slots.1.store(total, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn emit_connect_progress_with_context_passes_stage_and_detail() {
+        let stage_slot = AtomicI32::new(-1);
+        emit_connect_progress_with_context(
+            Some(connect_progress_recorder),
+            (&stage_slot as *const AtomicI32).cast_mut().cast(),
+            ConnectProgressEvent {
+                stage: ConnectStage::DeviceMatched,
+                detail: Some("INSTAX-12345678".into()),
+            },
+        );
+        assert_eq!(
+            stage_slot.load(Ordering::SeqCst),
+            connect_stage_code(ConnectStage::DeviceMatched)
+        );
+    }
+
+    #[test]
+    fn print_progress_context_callback_can_observe_context() {
+        let slots = (AtomicU32::new(0), AtomicU32::new(0));
+        print_progress_recorder(
+            7,
+            52,
+            (&slots as *const (AtomicU32, AtomicU32)).cast_mut().cast(),
+        );
+        assert_eq!(slots.0.load(Ordering::SeqCst), 7);
+        assert_eq!(slots.1.load(Ordering::SeqCst), 52);
+    }
 }
 
 /// Set LED color and pattern.

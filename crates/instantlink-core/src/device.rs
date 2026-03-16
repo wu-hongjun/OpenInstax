@@ -108,6 +108,7 @@ pub trait PrinterDevice: Send + Sync {
 /// BLE-backed Instax device.
 pub struct BlePrinterDevice {
     transport: Box<dyn Transport>,
+    operation_lock: tokio::sync::Mutex<()>,
     model: PrinterModel,
     name: String,
 }
@@ -155,13 +156,14 @@ impl BlePrinterDevice {
 
         Ok(Self {
             transport,
+            operation_lock: tokio::sync::Mutex::new(()),
             model,
             name,
         })
     }
 
     /// Send a command and decode the response.
-    async fn command(&self, cmd: &Command) -> Result<Response> {
+    async fn command_unlocked(&self, cmd: &Command) -> Result<Response> {
         let packet = self
             .transport
             .send_and_receive(&cmd.encode(), DEFAULT_TIMEOUT)
@@ -191,9 +193,55 @@ impl BlePrinterDevice {
         }
     }
 
-    async fn signal_print_handoff(&self) {
+    async fn battery_unlocked(&self) -> Result<u8> {
+        match self.command_unlocked(&Command::BatteryStatus).await? {
+            Response::BatteryStatus { state, level } => {
+                log::debug!("battery raw: state={state}, level={level}");
+                Ok(level)
+            }
+            _ => Err(PrinterError::UnexpectedResponse(
+                "expected BatteryStatus".into(),
+            )),
+        }
+    }
+
+    async fn film_and_charging_unlocked(&self) -> Result<(u8, bool)> {
+        match self.command_unlocked(&Command::PrinterFunctionInfo).await? {
+            Response::PrinterFunctionInfo {
+                film_remaining,
+                is_charging,
+            } => Ok((film_remaining, is_charging)),
+            _ => Err(PrinterError::UnexpectedResponse(
+                "expected PrinterFunctionInfo".into(),
+            )),
+        }
+    }
+
+    async fn print_count_unlocked(&self) -> Result<u16> {
+        match self.command_unlocked(&Command::HistoryInfo).await? {
+            Response::HistoryInfo { count } => Ok(count),
+            _ => Err(PrinterError::UnexpectedResponse(
+                "expected HistoryInfo".into(),
+            )),
+        }
+    }
+
+    async fn set_led_unlocked(&self, r: u8, g: u8, b: u8, pattern: u8) -> Result<()> {
+        let cmd = Command::LedPatternSettings {
+            red: r,
+            green: g,
+            blue: b,
+            pattern,
+        };
+        match self.command_unlocked(&cmd).await? {
+            Response::LedAck => Ok(()),
+            _ => Err(PrinterError::UnexpectedResponse("expected LedAck".into())),
+        }
+    }
+
+    async fn signal_print_handoff_unlocked(&self) {
         if let Err(error) = self
-            .set_led(
+            .set_led_unlocked(
                 PRINT_START_LED_COLOR.0,
                 PRINT_START_LED_COLOR.1,
                 PRINT_START_LED_COLOR.2,
@@ -218,7 +266,7 @@ impl BlePrinterDevice {
 
         // DOWNLOAD_START
         let start_resp = self
-            .command(&Command::DownloadStart {
+            .command_unlocked(&Command::DownloadStart {
                 image_size: jpeg_data.len() as u32,
                 print_option,
             })
@@ -240,7 +288,7 @@ impl BlePrinterDevice {
             // Send data chunks with ACK per chunk
             for (i, chunk) in chunks.iter().enumerate() {
                 let data_resp = self
-                    .command(&Command::Data {
+                    .command_unlocked(&Command::Data {
                         index: i as u32,
                         data: chunk.clone(),
                     })
@@ -268,7 +316,7 @@ impl BlePrinterDevice {
             }
 
             // DOWNLOAD_END
-            let end_resp = self.command(&Command::DownloadEnd).await?;
+            let end_resp = self.command_unlocked(&Command::DownloadEnd).await?;
             match end_resp {
                 Response::DownloadAck { status } if self.is_success(status) => {}
                 Response::DownloadAck { status } => {
@@ -295,98 +343,34 @@ impl BlePrinterDevice {
 #[async_trait]
 impl PrinterDevice for BlePrinterDevice {
     async fn status(&self) -> Result<PrinterStatus> {
-        // Pipeline: send all 3 queries back-to-back, then receive all 3 responses.
-        // This overlaps BLE round-trips instead of waiting sequentially.
-        self.transport
-            .send(&Command::BatteryStatus.encode())
-            .await?;
-        self.transport
-            .send(&Command::PrinterFunctionInfo.encode())
-            .await?;
-        self.transport.send(&Command::HistoryInfo.encode()).await?;
-
-        let mut battery = None;
-        let mut film_remaining = None;
-        let mut is_charging = None;
-        let mut print_count = None;
-
-        let deadline = tokio::time::Instant::now() + STATUS_QUERY_TIMEOUT;
-
-        while tokio::time::Instant::now() < deadline {
-            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-            let packet = self
-                .transport
-                .receive(remaining.min(STATUS_RESPONSE_SLICE_TIMEOUT))
-                .await?;
-            match Response::decode(&packet) {
-                Response::BatteryStatus { level, .. } => battery = Some(level),
-                Response::PrinterFunctionInfo {
-                    film_remaining: f,
-                    is_charging: c,
-                } => {
-                    film_remaining = Some(f);
-                    is_charging = Some(c);
-                }
-                Response::HistoryInfo { count } => print_count = Some(count),
-                other => {
-                    log::warn!("ignoring spurious notification during status query: {other:?}");
-                    continue;
-                }
-            }
-            // Break early once we have all three responses.
-            if battery.is_some() && film_remaining.is_some() && print_count.is_some() {
-                break;
-            }
-        }
+        let _guard = self.operation_lock.lock().await;
+        let battery = self.battery_unlocked().await?;
+        let (film_remaining, is_charging) = self.film_and_charging_unlocked().await?;
+        let print_count = self.print_count_unlocked().await?;
 
         Ok(PrinterStatus {
-            battery: battery.ok_or_else(|| {
-                PrinterError::UnexpectedResponse("missing battery response".into())
-            })?,
-            is_charging: is_charging.ok_or_else(|| {
-                PrinterError::UnexpectedResponse("missing charging response".into())
-            })?,
-            film_remaining: film_remaining
-                .ok_or_else(|| PrinterError::UnexpectedResponse("missing film response".into()))?,
-            print_count: print_count.ok_or_else(|| {
-                PrinterError::UnexpectedResponse("missing print count response".into())
-            })?,
+            battery,
+            is_charging,
+            film_remaining,
+            print_count,
             model: self.model,
             name: self.name.clone(),
         })
     }
 
     async fn battery(&self) -> Result<u8> {
-        match self.command(&Command::BatteryStatus).await? {
-            Response::BatteryStatus { state, level } => {
-                log::debug!("battery raw: state={state}, level={level}");
-                Ok(level)
-            }
-            _ => Err(PrinterError::UnexpectedResponse(
-                "expected BatteryStatus".into(),
-            )),
-        }
+        let _guard = self.operation_lock.lock().await;
+        self.battery_unlocked().await
     }
 
     async fn film_and_charging(&self) -> Result<(u8, bool)> {
-        match self.command(&Command::PrinterFunctionInfo).await? {
-            Response::PrinterFunctionInfo {
-                film_remaining,
-                is_charging,
-            } => Ok((film_remaining, is_charging)),
-            _ => Err(PrinterError::UnexpectedResponse(
-                "expected PrinterFunctionInfo".into(),
-            )),
-        }
+        let _guard = self.operation_lock.lock().await;
+        self.film_and_charging_unlocked().await
     }
 
     async fn print_count(&self) -> Result<u16> {
-        match self.command(&Command::HistoryInfo).await? {
-            Response::HistoryInfo { count } => Ok(count),
-            _ => Err(PrinterError::UnexpectedResponse(
-                "expected HistoryInfo".into(),
-            )),
-        }
+        let _guard = self.operation_lock.lock().await;
+        self.print_count_unlocked().await
     }
 
     fn model(&self) -> PrinterModel {
@@ -405,11 +389,12 @@ impl PrinterDevice for BlePrinterDevice {
         print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()> {
+        let _guard = self.operation_lock.lock().await;
         let (jpeg_data, chunks) = image::prepare_image(path, self.model, fit, quality)?;
         self.send_image_data(&jpeg_data, &chunks, print_option, progress)
             .await?;
 
-        self.signal_print_handoff().await;
+        self.signal_print_handoff_unlocked().await;
 
         // Pre-execute delay (critical for Link 3 and Square)
         let pre_delay = self.model.spec().pre_execute_delay_ms;
@@ -419,7 +404,7 @@ impl PrinterDevice for BlePrinterDevice {
         }
 
         // Trigger print
-        match self.command(&Command::PrintImage).await? {
+        match self.command_unlocked(&Command::PrintImage).await? {
             Response::PrintStatus { status } if self.is_success(status) => Ok(()),
             Response::PrintStatus { status } => self.check_status(status, "print"),
             _ => Err(PrinterError::UnexpectedResponse(
@@ -436,11 +421,12 @@ impl PrinterDevice for BlePrinterDevice {
         print_option: u8,
         progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
     ) -> Result<()> {
+        let _guard = self.operation_lock.lock().await;
         let (jpeg_data, chunks) = image::prepare_image_from_bytes(data, self.model, fit, quality)?;
         self.send_image_data(&jpeg_data, &chunks, print_option, progress)
             .await?;
 
-        self.signal_print_handoff().await;
+        self.signal_print_handoff_unlocked().await;
 
         // Pre-execute delay (critical for Link 3 and Square)
         let pre_delay = self.model.spec().pre_execute_delay_ms;
@@ -449,7 +435,7 @@ impl PrinterDevice for BlePrinterDevice {
             tokio::time::sleep(Duration::from_millis(pre_delay)).await;
         }
 
-        match self.command(&Command::PrintImage).await? {
+        match self.command_unlocked(&Command::PrintImage).await? {
             Response::PrintStatus { status } if self.is_success(status) => Ok(()),
             Response::PrintStatus { status } => self.check_status(status, "print"),
             _ => Err(PrinterError::UnexpectedResponse(
@@ -459,31 +445,26 @@ impl PrinterDevice for BlePrinterDevice {
     }
 
     async fn set_led(&self, r: u8, g: u8, b: u8, pattern: u8) -> Result<()> {
-        let cmd = Command::LedPatternSettings {
-            red: r,
-            green: g,
-            blue: b,
-            pattern,
-        };
-        match self.command(&cmd).await? {
-            Response::LedAck => Ok(()),
-            _ => Err(PrinterError::UnexpectedResponse("expected LedAck".into())),
-        }
+        let _guard = self.operation_lock.lock().await;
+        self.set_led_unlocked(r, g, b, pattern).await
     }
 
     async fn shutdown(&self) -> Result<()> {
+        let _guard = self.operation_lock.lock().await;
         self.transport.send(&Command::Shutdown.encode()).await?;
         // Printer powers off; no response expected
         Ok(())
     }
 
     async fn reset(&self) -> Result<()> {
+        let _guard = self.operation_lock.lock().await;
         self.transport.send(&Command::Reset.encode()).await?;
         // Printer resets; no response expected
         Ok(())
     }
 
     async fn disconnect(&self) -> Result<()> {
+        let _guard = self.operation_lock.lock().await;
         self.transport.disconnect().await
     }
 }
@@ -570,6 +551,15 @@ mod tests {
                 .responses
                 .pop_front()
                 .unwrap_or(Err(PrinterError::Timeout))
+        }
+
+        async fn send_and_receive(
+            &self,
+            data: &[u8],
+            timeout: Duration,
+        ) -> Result<protocol::Packet> {
+            self.send(data).await?;
+            self.receive(timeout).await
         }
 
         async fn disconnect(&self) -> Result<()> {
@@ -809,6 +799,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn status_queries_run_in_stable_command_order() {
+        let (device, state) = make_device(
+            PrinterModel::Mini,
+            vec![
+                battery_packet(85),
+                printer_function_packet(8, false),
+                history_packet(142),
+            ],
+        )
+        .await;
+        let _ = device.status().await.unwrap();
+
+        let sent = &state.lock().unwrap().sent;
+        let battery = protocol::parse_packet(&sent[1]).unwrap();
+        let printer_function = protocol::parse_packet(&sent[2]).unwrap();
+        let history = protocol::parse_packet(&sent[3]).unwrap();
+
+        assert_eq!(battery.payload, vec![INFO_BATTERY]);
+        assert_eq!(printer_function.payload, vec![INFO_PRINTER_FUNCTION]);
+        assert_eq!(history.payload, vec![INFO_PRINT_HISTORY]);
+    }
+
+    #[tokio::test]
     async fn battery_unexpected_response() {
         let (device, _) =
             make_device(PrinterModel::Mini, vec![printer_function_packet(5, false)]).await;
@@ -1017,6 +1030,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn malformed_download_ack_fails_closed() {
+        let (device, _) = make_device(
+            PrinterModel::Mini,
+            vec![Ok(protocol::Packet {
+                opcode: OP_DOWNLOAD_START,
+                payload: vec![],
+            })],
+        )
+        .await;
+        let result = device
+            .send_image_data(&[0u8; 100], &[vec![0u8; 100]], 0, None)
+            .await;
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("expected DownloadAck")
+        );
+    }
+
+    #[tokio::test]
     async fn transport_error_during_new() {
         let (transport, _) = MockTransport::new(vec![Err(PrinterError::Timeout)]);
         let result = BlePrinterDevice::new(transport, "Test".into()).await;
@@ -1071,5 +1106,3 @@ mod tests {
         assert_eq!(device.name(), "TestPrinter");
     }
 }
-const STATUS_QUERY_TIMEOUT: Duration = Duration::from_secs(4);
-const STATUS_RESPONSE_SLICE_TIMEOUT: Duration = Duration::from_millis(1500);

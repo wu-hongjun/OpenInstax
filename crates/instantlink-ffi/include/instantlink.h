@@ -10,6 +10,14 @@
 
 typedef void (*instantlink_connect_stage_cb)(int32_t stage, const char *detail);
 
+typedef void (*instantlink_connect_stage_cb_ctx)(int32_t stage,
+                                                 const char *detail,
+                                                 void *context);
+
+typedef void (*instantlink_print_progress_cb_ctx)(uint32_t sent,
+                                                  uint32_t total,
+                                                  void *context);
+
 typedef enum instantlink_connect_stage_code {
   INSTANTLINK_CONNECT_STAGE_SCAN_STARTED = 0,
   INSTANTLINK_CONNECT_STAGE_SCAN_FINISHED = 1,
@@ -74,6 +82,20 @@ int32_t instantlink_connect_named(const char *name, int32_t duration_secs);
 int32_t instantlink_connect_named_with_progress(const char *name,
                                                 int32_t duration_secs,
                                                 instantlink_connect_stage_cb progress_cb);
+
+/**
+ * Connect to a specific printer by name with configurable scan duration and
+ * progress callback plus an opaque context pointer.
+ *
+ * # Safety
+ *
+ * `name` must be a valid, non-null, null-terminated UTF-8 C string.
+ * `detail` passed to callback is only valid during the callback invocation.
+ */
+int32_t instantlink_connect_named_with_progress_ctx(const char *name,
+                                                    int32_t duration_secs,
+                                                    instantlink_connect_stage_cb_ctx progress_cb,
+                                                    void *context);
 
 /**
  * Disconnect from the current printer.
@@ -175,6 +197,21 @@ int32_t instantlink_print_with_progress(const char *path,
                                         uint8_t fit_mode,
                                         uint8_t print_option,
                                         void (*progress_cb)(uint32_t, uint32_t));
+
+/**
+ * Print an image file with progress callback and opaque context pointer.
+ *
+ * # Safety
+ *
+ * `path` must be a valid, non-null, null-terminated UTF-8 C string.
+ * `progress_cb` may be null (no progress reporting).
+ */
+int32_t instantlink_print_with_progress_ctx(const char *path,
+                                            uint8_t quality,
+                                            uint8_t fit_mode,
+                                            uint8_t print_option,
+                                            instantlink_print_progress_cb_ctx progress_cb,
+                                            void *context);
 
 /**
  * Set LED color and pattern.

@@ -52,6 +52,8 @@ class ViewModel: ObservableObject {
             pairingStatus: pairingStatus,
             connectionStage: pairingConnectionStage,
             connectionStageDetail: pairingConnectionStageDetail,
+            pairingRecoveryMode: pairingRecoveryMode,
+            pairingRecoveryTarget: pairingRecoveryTarget,
             hasSearchedOnce: hasSearchedOnce
         ),
         initialProfiles: printerProfiles,
@@ -295,6 +297,8 @@ class ViewModel: ObservableObject {
     @Published var pairingStatus: String = L("Scanning...")
     @Published var pairingConnectionStage: ConnectionStage?
     @Published var pairingConnectionStageDetail: String?
+    @Published var pairingRecoveryMode: PrinterPairingRecoveryMode = .none
+    @Published var pairingRecoveryTarget: String?
     private var statusMessageDismissWorkItem: DispatchWorkItem?
     private var pendingCaptureMode: CaptureMode?
 
@@ -388,6 +392,22 @@ class ViewModel: ObservableObject {
 
     var hasKnownPrinterTarget: Bool {
         selectedPrinter != nil || printerName != nil || printerProfiles.isEmpty == false
+    }
+
+    var reconnectRecoveryTargetDisplayName: String? {
+        guard let bleId = pairingRecoveryTarget else { return nil }
+        return printerProfiles[bleId]?.displayName ?? bleId
+    }
+
+    var reconnectRecoverySummary: String? {
+        guard pairingRecoveryMode == .reconnectFallback else { return nil }
+        if availablePrinters.isEmpty {
+            return L("No new printers found")
+        }
+        if availablePrinters.count == 1 {
+            return L("found_one_printer")
+        }
+        return L("found_n_printers", availablePrinters.count)
     }
 
     var printerStatusIndicatorState: PrinterStatusIndicatorState {
@@ -507,6 +527,8 @@ class ViewModel: ObservableObject {
         pairingStatus = snapshot.pairingStatus ?? L("Scanning...")
         pairingConnectionStage = snapshot.connectionStage
         pairingConnectionStageDetail = snapshot.connectionStageDetail
+        pairingRecoveryMode = snapshot.pairingRecoveryMode
+        pairingRecoveryTarget = snapshot.pairingRecoveryTarget
         hasSearchedOnce = snapshot.hasSearchedOnce
         isApplyingConnectionSnapshot = false
     }

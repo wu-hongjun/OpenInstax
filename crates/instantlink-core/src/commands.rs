@@ -256,13 +256,21 @@ impl Response {
                 }
             }
             OP_DOWNLOAD_START | OP_DATA | OP_DOWNLOAD_END | OP_DOWNLOAD_CANCEL => {
-                let status = packet.payload.first().copied().unwrap_or(0);
-                Response::DownloadAck { status }
+                match packet.payload.first().copied() {
+                    Some(status) => Response::DownloadAck { status },
+                    None => Response::Unknown {
+                        opcode: packet.opcode,
+                        payload: packet.payload.clone(),
+                    },
+                }
             }
-            OP_PRINT_IMAGE => {
-                let status = packet.payload.first().copied().unwrap_or(0);
-                Response::PrintStatus { status }
-            }
+            OP_PRINT_IMAGE => match packet.payload.first().copied() {
+                Some(status) => Response::PrintStatus { status },
+                None => Response::Unknown {
+                    opcode: packet.opcode,
+                    payload: packet.payload.clone(),
+                },
+            },
             OP_LED_PATTERN_SETTINGS => Response::LedAck,
             _ => Response::Unknown {
                 opcode: packet.opcode,
@@ -448,6 +456,36 @@ mod tests {
         match Response::decode(&packet) {
             Response::DownloadAck { status } => assert_eq!(status, 0),
             other => panic!("expected DownloadAck, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_download_ack_missing_status_fails_closed() {
+        let packet = protocol::Packet {
+            opcode: OP_DOWNLOAD_START,
+            payload: vec![],
+        };
+        match Response::decode(&packet) {
+            Response::Unknown { opcode, payload } => {
+                assert_eq!(opcode, OP_DOWNLOAD_START);
+                assert!(payload.is_empty());
+            }
+            other => panic!("expected Unknown, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn decode_print_status_missing_status_fails_closed() {
+        let packet = protocol::Packet {
+            opcode: OP_PRINT_IMAGE,
+            payload: vec![],
+        };
+        match Response::decode(&packet) {
+            Response::Unknown { opcode, payload } => {
+                assert_eq!(opcode, OP_PRINT_IMAGE);
+                assert!(payload.is_empty());
+            }
+            other => panic!("expected Unknown, got {other:?}"),
         }
     }
 

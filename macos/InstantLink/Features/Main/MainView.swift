@@ -180,6 +180,17 @@ struct MainView: View {
                             InstaxPrinterGlyph(size: 54)
                             Text(L("No printer connected"))
                                 .font(.headline)
+                            if viewModel.pairingRecoveryMode == .reconnectFallback {
+                                VStack(spacing: 4) {
+                                    Text(L("pairing_stage_connect_failed"))
+                                        .font(.subheadline.weight(.medium))
+                                    if let target = viewModel.reconnectRecoveryTargetDisplayName {
+                                        Text(target)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
                             VStack(alignment: .leading, spacing: 4) {
                                 Label(L("Make sure your printer is turned on"), systemImage: "1.circle")
                                 Label(L("Press the button to enable Bluetooth"), systemImage: "2.circle")
@@ -200,6 +211,11 @@ struct MainView: View {
                                     viewModel.scanNearby()
                                 }
                                 .controlSize(.large)
+                            }
+                            if let summary = viewModel.reconnectRecoverySummary {
+                                Text(summary)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         } else if viewModel.hasSearchedOnce {
                             InstaxPrinterGlyph(size: 54)

@@ -11,7 +11,7 @@ use btleplug::api::{
 };
 use btleplug::platform::{Adapter, Manager, Peripheral};
 use futures::StreamExt;
-use tokio::sync::mpsc;
+use tokio::sync::{Mutex, mpsc};
 use uuid::Uuid;
 
 use crate::connect_progress::{ConnectProgressCallback, ConnectStage, emit_connect_progress};
@@ -49,10 +49,7 @@ pub trait Transport: Send + Sync {
     async fn receive(&self, timeout: Duration) -> Result<protocol::Packet>;
 
     /// Send a command packet and wait for the response.
-    async fn send_and_receive(&self, data: &[u8], timeout: Duration) -> Result<protocol::Packet> {
-        self.send(data).await?;
-        self.receive(timeout).await
-    }
+    async fn send_and_receive(&self, data: &[u8], timeout: Duration) -> Result<protocol::Packet>;
 
     /// Disconnect from the printer.
     async fn disconnect(&self) -> Result<()>;
@@ -134,6 +131,7 @@ pub struct BleTransport {
     notify_char: Characteristic,
     rx: tokio::sync::Mutex<mpsc::Receiver<Vec<u8>>>,
     assembler: tokio::sync::Mutex<PacketAssembler>,
+    command_lock: Mutex<()>,
     /// DIS Model Number string, if available.
     dis_model_number: Option<String>,
 }
@@ -240,6 +238,7 @@ impl BleTransport {
             notify_char,
             rx: tokio::sync::Mutex::new(rx),
             assembler: tokio::sync::Mutex::new(PacketAssembler::new()),
+            command_lock: Mutex::new(()),
             dis_model_number,
         })
     }
@@ -309,13 +308,19 @@ impl Transport for BleTransport {
     async fn receive(&self, timeout: Duration) -> Result<protocol::Packet> {
         let mut rx = self.rx.lock().await;
         let mut assembler = self.assembler.lock().await;
+        let deadline = tokio::time::Instant::now() + timeout;
 
         loop {
             if let Some(packet) = assembler.feed(&[]) {
                 return Ok(packet);
             }
 
-            let data = tokio::time::timeout(timeout, rx.recv())
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return Err(PrinterError::Timeout);
+            }
+
+            let data = tokio::time::timeout(remaining, rx.recv())
                 .await
                 .map_err(|_| PrinterError::Timeout)?
                 .ok_or_else(|| PrinterError::Ble("notification channel closed".into()))?;
@@ -324,6 +329,12 @@ impl Transport for BleTransport {
                 return Ok(packet);
             }
         }
+    }
+
+    async fn send_and_receive(&self, data: &[u8], timeout: Duration) -> Result<protocol::Packet> {
+        let _guard = self.command_lock.lock().await;
+        self.send(data).await?;
+        self.receive(timeout).await
     }
 
     async fn disconnect(&self) -> Result<()> {

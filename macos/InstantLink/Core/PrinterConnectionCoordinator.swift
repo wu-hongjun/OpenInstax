@@ -7,6 +7,11 @@ enum PrinterPairingPhase: Equatable {
     case connecting
 }
 
+enum PrinterPairingRecoveryMode: Equatable {
+    case none
+    case reconnectFallback
+}
+
 struct PrinterConnectionFFIStatus: Equatable {
     var battery: Int
     var filmRemaining: Int
@@ -86,6 +91,8 @@ struct PrinterConnectionSnapshot: Equatable {
     var pairingStatus: String?
     var connectionStage: ConnectionStage?
     var connectionStageDetail: String?
+    var pairingRecoveryMode: PrinterPairingRecoveryMode = .none
+    var pairingRecoveryTarget: String?
     var hasSearchedOnce = false
 }
 
@@ -210,6 +217,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.pairingStatus = L("pairing_stage_scanning")
             snapshot.connectionStage = .scanStarted
             snapshot.connectionStageDetail = nil
+            snapshot.pairingRecoveryMode = .none
+            snapshot.pairingRecoveryTarget = nil
         }
         emitStatus(.dismiss)
 
@@ -241,7 +250,12 @@ final class PrinterConnectionCoordinator: ObservableObject {
                     self.clearPairingTaskIfCurrent(id: pairingSessionID)
                     return
                 }
-                self.finishPairingSession(id: pairingSessionID)
+                await self.enterReconnectFallback(
+                    afterFailedTarget: target,
+                    scanDuration: scanDuration,
+                    pairingSessionID: pairingSessionID
+                )
+                self.clearPairingTaskIfCurrent(id: pairingSessionID)
                 return
             }
 
@@ -298,6 +312,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.pairingPhase = .idle
             snapshot.connectionStage = nil
             snapshot.connectionStageDetail = nil
+            snapshot.pairingRecoveryMode = .none
+            snapshot.pairingRecoveryTarget = nil
         }
     }
 
@@ -322,6 +338,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
                 snapshot.filmRemaining = status.filmRemaining
                 snapshot.isCharging = status.isCharging
                 snapshot.printCount = status.printCount
+                snapshot.pairingRecoveryMode = .none
+                snapshot.pairingRecoveryTarget = nil
                 isConnectedAfterRefresh = true
             } else {
                 snapshot.isConnected = false
@@ -354,6 +372,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
     func scanAll(duration: Int = 5, startPairingAfterScan: Bool = true) async {
         mutateSnapshot { snapshot in
             snapshot.isSearching = true
+            snapshot.pairingRecoveryMode = .none
+            snapshot.pairingRecoveryTarget = nil
         }
 
         let printers = await ffi.scanPrinters(duration: duration)
@@ -389,6 +409,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
 
         mutateSnapshot { snapshot in
             snapshot.selectedPrinter = name
+            snapshot.pairingRecoveryMode = .none
+            snapshot.pairingRecoveryTarget = nil
         }
 
         await ffi.disconnectPrinter()
@@ -496,6 +518,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.connectionStageDetail = target
             snapshot.pairingPhase = .connecting
             snapshot.pairingStatus = L("pairing_stage_reading_info")
+            snapshot.pairingRecoveryMode = .none
+            snapshot.pairingRecoveryTarget = nil
         }
 
         let model = await ffi.fetchConnectedPrinterModel() ?? "Unknown"
@@ -522,6 +546,8 @@ final class PrinterConnectionCoordinator: ObservableObject {
             snapshot.pairingStatus = L("pairing_stage_connected")
             snapshot.connectionStage = .connected
             snapshot.connectionStageDetail = target
+            snapshot.pairingRecoveryMode = .none
+            snapshot.pairingRecoveryTarget = nil
             snapshot.printerName = target
             snapshot.printerModel = model
             snapshot.battery = status.battery
@@ -536,6 +562,40 @@ final class PrinterConnectionCoordinator: ObservableObject {
         }
         bootstrapOrUpdateProfile(for: target, detectedModel: model)
         return true
+    }
+
+    private func enterReconnectFallback(
+        afterFailedTarget target: String,
+        scanDuration: Int,
+        pairingSessionID: UUID
+    ) async {
+        mutateSnapshot { snapshot in
+            snapshot.isPairing = true
+            snapshot.pairingPhase = .scanning
+            snapshot.pairingStatus = L("pairing_stage_scanning")
+            snapshot.connectionStage = .scanStarted
+            snapshot.connectionStageDetail = nil
+        }
+
+        let printers = await ffi.scanPrinters(duration: scanDuration)
+        guard isCurrentPairingSession(pairingSessionID), !Task.isCancelled else {
+            return
+        }
+
+        let savedIdentifiers = Set(profiles.keys)
+        mutateSnapshot { snapshot in
+            snapshot.availablePrinters = printers
+            snapshot.nearbyPrinters = printers.filter { savedIdentifiers.contains($0) == false }
+            snapshot.selectedPrinter = target
+            snapshot.isPairing = false
+            snapshot.pairingPhase = .idle
+            snapshot.pairingStatus = L("pairing_stage_connect_failed")
+            snapshot.connectionStage = nil
+            snapshot.connectionStageDetail = nil
+            snapshot.pairingRecoveryMode = .reconnectFallback
+            snapshot.pairingRecoveryTarget = target
+            snapshot.hasSearchedOnce = true
+        }
     }
 
     private func currentReconnectTarget() -> String? {

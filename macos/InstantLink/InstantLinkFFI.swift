@@ -68,7 +68,7 @@ class InstantLinkFFI {
     private let _init: @convention(c) () -> Void
     private let _connect: @convention(c) () -> Int32
     private let _connect_named: @convention(c) (UnsafePointer<CChar>, Int32) -> Int32
-    private let _connect_named_with_progress: (@convention(c) (UnsafePointer<CChar>, Int32, (@convention(c) (Int32, UnsafePointer<CChar>?) -> Void)?) -> Int32)?
+    private let _connect_named_with_progress_ctx: (@convention(c) (UnsafePointer<CChar>, Int32, (@convention(c) (Int32, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void)?, UnsafeMutableRawPointer?) -> Int32)?
     private let _disconnect: @convention(c) () -> Int32
     private let _is_connected: @convention(c) () -> Int32
 
@@ -86,7 +86,7 @@ class InstantLinkFFI {
 
     // Printing
     private let _print: @convention(c) (UnsafePointer<CChar>, UInt8, UInt8, UInt8) -> Int32
-    private let _print_with_progress: @convention(c) (UnsafePointer<CChar>, UInt8, UInt8, UInt8, (@convention(c) (UInt32, UInt32) -> Void)?) -> Int32
+    private let _print_with_progress_ctx: (@convention(c) (UnsafePointer<CChar>, UInt8, UInt8, UInt8, (@convention(c) (UInt32, UInt32, UnsafeMutableRawPointer?) -> Void)?, UnsafeMutableRawPointer?) -> Int32)?
 
     // LED
     private let _set_led: @convention(c) (UInt8, UInt8, UInt8, UInt8) -> Int32
@@ -110,7 +110,8 @@ class InstantLinkFFI {
         }
         self.handle = h
 
-        let pConnectNamedWithProgress = dlsym(h, "instantlink_connect_named_with_progress")
+        let pConnectNamedWithProgressCtx = dlsym(h, "instantlink_connect_named_with_progress_ctx")
+        let pPrintWithProgressCtx = dlsym(h, "instantlink_print_with_progress_ctx")
 
         // Resolve all symbols
         guard let pInit = dlsym(h, "instantlink_init"),
@@ -127,7 +128,6 @@ class InstantLinkFFI {
               let pDeviceModel = dlsym(h, "instantlink_device_model"),
               let pScan = dlsym(h, "instantlink_scan"),
               let pPrint = dlsym(h, "instantlink_print"),
-              let pPrintWithProgress = dlsym(h, "instantlink_print_with_progress"),
               let pSetLed = dlsym(h, "instantlink_set_led"),
               let pLedOff = dlsym(h, "instantlink_led_off"),
               let pShutdown = dlsym(h, "instantlink_shutdown"),
@@ -141,13 +141,13 @@ class InstantLinkFFI {
         _init = unsafeBitCast(pInit, to: (@convention(c) () -> Void).self)
         _connect = unsafeBitCast(pConnect, to: (@convention(c) () -> Int32).self)
         _connect_named = unsafeBitCast(pConnectNamed, to: (@convention(c) (UnsafePointer<CChar>, Int32) -> Int32).self)
-        if let pConnectNamedWithProgress {
-            _connect_named_with_progress = unsafeBitCast(
-                pConnectNamedWithProgress,
-                to: (@convention(c) (UnsafePointer<CChar>, Int32, (@convention(c) (Int32, UnsafePointer<CChar>?) -> Void)?) -> Int32).self
+        if let pConnectNamedWithProgressCtx {
+            _connect_named_with_progress_ctx = unsafeBitCast(
+                pConnectNamedWithProgressCtx,
+                to: (@convention(c) (UnsafePointer<CChar>, Int32, (@convention(c) (Int32, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void)?, UnsafeMutableRawPointer?) -> Int32).self
             )
         } else {
-            _connect_named_with_progress = nil
+            _connect_named_with_progress_ctx = nil
         }
         _disconnect = unsafeBitCast(pDisconnect, to: (@convention(c) () -> Int32).self)
         _is_connected = unsafeBitCast(pIsConnected, to: (@convention(c) () -> Int32).self)
@@ -160,7 +160,14 @@ class InstantLinkFFI {
         _device_model = unsafeBitCast(pDeviceModel, to: (@convention(c) (UnsafeMutablePointer<CChar>, Int32) -> Int32).self)
         _scan = unsafeBitCast(pScan, to: (@convention(c) (Int32, UnsafeMutablePointer<CChar>, Int32) -> Int32).self)
         _print = unsafeBitCast(pPrint, to: (@convention(c) (UnsafePointer<CChar>, UInt8, UInt8, UInt8) -> Int32).self)
-        _print_with_progress = unsafeBitCast(pPrintWithProgress, to: (@convention(c) (UnsafePointer<CChar>, UInt8, UInt8, UInt8, (@convention(c) (UInt32, UInt32) -> Void)?) -> Int32).self)
+        if let pPrintWithProgressCtx {
+            _print_with_progress_ctx = unsafeBitCast(
+                pPrintWithProgressCtx,
+                to: (@convention(c) (UnsafePointer<CChar>, UInt8, UInt8, UInt8, (@convention(c) (UInt32, UInt32, UnsafeMutableRawPointer?) -> Void)?, UnsafeMutableRawPointer?) -> Int32).self
+            )
+        } else {
+            _print_with_progress_ctx = nil
+        }
         _set_led = unsafeBitCast(pSetLed, to: (@convention(c) (UInt8, UInt8, UInt8, UInt8) -> Int32).self)
         _led_off = unsafeBitCast(pLedOff, to: (@convention(c) () -> Int32).self)
         _shutdown = unsafeBitCast(pShutdown, to: (@convention(c) () -> Int32).self)
@@ -182,7 +189,7 @@ class InstantLinkFFI {
     }
 
     var supportsConnectionStageCallbacks: Bool {
-        _connect_named_with_progress != nil
+        _connect_named_with_progress_ctx != nil
     }
 
     /// Connect to a named printer with configurable scan duration.
@@ -202,29 +209,27 @@ class InstantLinkFFI {
         duration: Int = 5,
         progress: @escaping @Sendable (ConnectionStageUpdate) -> Void
     ) async -> Bool {
-        guard let connectWithProgress = _connect_named_with_progress else {
+        guard let connectWithProgress = _connect_named_with_progress_ctx else {
             return await connect(device: device, duration: duration)
         }
 
-        let box = ConnectionStageBox(callback: progress)
-        let boxPtr = Unmanaged.passRetained(box)
-        ConnectionStageBox.current = boxPtr
+        let boxPtr = Unmanaged.passRetained(ConnectionStageBox(callback: progress))
 
-        let callback: @convention(c) (Int32, UnsafePointer<CChar>?) -> Void = { stageCode, detailPtr in
+        let callback: @convention(c) (Int32, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void = { stageCode, detailPtr, context in
+            guard let context else { return }
             let detail = detailPtr.map { String(cString: $0) }?.trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedDetail = (detail?.isEmpty == true) ? nil : detail
             let update = ConnectionStageUpdate(stage: ConnectionStage(rawCode: stageCode), detail: normalizedDetail)
-            ConnectionStageBox.current?.takeUnretainedValue().callback(update)
+            Unmanaged<ConnectionStageBox>.fromOpaque(context).takeUnretainedValue().callback(update)
         }
 
         let isConnected = await blocking {
             device.withCString { cName in
-                connectWithProgress(cName, Int32(duration), callback) == 0
+                connectWithProgress(cName, Int32(duration), callback, boxPtr.toOpaque()) == 0
             }
         }
 
         boxPtr.release()
-        ConnectionStageBox.current = nil
         return isConnected
     }
 
@@ -367,25 +372,24 @@ class InstantLinkFFI {
         default: fitMode = 0
         }
 
-        // Store progress closure in a box so we can pass a C callback
-        let box = ProgressBox(callback: progress)
-        let boxPtr = Unmanaged.passRetained(box)
+        guard let printWithProgress = _print_with_progress_ctx else {
+            return await printImage(path: path, quality: quality, fit: fit, printOption: printOption)
+        }
 
-        // Set the global progress box for the C callback to use
-        ProgressBox.current = boxPtr
+        let boxPtr = Unmanaged.passRetained(ProgressBox(callback: progress))
 
-        let cb: @convention(c) (UInt32, UInt32) -> Void = { sent, total in
-            ProgressBox.current?.takeUnretainedValue().callback(sent, total)
+        let cb: @convention(c) (UInt32, UInt32, UnsafeMutableRawPointer?) -> Void = { sent, total, context in
+            guard let context else { return }
+            Unmanaged<ProgressBox>.fromOpaque(context).takeUnretainedValue().callback(sent, total)
         }
 
         let result = await blocking {
             path.withCString { cPath in
-                PrintResult(code: self._print_with_progress(cPath, UInt8(quality), fitMode, UInt8(printOption), cb))
+                PrintResult(code: printWithProgress(cPath, UInt8(quality), fitMode, UInt8(printOption), cb, boxPtr.toOpaque()))
             }
         }
 
         boxPtr.release()
-        ProgressBox.current = nil
         return result
     }
 
@@ -433,45 +437,14 @@ class InstantLinkFFI {
 
 /// Thread-safe box to bridge a Swift closure into a C callback context.
 private final class ProgressBox: @unchecked Sendable {
-    private static let lock = NSLock()
-    private static var _current: Unmanaged<ProgressBox>?
-
-    static var current: Unmanaged<ProgressBox>? {
-        get {
-            lock.lock()
-            defer { lock.unlock() }
-            return _current
-        }
-        set {
-            lock.lock()
-            defer { lock.unlock() }
-            _current = newValue
-        }
-    }
-
     let callback: @Sendable (UInt32, UInt32) -> Void
+
     init(callback: @escaping @Sendable (UInt32, UInt32) -> Void) {
         self.callback = callback
     }
 }
 
 private final class ConnectionStageBox: @unchecked Sendable {
-    private static let lock = NSLock()
-    private static var _current: Unmanaged<ConnectionStageBox>?
-
-    static var current: Unmanaged<ConnectionStageBox>? {
-        get {
-            lock.lock()
-            defer { lock.unlock() }
-            return _current
-        }
-        set {
-            lock.lock()
-            defer { lock.unlock() }
-            _current = newValue
-        }
-    }
-
     let callback: @Sendable (ConnectionStageUpdate) -> Void
 
     init(callback: @escaping @Sendable (ConnectionStageUpdate) -> Void) {
