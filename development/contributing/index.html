@@ -1774,8 +1774,9 @@
 <h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
 <h3 id="fast-tests">Fast Tests<a class="headerlink" href="#fast-tests" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cargo<span class="w"> </span><span class="nb">test</span><span class="w"> </span>--workspace
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>bash<span class="w"> </span>scripts/test-macos.sh
 </code></pre></div>
-<p>This covers protocol encoding/decoding, image preparation, mock transport flows, and device-level behavior without real hardware.</p>
+<p>This covers protocol encoding/decoding, image preparation, mock transport flows, device-level behavior, and the repo-native macOS unit harness for core Swift logic without real hardware.</p>
 <h3 id="hardware-verification">Hardware Verification<a class="headerlink" href="#hardware-verification" title="Permanent link">&para;</a></h3>
 <p>Prefer running the local CLI from the repo rather than relying on a separately installed binary:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>cargo<span class="w"> </span>run<span class="w"> </span>-p<span class="w"> </span>instantlink-cli<span class="w"> </span>--<span class="w"> </span>scan
