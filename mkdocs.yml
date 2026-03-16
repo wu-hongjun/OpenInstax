@@ -59,6 +59,9 @@ nav:
       - Plan 012 macOS 15 Baseline and Liquid Glass Adoption: plans/012-macos-15-liquid-glass-adoption.md
       - Plan 013 FFI Connection Stage Callbacks: plans/013-ffi-connection-stage-callbacks.md
       - Plan 014 Printer LED Print Phase Feedback: plans/014-printer-led-print-feedback.md
+      - Plan 015 FFI Callback Safety and Concurrency: plans/015-ffi-callback-safety.md
+      - Plan 016 Transport Command Serialization and Protocol Hardening: plans/016-transport-command-serialization.md
+      - Plan 017 Reconnect Fallback and Recovery UX: plans/017-reconnect-fallback-behavior.md
 
 plugins:
   - search
