@@ -957,7 +957,7 @@ mod tests {
 
     #[tokio::test]
     async fn data_chunk_rejected() {
-        let (device, _) = make_device(
+        let (device, state) = make_device(
             PrinterModel::Mini,
             vec![
                 download_ack_packet(OP_DOWNLOAD_START, 0),
@@ -975,11 +975,15 @@ mod tests {
                 .to_string()
                 .contains("data chunk 0 rejected")
         );
+
+        let sent = &state.lock().unwrap().sent;
+        let cancel_packet = protocol::parse_packet(sent.last().unwrap()).unwrap();
+        assert_eq!(cancel_packet.opcode, crate::commands::OP_DOWNLOAD_CANCEL);
     }
 
     #[tokio::test]
     async fn download_end_rejected() {
-        let (device, _) = make_device(
+        let (device, state) = make_device(
             PrinterModel::Mini,
             vec![
                 download_ack_packet(OP_DOWNLOAD_START, 0),
@@ -998,6 +1002,10 @@ mod tests {
                 .to_string()
                 .contains("download end rejected")
         );
+
+        let sent = &state.lock().unwrap().sent;
+        let cancel_packet = protocol::parse_packet(sent.last().unwrap()).unwrap();
+        assert_eq!(cancel_packet.opcode, crate::commands::OP_DOWNLOAD_CANCEL);
     }
 
     #[tokio::test]

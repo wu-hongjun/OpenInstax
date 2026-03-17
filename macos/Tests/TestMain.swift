@@ -68,6 +68,12 @@ struct InstantLinkMacOSTestRunner {
             ("PrinterConnectionCoordinatorTests.testDeletingActiveProfileReentersPairingFlow", {
                 try await PrinterConnectionCoordinatorTests().testDeletingActiveProfileReentersPairingFlow()
             }),
+            ("PrinterConnectionCoordinatorTests.testStaleReconnectResultDoesNotOverrideNewPairingSession", {
+                try await PrinterConnectionCoordinatorTests().testStaleReconnectResultDoesNotOverrideNewPairingSession()
+            }),
+            ("PrinterConnectionCoordinatorTests.testStopPairingLoopPreventsDelayedReconnectFromApplying", {
+                try await PrinterConnectionCoordinatorTests().testStopPairingLoopPreventsDelayedReconnectFromApplying()
+            }),
         ]
 
         var failures = 0

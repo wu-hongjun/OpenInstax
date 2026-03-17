@@ -15,6 +15,8 @@ cargo test --workspace
 cargo fmt --all
 cargo clippy --workspace -- -D warnings
 cargo test --workspace
+bash scripts/test-macos.sh
+python3 scripts/check-localizations.py
 ```
 
 Clippy warnings are treated as errors in CI.
@@ -75,6 +77,12 @@ bash scripts/test-macos.sh
 ```
 
 This covers protocol encoding/decoding, image preparation, mock transport flows, device-level behavior, and the repo-native macOS unit harness for core Swift logic without real hardware.
+
+CI also enforces:
+
+- `bash scripts/test-macos.sh`
+- `python3 scripts/check-localizations.py`
+- a Rust line-coverage gate via `cargo llvm-cov`
 
 ### Hardware Verification
 

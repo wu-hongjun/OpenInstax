@@ -2,6 +2,7 @@ private final class FakePrinterConnectionFFI: PrinterConnectionFFIBoundary {
     var supportsConnectionStageCallbacks: Bool = false
     var scanResultsQueue: [[String]] = []
     var connectResults: [String: Bool] = [:]
+    var connectDelaysNanos: [String: UInt64] = [:]
     var statusResult: PrinterConnectionFFIStatus?
     var modelResult: String? = "Instax Mini Link 3"
 
@@ -16,6 +17,9 @@ private final class FakePrinterConnectionFFI: PrinterConnectionFFIBoundary {
 
     func connectNamedPrinter(_ device: String, duration: Int) async -> Bool {
         connectCalls.append((device, duration))
+        if let delay = connectDelaysNanos[device] {
+            try? await Task.sleep(nanoseconds: delay)
+        }
         return connectResults[device] ?? false
     }
 
@@ -25,6 +29,9 @@ private final class FakePrinterConnectionFFI: PrinterConnectionFFIBoundary {
         progress: @escaping @Sendable (ConnectionStageUpdate) -> Void
     ) async -> Bool {
         connectCalls.append((device, duration))
+        if let delay = connectDelaysNanos[device] {
+            try? await Task.sleep(nanoseconds: delay)
+        }
         return connectResults[device] ?? false
     }
 
@@ -148,5 +155,60 @@ final class PrinterConnectionCoordinatorTests {
         try expectEqual(ffi.disconnectCalls, 1)
         try expectEqual(coordinator.snapshot.selectedPrinter, nil)
         try expectEqual(coordinator.snapshot.pairingRecoveryMode, .none)
+    }
+
+    func testStaleReconnectResultDoesNotOverrideNewPairingSession() async throws {
+        let ffi = FakePrinterConnectionFFI()
+        ffi.connectResults["INSTAX-AAAA1111"] = true
+        ffi.connectResults["INSTAX-BBBB2222"] = true
+        ffi.connectDelaysNanos["INSTAX-AAAA1111"] = 250_000_000
+        ffi.statusResult = PrinterConnectionFFIStatus(battery: 60, filmRemaining: 4, isCharging: false, printCount: 99)
+
+        let coordinator = PrinterConnectionCoordinator(
+            ffi: ffi,
+            initialSnapshot: PrinterConnectionSnapshot(selectedPrinter: "INSTAX-AAAA1111"),
+            initialProfiles: [
+                "INSTAX-AAAA1111": makeProfile("INSTAX-AAAA1111"),
+                "INSTAX-BBBB2222": makeProfile("INSTAX-BBBB2222"),
+            ]
+        )
+
+        coordinator.startPairingLoop()
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        coordinator.setSelectedPrinter("INSTAX-BBBB2222")
+        coordinator.startPairingLoop()
+
+        let connectedToNewTarget = await waitUntil {
+            coordinator.snapshot.printerName == "INSTAX-BBBB2222" && coordinator.snapshot.isConnected
+        }
+        try expectTrue(connectedToNewTarget, "Expected the second pairing session to win")
+
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        try expectEqual(coordinator.snapshot.printerName, "INSTAX-BBBB2222")
+        try expectEqual(coordinator.snapshot.selectedPrinter, "INSTAX-BBBB2222")
+    }
+
+    func testStopPairingLoopPreventsDelayedReconnectFromApplying() async throws {
+        let ffi = FakePrinterConnectionFFI()
+        ffi.connectResults["INSTAX-CCCC3333"] = true
+        ffi.connectDelaysNanos["INSTAX-CCCC3333"] = 250_000_000
+        ffi.statusResult = PrinterConnectionFFIStatus(battery: 70, filmRemaining: 6, isCharging: false, printCount: 10)
+
+        let coordinator = PrinterConnectionCoordinator(
+            ffi: ffi,
+            initialSnapshot: PrinterConnectionSnapshot(selectedPrinter: "INSTAX-CCCC3333"),
+            initialProfiles: ["INSTAX-CCCC3333": makeProfile("INSTAX-CCCC3333")]
+        )
+
+        coordinator.startPairingLoop()
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        coordinator.stopPairingLoop()
+        try? await Task.sleep(nanoseconds: 300_000_000)
+
+        try expectFalse(coordinator.snapshot.isConnected)
+        try expectFalse(coordinator.snapshot.isPairing)
+        try expectEqual(coordinator.snapshot.printerName, nil)
+        try expectEqual(coordinator.snapshot.pairingPhase, .idle)
     }
 }
