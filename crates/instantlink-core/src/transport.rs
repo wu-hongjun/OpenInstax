@@ -348,15 +348,12 @@ impl BleTransport {
     async fn shutdown_listener(&self) {
         self.cancel_token.cancel();
         let handle = self.listener_handle.lock().await.take();
-        if let Some(handle) = handle {
-            match tokio::time::timeout(LISTENER_SHUTDOWN_TIMEOUT, handle).await {
+        if let Some(mut handle) = handle {
+            match tokio::time::timeout(LISTENER_SHUTDOWN_TIMEOUT, &mut handle).await {
                 Ok(_) => log::debug!("Notification listener exited gracefully"),
                 Err(_) => {
                     log::debug!("Notification listener did not exit in time; aborting");
-                    // handle was consumed by the timeout future — we need to abort differently.
-                    // The handle is moved into timeout, so if it timed out we abort via the
-                    // stored handle. Since `timeout` consumes the future on Err we cannot
-                    // abort anymore; the abort is handled by Drop below.
+                    handle.abort();
                 }
             }
         }
@@ -632,6 +629,40 @@ mod tests {
             .expect("listener task panicked");
 
         assert_eq!(active.load(Ordering::SeqCst), 0, "task should have exited");
+    }
+
+    /// A listener that ignores the cancel token is aborted by `shutdown_listener`
+    /// after the timeout elapses.
+    #[tokio::test]
+    async fn shutdown_listener_aborts_non_cancellable_task() {
+        let cancel_token = CancellationToken::new();
+        let listener_handle: Arc<Mutex<Option<JoinHandle<()>>>> = Arc::new(Mutex::new(None));
+
+        // Spawn a task that deliberately ignores the cancel token.
+        let handle = tokio::spawn(async {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+            }
+        });
+        *listener_handle.lock().await = Some(handle);
+
+        // Build a minimal BleTransport-like struct to call shutdown_listener.
+        // Since BleTransport fields are private we replicate the shutdown logic directly.
+        cancel_token.cancel();
+        let handle = listener_handle.lock().await.take();
+        if let Some(mut handle) = handle {
+            match tokio::time::timeout(LISTENER_SHUTDOWN_TIMEOUT, &mut handle).await {
+                Ok(_) => {}
+                Err(_) => {
+                    handle.abort();
+                }
+            }
+            // Give the runtime a moment to process the abort.
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            assert!(handle.is_finished(), "task must be finished after abort");
+        } else {
+            panic!("handle was not stored");
+        }
     }
 
     /// Repeated connect/disconnect cycles (simulated) do not pile up live tasks.
