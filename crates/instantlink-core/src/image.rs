@@ -149,15 +149,14 @@ pub fn chunk_image_data(data: &[u8], model: PrinterModel) -> Vec<Vec<u8>> {
     chunks
 }
 
-/// Complete image preparation pipeline: load → resize → flip (if needed) → encode → chunk.
-pub fn prepare_image(
-    path: &Path,
+/// Shared image preparation pipeline: resize → flip (if needed) → encode → chunk.
+fn prepare_image_inner(
+    img: DynamicImage,
     model: PrinterModel,
     fit: FitMode,
     quality: u8,
 ) -> Result<(Vec<u8>, Vec<Vec<u8>>)> {
     let spec = model.spec();
-    let img = load_image(path)?;
     let mut resized = resize_image(&img, model, fit);
     if spec.flip_vertical {
         resized = resized.flipv();
@@ -165,6 +164,16 @@ pub fn prepare_image(
     let jpeg_data = encode_jpeg(&resized, quality, spec.max_image_size)?;
     let chunks = chunk_image_data(&jpeg_data, model);
     Ok((jpeg_data, chunks))
+}
+
+/// Complete image preparation pipeline: load → resize → flip (if needed) → encode → chunk.
+pub fn prepare_image(
+    path: &Path,
+    model: PrinterModel,
+    fit: FitMode,
+    quality: u8,
+) -> Result<(Vec<u8>, Vec<Vec<u8>>)> {
+    prepare_image_inner(load_image(path)?, model, fit, quality)
 }
 
 /// Load an image from raw bytes (for use from FFI or other non-file sources).
@@ -180,15 +189,7 @@ pub fn prepare_image_from_bytes(
     fit: FitMode,
     quality: u8,
 ) -> Result<(Vec<u8>, Vec<Vec<u8>>)> {
-    let spec = model.spec();
-    let img = load_image_from_bytes(data)?;
-    let mut resized = resize_image(&img, model, fit);
-    if spec.flip_vertical {
-        resized = resized.flipv();
-    }
-    let jpeg_data = encode_jpeg(&resized, quality, spec.max_image_size)?;
-    let chunks = chunk_image_data(&jpeg_data, model);
-    Ok((jpeg_data, chunks))
+    prepare_image_inner(load_image_from_bytes(data)?, model, fit, quality)
 }
 
 #[cfg(test)]
