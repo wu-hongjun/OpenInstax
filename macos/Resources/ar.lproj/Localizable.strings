@@ -170,6 +170,10 @@
 "Up to date" = "محدّث";
 "update_failed" = "فشل التحديث: %@";
 "Dismiss" = "إغلاق";
+"update_error_invalid_url" = "عنوان URL للتحديث غير صالح.";
+"update_error_download_failed" = "تعذّر تنزيل التحديث.";
+"update_error_checksum_missing" = "فشل التحقق من التحديث: مجموع التحقق غير متوفر.";
+"update_error_checksum_mismatch" = "فشل التحقق من التحديث: الملف الذي تم تنزيله لا يطابق مجموع التحقق المتوقع. لم يتم تثبيت التحديث.";
 
 /* Print Progress */
 "Preparing..." = "جارٍ التحضير...";

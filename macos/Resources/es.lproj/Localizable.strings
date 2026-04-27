@@ -170,6 +170,10 @@
 "Up to date" = "Actualizado";
 "update_failed" = "Error de actualización: %@";
 "Dismiss" = "Cerrar";
+"update_error_invalid_url" = "La URL de actualización no es válida.";
+"update_error_download_failed" = "No se pudo descargar la actualización.";
+"update_error_checksum_missing" = "Error de verificación: suma de comprobación no disponible.";
+"update_error_checksum_mismatch" = "Error de verificación: el archivo descargado no coincide con la suma de comprobación esperada. La actualización no se instaló.";
 
 /* Print Progress */
 "Preparing..." = "Preparando...";

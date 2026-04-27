@@ -170,6 +170,10 @@
 "Up to date" = "최신 버전입니다";
 "update_failed" = "업데이트 실패: %@";
 "Dismiss" = "닫기";
+"update_error_invalid_url" = "업데이트 URL이 유효하지 않습니다.";
+"update_error_download_failed" = "업데이트를 다운로드할 수 없습니다.";
+"update_error_checksum_missing" = "업데이트 확인 실패: 체크섬을 사용할 수 없습니다.";
+"update_error_checksum_mismatch" = "업데이트 확인 실패: 다운로드한 파일이 예상 체크섬과 일치하지 않습니다. 업데이트가 설치되지 않았습니다.";
 
 /* Print Progress */
 "Preparing..." = "준비 중...";

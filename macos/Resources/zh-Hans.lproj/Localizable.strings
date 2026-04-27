@@ -170,6 +170,10 @@
 "Up to date" = "已是最新版本";
 "update_failed" = "更新失败：%@";
 "Dismiss" = "关闭";
+"update_error_invalid_url" = "更新 URL 无效。";
+"update_error_download_failed" = "无法下载更新。";
+"update_error_checksum_missing" = "更新验证失败：校验和不可用。";
+"update_error_checksum_mismatch" = "更新验证失败：下载的文件与预期校验和不匹配。更新未安装。";
 
 /* Print Progress */
 "Preparing..." = "准备中...";

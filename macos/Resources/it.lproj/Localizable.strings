@@ -171,6 +171,10 @@
 "Up to date" = "Aggiornato";
 "update_failed" = "Aggiornamento fallito: %@";
 "Dismiss" = "Chiudi";
+"update_error_invalid_url" = "L'URL di aggiornamento non è valido.";
+"update_error_download_failed" = "Impossibile scaricare l'aggiornamento.";
+"update_error_checksum_missing" = "Verifica aggiornamento non riuscita: checksum non disponibile.";
+"update_error_checksum_mismatch" = "Verifica aggiornamento non riuscita: il file scaricato non corrisponde al checksum atteso. L'aggiornamento non è stato installato.";
 
 /* Print Progress */
 "Preparing..." = "Preparazione...";

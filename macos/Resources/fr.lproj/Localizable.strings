@@ -171,6 +171,10 @@
 "Up to date" = "À jour";
 "update_failed" = "Échec de la mise à jour : %@";
 "Dismiss" = "Fermer";
+"update_error_invalid_url" = "L'URL de mise à jour est invalide.";
+"update_error_download_failed" = "La mise à jour n'a pas pu être téléchargée.";
+"update_error_checksum_missing" = "Échec de la vérification : somme de contrôle non disponible.";
+"update_error_checksum_mismatch" = "Échec de la vérification : le fichier téléchargé ne correspond pas à la somme de contrôle attendue. La mise à jour n'a pas été installée.";
 
 /* Print Progress */
 "Preparing..." = "Préparation...";

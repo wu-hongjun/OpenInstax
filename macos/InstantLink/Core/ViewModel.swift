@@ -284,6 +284,7 @@ class ViewModel: ObservableObject {
     // Update state
     @Published var updateAvailable: String?
     @Published var updateDownloadURL: String?
+    @Published var updateChecksumURL: String?
     @Published var isUpdating = false
     @Published var updateProgress: Double = 0
     @Published var updateError: String?
@@ -1965,6 +1966,7 @@ class ViewModel: ObservableObject {
         await MainActor.run {
             self.updateAvailable = update?.version
             self.updateDownloadURL = update?.downloadURL
+            self.updateChecksumURL = update?.checksumURL
         }
     }
 
@@ -1976,6 +1978,7 @@ class ViewModel: ObservableObject {
 
         AppUpdateService.installUpdate(
             from: urlString,
+            checksumURL: updateChecksumURL,
             onProgress: { [weak self] progress in
                 self?.updateProgress = progress
             },

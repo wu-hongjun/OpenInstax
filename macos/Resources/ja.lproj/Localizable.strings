@@ -170,6 +170,10 @@
 "Up to date" = "最新の状態です";
 "update_failed" = "アップデート失敗：%@";
 "Dismiss" = "閉じる";
+"update_error_invalid_url" = "アップデートのURLが無効です。";
+"update_error_download_failed" = "アップデートをダウンロードできませんでした。";
+"update_error_checksum_missing" = "アップデートの検証に失敗しました：チェックサムが利用できません。";
+"update_error_checksum_mismatch" = "アップデートの検証に失敗しました：ダウンロードしたファイルが期待されるチェックサムと一致しません。アップデートはインストールされませんでした。";
 
 /* Print Progress */
 "Preparing..." = "準備中...";

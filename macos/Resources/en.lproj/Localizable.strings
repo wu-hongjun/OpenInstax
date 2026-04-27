@@ -170,6 +170,10 @@
 "Up to date" = "Up to date";
 "update_failed" = "Update failed: %@";
 "Dismiss" = "Dismiss";
+"update_error_invalid_url" = "The update URL is invalid.";
+"update_error_download_failed" = "The update could not be downloaded.";
+"update_error_checksum_missing" = "Update verification failed: checksum not available.";
+"update_error_checksum_mismatch" = "Update verification failed: the downloaded file does not match the expected checksum. The update was not installed.";
 
 /* Print Progress */
 "Preparing..." = "Preparing...";

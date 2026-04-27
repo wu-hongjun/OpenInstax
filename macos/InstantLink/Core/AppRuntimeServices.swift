@@ -1,5 +1,6 @@
 import AppKit
 import CoreText
+import CryptoKit
 import Foundation
 
 enum BundledFontRegistrar {
@@ -69,6 +70,7 @@ enum AppVersionService {
 struct AppUpdateInfo {
     let version: String
     let downloadURL: String?
+    let checksumURL: String?
 }
 
 enum AppUpdateService {
@@ -139,9 +141,17 @@ enum AppUpdateService {
                 return name.hasSuffix(".dmg")
             }
 
+            let dmgName = dmgAsset?["name"] as? String
+            let checksumAsset = dmgName.flatMap { name in
+                assets.first { asset in
+                    (asset["name"] as? String) == "\(name).sha256"
+                }
+            }
+
             return AppUpdateInfo(
                 version: remoteVersion,
-                downloadURL: dmgAsset?["browser_download_url"] as? String
+                downloadURL: dmgAsset?["browser_download_url"] as? String,
+                checksumURL: checksumAsset?["browser_download_url"] as? String
             )
         } catch {
             return nil
@@ -150,11 +160,12 @@ enum AppUpdateService {
 
     static func installUpdate(
         from downloadURL: String,
+        checksumURL: String?,
         onProgress: @escaping @MainActor (Double) -> Void,
         onFailure: @escaping @MainActor (String) -> Void
     ) {
         guard let url = URL(string: downloadURL) else {
-            reportFailure("Invalid update URL", onFailure: onFailure)
+            reportFailure(L("update_error_invalid_url"), onFailure: onFailure)
             return
         }
 
@@ -172,7 +183,7 @@ enum AppUpdateService {
             }
 
             guard let tempURL else {
-                reportFailure("Download failed", onFailure: onFailure)
+                reportFailure(L("update_error_download_failed"), onFailure: onFailure)
                 return
             }
 
@@ -186,9 +197,73 @@ enum AppUpdateService {
                 return
             }
 
-            installDownloadedApp(fromDMGAt: dmgPath, onProgress: onProgress, onFailure: onFailure)
+            verifyAndInstall(
+                dmgPath: dmgPath,
+                checksumURL: checksumURL,
+                onProgress: onProgress,
+                onFailure: onFailure
+            )
         }
         task.resume()
+    }
+
+    private static func verifyAndInstall(
+        dmgPath: String,
+        checksumURL: String?,
+        onProgress: @escaping @MainActor (Double) -> Void,
+        onFailure: @escaping @MainActor (String) -> Void
+    ) {
+        guard let checksumURLString = checksumURL,
+              let checksumURL = URL(string: checksumURLString) else {
+            try? FileManager.default.removeItem(atPath: dmgPath)
+            reportFailure(L("update_error_checksum_missing"), onFailure: onFailure)
+            return
+        }
+
+        var request = URLRequest(url: checksumURL)
+        request.timeoutInterval = 10
+
+        let checksumTask = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error {
+                try? FileManager.default.removeItem(atPath: dmgPath)
+                reportFailure(error.localizedDescription, onFailure: onFailure)
+                return
+            }
+
+            guard let data,
+                  let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200,
+                  let checksumLine = String(data: data, encoding: .utf8)?
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !checksumLine.isEmpty else {
+                try? FileManager.default.removeItem(atPath: dmgPath)
+                reportFailure(L("update_error_checksum_missing"), onFailure: onFailure)
+                return
+            }
+
+            // shasum -a 256 output: "<hex>  <filename>" — take the first token
+            let expectedHex = checksumLine
+                .split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+                .first
+                .map(String.init) ?? checksumLine
+
+            guard let dmgData = try? Data(contentsOf: URL(fileURLWithPath: dmgPath)) else {
+                try? FileManager.default.removeItem(atPath: dmgPath)
+                reportFailure(L("update_error_download_failed"), onFailure: onFailure)
+                return
+            }
+
+            let actualHex = SHA256.hexDigest(of: dmgData)
+
+            guard actualHex == expectedHex else {
+                try? FileManager.default.removeItem(atPath: dmgPath)
+                reportFailure(L("update_error_checksum_mismatch"), onFailure: onFailure)
+                return
+            }
+
+            installDownloadedApp(fromDMGAt: dmgPath, onProgress: onProgress, onFailure: onFailure)
+        }
+        checksumTask.resume()
     }
 
     private static func installDownloadedApp(
@@ -282,6 +357,13 @@ enum AppUpdateService {
         Task { @MainActor in
             onFailure(message)
         }
+    }
+}
+
+private enum SHA256 {
+    static func hexDigest(of data: Data) -> String {
+        let digest = CryptoKit.SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }
 

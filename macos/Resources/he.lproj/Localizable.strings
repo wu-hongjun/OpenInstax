@@ -171,6 +171,10 @@
 "Up to date" = "מעודכן";
 "update_failed" = "העדכון נכשל: %@";
 "Dismiss" = "סגור";
+"update_error_invalid_url" = "כתובת ה-URL של העדכון אינה חוקית.";
+"update_error_download_failed" = "לא ניתן להוריד את העדכון.";
+"update_error_checksum_missing" = "אימות העדכון נכשל: סכום הביקורת אינו זמין.";
+"update_error_checksum_mismatch" = "אימות העדכון נכשל: הקובץ שהורד אינו תואם לסכום הביקורת הצפוי. העדכון לא הותקן.";
 
 /* Print Progress */
 "Preparing..." = "מכין...";
