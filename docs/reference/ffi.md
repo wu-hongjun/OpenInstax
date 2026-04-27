@@ -38,13 +38,23 @@ All exported functions return `i32` status codes:
 | `-10` | Printer cover is open |
 | `-11` | Printer is busy |
 
-## Connection Progress Callback
+## Connection Progress Callbacks
 
-Specific reconnect/pairing flows can use `instantlink_connect_named_with_progress(...)` to receive connection-stage events.
+Specific reconnect/pairing flows can use `instantlink_connect_named_with_progress(...)` or `instantlink_connect_named_with_progress_ctx(...)` to receive connection-stage events.
+
+### Base Callback (without context)
 
 ```c
 typedef void (*instantlink_connect_stage_cb)(int32_t stage, const char *detail);
 ```
+
+### Context Callback (macOS app preference)
+
+```c
+typedef void (*instantlink_connect_stage_cb_ctx)(int32_t stage, const char *detail, void *context);
+```
+
+The `_ctx` variant allows passing an opaque `context` pointer that is returned unchanged to each callback invocation, enabling stateful per-call tracking without global state.
 
 | Stage | Code | Meaning |
 |------|------|---------|
@@ -73,6 +83,10 @@ int32_t instantlink_connect_named(const char *name, int32_t duration_secs);
 int32_t instantlink_connect_named_with_progress(const char *name,
                                                 int32_t duration_secs,
                                                 instantlink_connect_stage_cb progress_cb);
+int32_t instantlink_connect_named_with_progress_ctx(const char *name,
+                                                    int32_t duration_secs,
+                                                    instantlink_connect_stage_cb_ctx progress_cb,
+                                                    void *context);
 int32_t instantlink_disconnect(void);
 int32_t instantlink_is_connected(void);
 int32_t instantlink_shutdown(void);
@@ -80,7 +94,11 @@ int32_t instantlink_reset(void);
 ```
 
 - `instantlink_is_connected` returns `1` when connected, `0` when disconnected, or a negative error code
-- `instantlink_connect_named_with_progress` is the preferred entry point for UI-driven reconnect flows because it exposes real connection stages
+- `instantlink_connect_named_with_progress` is the base entry point for UI-driven reconnect flows; exposes real connection stages
+- `instantlink_connect_named_with_progress_ctx` is the preferred variant (used by macOS app) because it accepts an opaque `context` pointer, allowing per-call state without global side effects. The context is passed unchanged to each callback invocation.
+  - **Context Pointer Contract**: The `context` pointer is cast to `usize` internally and back; the FFI does not dereference it. The caller is responsible for ensuring the pointer remains valid for the entire duration of the connect operation and properly life-managing the backing object.
+  - **Callback Invocation**: The connect-stage callback is invoked from the tokio runtime thread. Native (UI) callers must marshal updates back to the main thread (e.g., via Grand Central Dispatch on macOS).
+  - **Thread Safety**: Multiple concurrent calls with different context pointers are safe; the FFI serializes internal device state but allows independent progress tracking per call.
 - `instantlink_shutdown` powers off the connected printer
 - `instantlink_reset` resets the connected printer
 
@@ -113,11 +131,31 @@ int32_t instantlink_print(const char *path, uint8_t quality,
 int32_t instantlink_print_with_progress(const char *path, uint8_t quality,
                                         uint8_t fit_mode, uint8_t print_option,
                                         void (*progress_cb)(uint32_t sent, uint32_t total));
+int32_t instantlink_print_with_progress_ctx(const char *path, uint8_t quality,
+                                            uint8_t fit_mode, uint8_t print_option,
+                                            instantlink_print_progress_cb_ctx progress_cb,
+                                            void *context);
 ```
+
+The print-progress callback type:
+
+```c
+typedef void (*instantlink_print_progress_cb_ctx)(uint32_t sent, uint32_t total, void *context);
+```
+
+#### Parameters
 
 - `fit_mode`: `0 = crop`, `1 = contain`, `2 = stretch`
 - `print_option`: `0 = Rich`, `1 = Natural`
 - `progress_cb` is optional and receives acknowledged chunk progress
+
+#### Progress Context Variant
+
+`instantlink_print_with_progress_ctx` is the preferred variant (used by macOS app) for the same reasons as its connect counterpart:
+
+- **Context Pointer Contract**: The `context` pointer is cast to `usize` internally; the FFI does not dereference it. Ensure the pointer remains valid for the entire print operation.
+- **Callback Invocation**: Progress callbacks are invoked from the tokio runtime thread after each chunk is acknowledged. UI callers must synchronize state updates (e.g., via Grand Central Dispatch).
+- **Thread Safety**: The context pointer is thread-safe by design since it is passed opaque and unchanged to each callback.
 
 ### LED Control
 
@@ -130,15 +168,27 @@ int32_t instantlink_led_off(void);
 
 ## Swift Usage
 
-The macOS app loads the dylib via `dlopen` and resolves the exported symbols in `InstantLinkFFI.swift`.
+The macOS app loads the dylib via `dlopen` and resolves the exported symbols in `InstantLinkFFI.swift` (located at `macos/InstantLink/InstantLinkFFI.swift`). This file demonstrates:
+
+- Bridging the 22 C FFI functions into Swift async/await methods
+- Using `instantlink_connect_named_with_progress_ctx` with a boxed Swift closure to deliver connection-stage updates
+- Using `instantlink_print_with_progress_ctx` with a boxed Swift closure to deliver print-progress updates
+- Dispatching FFI calls onto a dedicated serial queue to prevent race conditions
+
+Example pattern for context-boxed callbacks:
 
 ```swift
-import Foundation
+let boxPtr = Unmanaged.passRetained(CallbackBox(closure: { /* ... */ }))
 
-let handle = dlopen("libinstantlink_ffi.dylib", RTLD_NOW)
-let initFn = dlsym(handle, "instantlink_init")
-let connectFn = dlsym(handle, "instantlink_connect")
-// ... resolve the remaining symbols
+let callback: @convention(c) (Int32, UnsafePointer<CChar>?, UnsafeMutableRawPointer?) -> Void = {
+    stage, detail, context in
+    guard let context else { return }
+    let box = Unmanaged<CallbackBox>.fromOpaque(context).takeUnretainedValue()
+    box.closure(stage)
+}
+
+// Call FFI with boxPtr.toOpaque() as context
+boxPtr.release()  // when done
 ```
 
 ## Thread Safety
@@ -149,6 +199,8 @@ The FFI layer owns:
 - a `Mutex`-protected connected device handle
 - `catch_unwind` guards on all exported functions
 
-The macOS wrapper serializes FFI calls on a dedicated queue so reconnect, status, and print operations do not race each other.
+The macOS wrapper serializes FFI calls on a dedicated serial dispatch queue so reconnect, status, and print operations do not race each other.
 
-The progress callback passed to `instantlink_print_with_progress` is invoked from the runtime thread. Native callers should synchronize any UI state they mutate from that callback.
+**Callback Threads**: Progress callbacks (connect-stage and print-progress) are invoked from the tokio runtime thread, not the main thread. Native callers must marshal updates back to the main thread (e.g., via `DispatchQueue.main.async` on macOS).
+
+**Context Pointer Safety**: The `_ctx` variants pass the context pointer opaque and unchanged; the FFI does not dereference or copy it. Callers are responsible for lifetime and thread safety of the backing object during the operation.

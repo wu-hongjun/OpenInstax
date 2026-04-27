@@ -89,7 +89,7 @@ The printer model is auto-detected after connecting.
   - Experimental in-app LED diagnostics in Settings
   - Auto-update via GitHub releases
   - Localized in 12 languages
-- C FFI (20 exported functions) for building native UIs, including connection-stage callbacks
+- C FFI (22 exported functions: see `docs/reference/ffi.md`) for building native UIs, including connection-stage callbacks
 
 ## Project Structure
 
