@@ -14,6 +14,8 @@
 //!
 //! BLE packets larger than 182 bytes are split into sub-packets for transmission.
 
+use crate::error::ProtocolError;
+
 /// Request header bytes (client → printer: "Ab").
 pub const HEADER: [u8; 2] = [0x41, 0x62];
 /// Response header bytes (printer → client: "aB").
@@ -132,14 +134,21 @@ impl PacketAssembler {
 
     /// Feed incoming BLE data into the assembler.
     ///
-    /// Returns a complete `Packet` if one has been fully reassembled, or `None`
-    /// if more data is needed.
-    pub fn feed(&mut self, data: &[u8]) -> Option<Packet> {
+    /// Returns:
+    /// - `Ok(Some(packet))` — a complete packet was reassembled.
+    /// - `Ok(None)` — more data is needed; keep accumulating.
+    /// - `Err(ProtocolError::InvalidHeader)` — the leading bytes are not a valid
+    ///   Instax header; the bad bytes were discarded and the buffer was advanced.
+    /// - `Err(ProtocolError::BadChecksum)` — header and length were valid but the
+    ///   checksum did not match; the packet bytes were discarded.
+    /// - `Err(ProtocolError::LengthMismatch)` — the declared length field is
+    ///   smaller than the minimum packet size.
+    pub fn feed(&mut self, data: &[u8]) -> Result<Option<Packet>, ProtocolError> {
         self.buffer.extend_from_slice(data);
 
         // Need at least the header + length to know the full packet size
         if self.buffer.len() < 4 {
-            return None;
+            return Ok(None);
         }
 
         // Check for valid header (accept both request and response headers)
@@ -152,18 +161,38 @@ impl PacketAssembler {
                 .map(|pos| pos + 1)
                 .unwrap_or(self.buffer.len());
             self.buffer.drain(..skip);
-            return None;
+            return Err(ProtocolError::InvalidHeader { discarded: skip });
         }
 
-        let expected_total = u16::from_be_bytes([self.buffer[2], self.buffer[3]]) as usize;
+        let declared = u16::from_be_bytes([self.buffer[2], self.buffer[3]]);
+        let expected_total = declared as usize;
 
-        if expected_total < MIN_PACKET_SIZE || self.buffer.len() < expected_total {
-            return None; // Need more data
+        if expected_total < MIN_PACKET_SIZE {
+            // Nonsensical length field — discard the two header bytes and retry.
+            self.buffer.drain(..2);
+            return Err(ProtocolError::LengthMismatch {
+                declared,
+                actual: self.buffer.len(),
+            });
         }
 
-        // We have a complete packet — parse it
+        if self.buffer.len() < expected_total {
+            return Ok(None); // Need more data
+        }
+
+        // We have enough bytes — verify checksum before accepting.
+        let chk_data = &self.buffer[..expected_total - 1];
+        let expected_chk = checksum(chk_data);
+        if self.buffer[expected_total - 1] != expected_chk {
+            // Read opcode before draining so we can include it in the error.
+            let opcode = u16::from_be_bytes([self.buffer[4], self.buffer[5]]);
+            self.buffer.drain(..expected_total);
+            return Err(ProtocolError::BadChecksum { opcode });
+        }
+
+        // Parse the complete, validated packet.
         let packet_data: Vec<u8> = self.buffer.drain(..expected_total).collect();
-        parse_packet(&packet_data)
+        Ok(parse_packet(&packet_data))
     }
 
     /// Reset the assembler, discarding any buffered data.
@@ -293,7 +322,7 @@ mod tests {
     fn assembler_single_packet() {
         let pkt = build_packet(0x1234, &[0xAB]);
         let mut asm = PacketAssembler::new();
-        let result = asm.feed(&pkt);
+        let result = asm.feed(&pkt).expect("should not error");
         assert!(result.is_some());
         let parsed = result.unwrap();
         assert_eq!(parsed.opcode, 0x1234);
@@ -307,10 +336,10 @@ mod tests {
 
         // Feed first half
         let mid = pkt.len() / 2;
-        assert!(asm.feed(&pkt[..mid]).is_none());
+        assert!(asm.feed(&pkt[..mid]).expect("should not error").is_none());
 
         // Feed second half
-        let result = asm.feed(&pkt[mid..]);
+        let result = asm.feed(&pkt[mid..]).expect("should not error");
         assert!(result.is_some());
         let parsed = result.unwrap();
         assert_eq!(parsed.opcode, 0x5678);
@@ -320,20 +349,50 @@ mod tests {
     fn assembler_invalid_header_resets() {
         let mut asm = PacketAssembler::new();
         // Feed 4+ bytes with an invalid header — triggers a clear
-        assert!(asm.feed(&[0xFF, 0xFF, 0x00, 0x03]).is_none());
+        let err = asm.feed(&[0xFF, 0xFF, 0x00, 0x03]).unwrap_err();
+        assert!(matches!(err, ProtocolError::InvalidHeader { .. }));
         // Buffer should be cleared, so a valid packet can still parse
         let pkt = build_packet(0x0001, &[]);
-        assert!(asm.feed(&pkt).is_some());
+        assert!(asm.feed(&pkt).expect("should not error").is_some());
     }
 
     #[test]
     fn assembler_reset() {
         let pkt = build_packet(0x0001, &[0x01]);
         let mut asm = PacketAssembler::new();
-        asm.feed(&pkt[..3]); // partial
+        let _ = asm.feed(&pkt[..3]); // partial
         asm.reset();
         // After reset, feeding the full packet should work
-        let result = asm.feed(&pkt);
+        let result = asm.feed(&pkt).expect("should not error");
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn feed_signals_invalid_header() {
+        let mut asm = PacketAssembler::new();
+        // 4 bytes with bad header so the length check is reached
+        let err = asm.feed(&[0xDE, 0xAD, 0x00, 0x07]).unwrap_err();
+        match err {
+            ProtocolError::InvalidHeader { discarded } => {
+                assert!(discarded > 0, "should report discarded bytes");
+            }
+            other => panic!("expected InvalidHeader, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn feed_signals_bad_checksum() {
+        let mut pkt = build_packet(0xBEEF, &[0x01, 0x02]);
+        // Corrupt the checksum byte (last byte)
+        let last = pkt.len() - 1;
+        pkt[last] ^= 0xFF;
+        let mut asm = PacketAssembler::new();
+        let err = asm.feed(&pkt).unwrap_err();
+        match err {
+            ProtocolError::BadChecksum { opcode } => {
+                assert_eq!(opcode, 0xBEEF);
+            }
+            other => panic!("expected BadChecksum, got {other:?}"),
+        }
     }
 }

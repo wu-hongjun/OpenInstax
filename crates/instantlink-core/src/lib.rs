@@ -16,6 +16,6 @@ pub use connect_progress::{
     ConnectProgressCallback, ConnectProgressEvent, ConnectStage, emit_connect_progress,
 };
 pub use device::{PrinterDevice, PrinterStatus};
-pub use error::{PrinterError, Result};
+pub use error::{PrinterError, ProtocolError, Result};
 pub use image::FitMode;
 pub use models::PrinterModel;

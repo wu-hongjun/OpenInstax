@@ -26,8 +26,10 @@ async fn receive_packet_from_channel(
     let deadline = tokio::time::Instant::now() + timeout;
 
     loop {
-        if let Some(packet) = assembler.feed(&[]) {
-            return Ok(packet);
+        match assembler.feed(&[]) {
+            Ok(Some(packet)) => return Ok(packet),
+            Ok(None) => {}
+            Err(e) => log::warn!("protocol error (buffered data): {e}"),
         }
 
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -40,8 +42,10 @@ async fn receive_packet_from_channel(
             .map_err(|_| PrinterError::Timeout)?
             .ok_or_else(|| PrinterError::Ble("notification channel closed".into()))?;
 
-        if let Some(packet) = assembler.feed(&data) {
-            return Ok(packet);
+        match assembler.feed(&data) {
+            Ok(Some(packet)) => return Ok(packet),
+            Ok(None) => {}
+            Err(e) => log::warn!("protocol error (incoming data): {e}"),
         }
     }
 }
@@ -434,7 +438,10 @@ mod tests {
         let mut assembler = PacketAssembler::new();
         let mut combined = first;
         combined.extend_from_slice(&second);
-        let initial = assembler.feed(&combined).unwrap();
+        let initial = assembler
+            .feed(&combined)
+            .expect("should not error")
+            .unwrap();
         assert_eq!(initial.opcode, 0x1111);
 
         let received =
@@ -459,5 +466,55 @@ mod tests {
         assert!(
             matches!(err, PrinterError::Ble(message) if message == "notification channel closed")
         );
+    }
+
+    /// Corrupt data (bad header) must not abort the receive loop — the next
+    /// valid packet should still arrive.
+    #[tokio::test]
+    async fn receive_packet_from_channel_logs_corruption_then_resumes() {
+        let (tx, mut rx) = mpsc::channel(8);
+        let mut assembler = PacketAssembler::new();
+
+        // Corrupt fragment: invalid header bytes followed by a valid packet.
+        let corrupt: Vec<u8> = vec![0xDE, 0xAD, 0x00, 0x07, 0x00, 0x00, 0x00];
+        let valid = protocol::build_packet(0xCAFE, &[0x42]);
+
+        let sender = tokio::spawn(async move {
+            tx.send(corrupt).await.unwrap();
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            tx.send(valid).await.unwrap();
+        });
+
+        let received =
+            receive_packet_from_channel(&mut rx, &mut assembler, Duration::from_millis(200))
+                .await
+                .expect("should receive valid packet after corruption");
+        sender.await.unwrap();
+
+        assert_eq!(received.opcode, 0xCAFE);
+        assert_eq!(received.payload, vec![0x42]);
+    }
+
+    /// Persistent corruption with no valid packet in sight must ultimately
+    /// time out rather than loop forever.
+    #[tokio::test(start_paused = true)]
+    async fn receive_packet_from_channel_surfaces_persistent_corruption() {
+        let (tx, mut rx) = mpsc::channel(8);
+        let mut assembler = PacketAssembler::new();
+
+        // Keep sending corrupt data; never send a valid packet.
+        let sender = tokio::spawn(async move {
+            for _ in 0..5u8 {
+                tx.send(vec![0xDE, 0xAD, 0x00, 0x07]).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        });
+
+        let err = receive_packet_from_channel(&mut rx, &mut assembler, Duration::from_millis(10))
+            .await
+            .unwrap_err();
+        sender.await.unwrap();
+
+        assert!(matches!(err, PrinterError::Timeout));
     }
 }

@@ -1,5 +1,21 @@
 //! Error types for instantlink-core.
 
+/// Protocol-level errors surfaced by `PacketAssembler::feed`.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ProtocolError {
+    /// The header bytes were invalid; `discarded` bytes were dropped from the buffer.
+    #[error("invalid header: {discarded} byte(s) discarded")]
+    InvalidHeader { discarded: usize },
+
+    /// The packet header and length were valid but the checksum did not match.
+    #[error("bad checksum for opcode 0x{opcode:04x}")]
+    BadChecksum { opcode: u16 },
+
+    /// The declared packet length does not match the available data.
+    #[error("length mismatch: declared {declared}, actual {actual}")]
+    LengthMismatch { declared: u16, actual: usize },
+}
+
 /// All errors that can occur in instantlink-core operations.
 #[derive(Debug, thiserror::Error)]
 pub enum PrinterError {
