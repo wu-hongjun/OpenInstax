@@ -73,6 +73,20 @@ jobs:
           name: rust-coverage-lcov
           path: target/llvm-cov/lcov.info
 
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: rustsec/audit-check@v1.4.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   docs:
     name: Docs
     runs-on: ubuntu-latest
