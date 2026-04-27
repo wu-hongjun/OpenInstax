@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.5">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -730,6 +730,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="InfoType Values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#status-response-payload-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Response Payload Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -767,6 +784,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Print Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mini-link-3-vertical-flip-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mini Link 3 Vertical-Flip Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1645,6 +1679,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="InfoType Values">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#status-response-payload-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Response Payload Format
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
       </ul>
@@ -1682,6 +1733,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Print Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mini-link-3-vertical-flip-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mini Link 3 Vertical-Flip Behavior
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1778,7 +1846,7 @@
 <tr>
 <td>Header</td>
 <td>2 bytes</td>
-<td>Request: <code>0x41 0x62</code>, Response: <code>0x61 0x42</code></td>
+<td>Request: <code>0x41 0x62</code> (from <code>HEADER</code> constant), Response: <code>0x61 0x42</code> (from <code>RESPONSE_HEADER</code> constant)</td>
 </tr>
 <tr>
 <td>Length</td>
@@ -1903,7 +1971,69 @@
 </tr>
 </tbody>
 </table>
-<p>Response format: <code>[return_code] [info_type] [data...]</code></p>
+<h4 id="status-response-payload-format">Status Response Payload Format<a class="headerlink" href="#status-response-payload-format" title="Permanent link">&para;</a></h4>
+<p>All status queries return a packet with response header <code>0x61 0x42</code> (see <code>crates/instantlink-core/src/protocol.rs</code>), followed by this payload:</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Field</th>
+<th>Size</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Return Code</td>
+<td>1 B</td>
+<td><code>0x00</code> for success</td>
+</tr>
+<tr>
+<td>1</td>
+<td>InfoType</td>
+<td>1 B</td>
+<td>Echoes the requested info type</td>
+</tr>
+<tr>
+<td>2+</td>
+<td>Data</td>
+<td>variable</td>
+<td>Type-specific payload (see table above)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Printer Function Info</strong> (InfoType <code>0x02</code>) bit layout:</p>
+<table>
+<thead>
+<tr>
+<th>Bit(s)</th>
+<th>Field</th>
+<th>Range</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0–3</td>
+<td>Film Remaining</td>
+<td>0–15</td>
+<td>Number of exposures left</td>
+</tr>
+<tr>
+<td>4–6</td>
+<td>Reserved</td>
+<td>—</td>
+<td>Not used</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Is Charging</td>
+<td>0 or 1</td>
+<td><code>1</code> if printer is on charger</td>
+</tr>
+</tbody>
+</table>
 <h2 id="image-transfer">Image Transfer<a class="headerlink" href="#image-transfer" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -2011,12 +2141,31 @@
 <li>use DIS model hint <code>FI033</code> first for Mini Link 3</li>
 <li>otherwise fall back to the reported width and height</li>
 <li>Resize and JPEG-encode the image for the detected model</li>
+<li>Apply vertical flip if required by model (see <strong>Mini Link 3</strong> section below)</li>
 <li>Send <code>Download Start</code> and wait for ACK</li>
 <li>Send <code>Data</code> chunks, waiting for ACK after each chunk</li>
 <li>Send <code>Download End</code> and wait for ACK</li>
 <li>Send <code>Print Image</code> and accept <code>0</code> or the model-specific success code</li>
 <li>Disconnect</li>
 </ol>
+<h3 id="mini-link-3-vertical-flip-behavior">Mini Link 3 Vertical-Flip Behavior<a class="headerlink" href="#mini-link-3-vertical-flip-behavior" title="Permanent link">&para;</a></h3>
+<p>The Mini Link 3 printer requires a vertically flipped image upload. This is the only printing difference between the Mini Link 3 and the standard Mini Link.</p>
+<p><strong>Detection</strong></p>
+<p>Mini Link 3 is detected via the BLE Device Information Service (DIS) model number characteristic:
+- If the DIS model string contains <code>FI033</code>, the device is identified as <code>PrinterModel::MiniLink3</code>
+- Both Mini Link and Mini Link 3 report the same image support dimensions (<code>600 × 800</code>), so the DIS hint is necessary to distinguish them</p>
+<p>See <code>crates/instantlink-core/src/device.rs</code>, <code>detect_model()</code> function (line 473–489).</p>
+<p><strong>Flip Application</strong></p>
+<p>The JPEG image payload is flipped vertically <strong>before</strong> fragmentation and transmission:</p>
+<ol>
+<li>Load and resize the image to printer dimensions (<code>600 × 800</code>)</li>
+<li>Apply vertical flip via <code>image.flipv()</code> if the model spec has <code>flip_vertical: true</code></li>
+<li>JPEG-encode the flipped image</li>
+<li>Chunk and send the resulting bytes with standard ACK-based flow</li>
+</ol>
+<p>See <code>crates/instantlink-core/src/image.rs</code>, <code>prepare_image()</code> and <code>prepare_image_from_bytes()</code> functions (lines 162–164 and 186–188).</p>
+<p><strong>Printer-Side Expectation</strong></p>
+<p>The printer expects the entire image to be flipped once at upload time. Chunking and acknowledgement protocol are otherwise identical to other models. The flip is applied <strong>only to the JPEG row order</strong>, not to the wire framing or packet structure.</p>
 <h2 id="model-specific-parameters">Model-Specific Parameters<a class="headerlink" href="#model-specific-parameters" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
