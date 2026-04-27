@@ -455,19 +455,21 @@ pub extern "C" fn instantlink_disconnect() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn instantlink_battery() -> i32 {
     std::panic::catch_unwind(|| {
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                match rt.block_on(device.battery()) {
-                    Ok(level) => level as i32,
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        match rt.block_on(device.battery()) {
+            Ok(level) => level as i32,
+            Err(e) => error_code(&e),
         }
     })
     .unwrap_or(-3)
@@ -477,19 +479,21 @@ pub extern "C" fn instantlink_battery() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn instantlink_film_remaining() -> i32 {
     std::panic::catch_unwind(|| {
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                match rt.block_on(device.film_remaining()) {
-                    Ok(count) => count as i32,
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        match rt.block_on(device.film_remaining()) {
+            Ok(count) => count as i32,
+            Err(e) => error_code(&e),
         }
     })
     .unwrap_or(-3)
@@ -512,28 +516,30 @@ pub unsafe extern "C" fn instantlink_film_and_charging(
         if out_film.is_null() || out_charging.is_null() {
             return -5;
         }
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                match rt.block_on(device.film_and_charging()) {
-                    Ok((film, charging)) => {
-                        // SAFETY: out_film and out_charging are non-null (checked above) and
-                        // point to caller-owned i32 slots that are valid for write throughout
-                        // this call; no other thread aliases these pointers during the call.
-                        unsafe {
-                            *out_film = film as i32;
-                            *out_charging = i32::from(charging);
-                        }
-                        0
-                    }
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        match rt.block_on(device.film_and_charging()) {
+            Ok((film, charging)) => {
+                // SAFETY: out_film and out_charging are non-null (checked above) and
+                // point to caller-owned i32 slots that are valid for write throughout
+                // this call; no other thread aliases these pointers during the call.
+                unsafe {
+                    *out_film = film as i32;
+                    *out_charging = i32::from(charging);
+                }
+                0
+            }
+            Err(e) => error_code(&e),
         }
     }))
     .unwrap_or(-3)
@@ -543,19 +549,21 @@ pub unsafe extern "C" fn instantlink_film_and_charging(
 #[unsafe(no_mangle)]
 pub extern "C" fn instantlink_print_count() -> i32 {
     std::panic::catch_unwind(|| {
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                match rt.block_on(device.print_count()) {
-                    Ok(count) => count as i32,
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        match rt.block_on(device.print_count()) {
+            Ok(count) => count as i32,
+            Err(e) => error_code(&e),
         }
     })
     .unwrap_or(-3)
@@ -584,30 +592,32 @@ pub unsafe extern "C" fn instantlink_status(
         {
             return -5;
         }
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                match rt.block_on(device.status()) {
-                    Ok(status) => {
-                        // SAFETY: all four output pointers are non-null (checked above) and
-                        // each points to a distinct caller-owned i32 slot that is exclusively
-                        // accessible during this call; the pointers do not alias each other.
-                        unsafe {
-                            *out_battery = status.battery as i32;
-                            *out_film = status.film_remaining as i32;
-                            *out_charging = i32::from(status.is_charging);
-                            *out_print_count = status.print_count as i32;
-                        }
-                        0
-                    }
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        match rt.block_on(device.status()) {
+            Ok(status) => {
+                // SAFETY: all four output pointers are non-null (checked above) and
+                // each points to a distinct caller-owned i32 slot that is exclusively
+                // accessible during this call; the pointers do not alias each other.
+                unsafe {
+                    *out_battery = status.battery as i32;
+                    *out_film = status.film_remaining as i32;
+                    *out_charging = i32::from(status.is_charging);
+                    *out_print_count = status.print_count as i32;
+                }
+                0
+            }
+            Err(e) => error_code(&e),
         }
     }))
     .unwrap_or(-3)
@@ -698,20 +708,22 @@ pub unsafe extern "C" fn instantlink_print(
             _ => instantlink_core::FitMode::Crop,
         };
 
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                let path = std::path::Path::new(s);
-                match rt.block_on(device.print_file(path, fit, quality, print_option, None)) {
-                    Ok(()) => 0,
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        let path = std::path::Path::new(s);
+        match rt.block_on(device.print_file(path, fit, quality, print_option, None)) {
+            Ok(()) => 0,
+            Err(e) => error_code(&e),
         }
     }))
     .unwrap_or(-3)
@@ -1905,19 +1917,21 @@ mod tests {
 #[unsafe(no_mangle)]
 pub extern "C" fn instantlink_set_led(r: u8, g: u8, b: u8, pattern: u8) -> i32 {
     std::panic::catch_unwind(|| {
-        let lock = get_device_lock();
-        if let Ok(guard) = lock.lock() {
-            if let Some(ref device) = *guard {
-                let rt = get_runtime();
-                match rt.block_on(device.set_led(r, g, b, pattern)) {
-                    Ok(()) => 0,
-                    Err(e) => error_code(&e),
-                }
-            } else {
-                -1
+        let device = {
+            let lock = get_device_lock();
+            let guard = match lock.lock() {
+                Ok(g) => g,
+                Err(_) => return -3,
+            };
+            match guard.as_ref() {
+                Some(d) => Arc::clone(d),
+                None => return -1,
             }
-        } else {
-            -3
+        };
+        let rt = get_runtime();
+        match rt.block_on(device.set_led(r, g, b, pattern)) {
+            Ok(()) => 0,
+            Err(e) => error_code(&e),
         }
     })
     .unwrap_or(-3)
