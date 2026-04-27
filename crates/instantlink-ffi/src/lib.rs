@@ -16,15 +16,18 @@
 
 use std::ffi::{CStr, CString, c_void};
 use std::os::raw::c_char;
-use std::sync::{Mutex, Once, OnceLock};
+use std::sync::{Arc, Mutex, Once, OnceLock};
 use std::time::Duration;
 
 use instantlink_core::connect_progress::{ConnectProgressEvent, ConnectStage};
 use instantlink_core::error::PrinterError;
 
+type DeviceArc = Arc<Box<dyn instantlink_core::PrinterDevice>>;
+type DeviceLock = Mutex<Option<DeviceArc>>;
+
 static INIT: Once = Once::new();
 static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-static DEVICE: OnceLock<Mutex<Option<Box<dyn instantlink_core::PrinterDevice>>>> = OnceLock::new();
+static DEVICE: OnceLock<DeviceLock> = OnceLock::new();
 const DISCONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 
 fn get_runtime() -> &'static tokio::runtime::Runtime {
@@ -36,14 +39,11 @@ fn get_runtime() -> &'static tokio::runtime::Runtime {
     })
 }
 
-fn get_device_lock() -> &'static Mutex<Option<Box<dyn instantlink_core::PrinterDevice>>> {
+fn get_device_lock() -> &'static DeviceLock {
     DEVICE.get_or_init(|| Mutex::new(None))
 }
 
-fn disconnect_device(
-    rt: &tokio::runtime::Runtime,
-    device: Box<dyn instantlink_core::PrinterDevice>,
-) -> Result<(), PrinterError> {
+fn disconnect_device(rt: &tokio::runtime::Runtime, device: DeviceArc) -> Result<(), PrinterError> {
     rt.block_on(async {
         tokio::time::timeout(DISCONNECT_TIMEOUT, device.disconnect())
             .await
@@ -132,7 +132,7 @@ fn connect_named_internal(
         Ok(device) => {
             let lock = get_device_lock();
             if let Ok(mut guard) = lock.lock() {
-                *guard = Some(device);
+                *guard = Some(Arc::new(device));
                 0
             } else {
                 -3
@@ -155,32 +155,26 @@ fn print_with_progress_internal(
         _ => instantlink_core::FitMode::Crop,
     };
 
-    let lock = get_device_lock();
-    let device = if let Ok(mut guard) = lock.lock() {
-        if let Some(device) = guard.take() {
-            device
+    let device = {
+        let lock = get_device_lock();
+        if let Ok(guard) = lock.lock() {
+            if let Some(ref arc) = *guard {
+                Arc::clone(arc)
+            } else {
+                return -1;
+            }
         } else {
-            return -1;
+            return -3;
         }
-    } else {
-        return -3;
     };
+    // Lock is released here, before any `.await` via block_on.
 
     let rt = get_runtime();
     let path = std::path::Path::new(path);
     let progress_ref = progress
         .as_ref()
         .map(|callback| callback.as_ref() as &(dyn Fn(usize, usize) + Send + Sync));
-    let print_result =
-        rt.block_on(device.print_file(path, fit, quality, print_option, progress_ref));
-
-    if let Ok(mut guard) = lock.lock() {
-        *guard = Some(device);
-    } else {
-        return -3;
-    }
-
-    match print_result {
+    match rt.block_on(device.print_file(path, fit, quality, print_option, progress_ref)) {
         Ok(()) => 0,
         Err(e) => error_code(&e),
     }
@@ -296,7 +290,7 @@ pub extern "C" fn instantlink_connect() -> i32 {
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
-                    *guard = Some(device);
+                    *guard = Some(Arc::new(device));
                     0
                 } else {
                     -3
@@ -346,7 +340,7 @@ pub unsafe extern "C" fn instantlink_connect_named(name: *const c_char, duration
             Ok(device) => {
                 let lock = get_device_lock();
                 if let Ok(mut guard) = lock.lock() {
-                    *guard = Some(device);
+                    *guard = Some(Arc::new(device));
                     0
                 } else {
                     -3
@@ -808,7 +802,7 @@ mod tests {
 
     struct TestDeviceGuard<'a> {
         _lock: MutexGuard<'a, ()>,
-        previous: Option<Box<dyn PrinterDevice>>,
+        previous: Option<Arc<Box<dyn PrinterDevice>>>,
     }
 
     impl Drop for TestDeviceGuard<'_> {
@@ -826,7 +820,7 @@ mod tests {
         let lock = get_device_lock();
         let mut guard = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let previous = guard.take();
-        *guard = device;
+        *guard = device.map(Arc::new);
         drop(guard);
         TestDeviceGuard {
             _lock: lock_guard,
@@ -1535,6 +1529,375 @@ mod tests {
         assert_eq!(recorded_led_calls, vec![(255, 128, 64, 2), (0, 0, 0, 0)]);
         assert_eq!(shutdown_calls.load(Ordering::SeqCst), 1);
         assert_eq!(reset_calls.load(Ordering::SeqCst), 1);
+    }
+
+    /// Confirm that `instantlink_battery` returns valid data even when called
+    /// while `print_with_progress_internal` holds an Arc clone of the device.
+    /// Previously, `guard.take()` would remove the device from the global slot,
+    /// causing concurrent accessors to return `-1` (NOT_CONNECTED).
+    #[test]
+    fn ffi_status_works_during_print() {
+        // SlowPrintDevice wraps a FakeDevice and adds a brief sleep so we can
+        // interleave a battery call on another thread.
+        use std::sync::Barrier;
+
+        struct SlowPrintDevice {
+            inner: FakeDevice,
+            /// Both threads rendezvous here: print thread signals it has started,
+            /// then the battery thread reads, then print thread continues.
+            barrier: Arc<Barrier>,
+        }
+
+        impl PrinterDevice for SlowPrintDevice {
+            fn status<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<
+                Box<
+                    dyn Future<Output = instantlink_core::Result<PrinterStatus>>
+                        + Send
+                        + 'async_trait,
+                >,
+            >
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.status()
+            }
+
+            fn battery<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<u8>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.battery()
+            }
+
+            fn film_and_charging<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<
+                Box<
+                    dyn Future<Output = instantlink_core::Result<(u8, bool)>> + Send + 'async_trait,
+                >,
+            >
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.film_and_charging()
+            }
+
+            fn print_count<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<u16>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.print_count()
+            }
+
+            fn model(&self) -> PrinterModel {
+                self.inner.model()
+            }
+
+            fn name(&self) -> &str {
+                self.inner.name()
+            }
+
+            fn print_file<'life0, 'life1, 'life2, 'async_trait>(
+                &'life0 self,
+                path: &'life1 Path,
+                fit: FitMode,
+                quality: u8,
+                print_option: u8,
+                progress: Option<&'life2 (dyn Fn(usize, usize) + Send + Sync)>,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                'life1: 'async_trait,
+                'life2: 'async_trait,
+                Self: 'async_trait,
+            {
+                let barrier = Arc::clone(&self.barrier);
+                let inner_fut = self
+                    .inner
+                    .print_file(path, fit, quality, print_option, progress);
+                Box::pin(async move {
+                    // Wait for the battery thread to be ready, then proceed.
+                    barrier.wait();
+                    inner_fut.await
+                })
+            }
+
+            fn print_bytes<'life0, 'life1, 'life2, 'async_trait>(
+                &'life0 self,
+                data: &'life1 [u8],
+                fit: FitMode,
+                quality: u8,
+                print_option: u8,
+                progress: Option<&'life2 (dyn Fn(usize, usize) + Send + Sync)>,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                'life1: 'async_trait,
+                'life2: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner
+                    .print_bytes(data, fit, quality, print_option, progress)
+            }
+
+            fn set_led<'life0, 'async_trait>(
+                &'life0 self,
+                r: u8,
+                g: u8,
+                b: u8,
+                pattern: u8,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.set_led(r, g, b, pattern)
+            }
+
+            fn shutdown<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.shutdown()
+            }
+
+            fn reset<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.reset()
+            }
+
+            fn disconnect<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.disconnect()
+            }
+        }
+
+        // Two-party barrier: print thread enters, then battery thread enters.
+        let barrier = Arc::new(Barrier::new(2));
+        let device = SlowPrintDevice {
+            inner: FakeDevice::new("INSTAX-12345678", PrinterModel::MiniLink3),
+            barrier: Arc::clone(&barrier),
+        };
+
+        let _guard = install_test_device(Some(Box::new(device)));
+
+        // Spawn the print call on a background thread.
+        let print_thread = std::thread::spawn(|| {
+            let path = std::ffi::CString::new("photo.jpg").unwrap();
+            unsafe { instantlink_print_with_progress(path.as_ptr(), 90, 0, 0, None) }
+        });
+
+        // Wait until the print has acquired its Arc clone and reached the barrier.
+        barrier.wait();
+
+        // While print_file is executing (blocked on barrier.wait() inside the async
+        // block above, which has already passed and now both parties continue), the
+        // device Arc is still in the global slot.  Battery must succeed.
+        let battery = instantlink_battery();
+        assert_eq!(
+            battery, 82,
+            "battery should return 82 while print is active"
+        );
+
+        let result = print_thread.join().expect("print thread panicked");
+        assert_eq!(result, 0);
+
+        // Device remains reachable after the print completes.
+        assert_eq!(instantlink_is_connected(), 1);
+    }
+
+    /// Confirm that a panic inside `print_with_progress_internal` does not remove
+    /// the device from the global slot.  Previously the `guard.take()` pattern
+    /// would leave the device missing if the thread unwound before the put-back.
+    #[test]
+    fn ffi_panic_during_print_does_not_leak_device() {
+        struct PanicOnPrintDevice {
+            inner: FakeDevice,
+        }
+
+        impl PrinterDevice for PanicOnPrintDevice {
+            fn status<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<
+                Box<
+                    dyn Future<Output = instantlink_core::Result<PrinterStatus>>
+                        + Send
+                        + 'async_trait,
+                >,
+            >
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.status()
+            }
+
+            fn battery<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<u8>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.battery()
+            }
+
+            fn film_and_charging<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<
+                Box<
+                    dyn Future<Output = instantlink_core::Result<(u8, bool)>> + Send + 'async_trait,
+                >,
+            >
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.film_and_charging()
+            }
+
+            fn print_count<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<u16>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.print_count()
+            }
+
+            fn model(&self) -> PrinterModel {
+                self.inner.model()
+            }
+
+            fn name(&self) -> &str {
+                self.inner.name()
+            }
+
+            fn print_file<'life0, 'life1, 'life2, 'async_trait>(
+                &'life0 self,
+                _path: &'life1 Path,
+                _fit: FitMode,
+                _quality: u8,
+                _print_option: u8,
+                _progress: Option<&'life2 (dyn Fn(usize, usize) + Send + Sync)>,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                'life1: 'async_trait,
+                'life2: 'async_trait,
+                Self: 'async_trait,
+            {
+                Box::pin(async move { panic!("simulated panic inside print_file") })
+            }
+
+            fn print_bytes<'life0, 'life1, 'life2, 'async_trait>(
+                &'life0 self,
+                data: &'life1 [u8],
+                fit: FitMode,
+                quality: u8,
+                print_option: u8,
+                progress: Option<&'life2 (dyn Fn(usize, usize) + Send + Sync)>,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                'life1: 'async_trait,
+                'life2: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner
+                    .print_bytes(data, fit, quality, print_option, progress)
+            }
+
+            fn set_led<'life0, 'async_trait>(
+                &'life0 self,
+                r: u8,
+                g: u8,
+                b: u8,
+                pattern: u8,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.set_led(r, g, b, pattern)
+            }
+
+            fn shutdown<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.shutdown()
+            }
+
+            fn reset<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.reset()
+            }
+
+            fn disconnect<'life0, 'async_trait>(
+                &'life0 self,
+            ) -> Pin<Box<dyn Future<Output = instantlink_core::Result<()>> + Send + 'async_trait>>
+            where
+                'life0: 'async_trait,
+                Self: 'async_trait,
+            {
+                self.inner.disconnect()
+            }
+        }
+
+        let device = PanicOnPrintDevice {
+            inner: FakeDevice::new("INSTAX-12345678", PrinterModel::Mini),
+        };
+        let _guard = install_test_device(Some(Box::new(device)));
+
+        // The panic is caught by `catch_unwind` inside the FFI wrapper; result is -3.
+        let path = std::ffi::CString::new("photo.jpg").unwrap();
+        let result = unsafe { instantlink_print_with_progress(path.as_ptr(), 90, 0, 0, None) };
+        assert_eq!(result, -3, "panic should be caught and mapped to -3");
+
+        // Critically, the device must still be reachable.
+        assert_eq!(
+            instantlink_is_connected(),
+            1,
+            "device must remain in global slot after panic"
+        );
+        assert_eq!(
+            instantlink_battery(),
+            82,
+            "battery must be readable after panic"
+        );
     }
 }
 
