@@ -379,7 +379,7 @@ mod tests {
     async fn receive_packet_from_channel_uses_total_deadline_across_fragments() {
         let (tx, mut rx) = mpsc::channel(4);
         let mut assembler = PacketAssembler::new();
-        let packet = protocol::build_packet(0x1234, &[0xAB; 176]);
+        let packet = protocol::build_packet(0x1234, &[0xAB; 176]).unwrap();
         let fragments = protocol::fragment(&packet);
         assert!(
             fragments.len() > 1,
@@ -406,7 +406,7 @@ mod tests {
     async fn receive_packet_from_channel_returns_packet_when_fragments_arrive_in_time() {
         let (tx, mut rx) = mpsc::channel(4);
         let mut assembler = PacketAssembler::new();
-        let packet = protocol::build_packet(0x1234, &[0xAA, 0xBB]);
+        let packet = protocol::build_packet(0x1234, &[0xAA, 0xBB]).unwrap();
         let fragments = protocol::fragment(&packet);
 
         let sender = tokio::spawn(async move {
@@ -429,8 +429,8 @@ mod tests {
     #[tokio::test]
     async fn receive_packet_from_channel_returns_buffered_packet_without_waiting() {
         let (_tx, mut rx) = mpsc::channel(1);
-        let first = protocol::build_packet(0x1111, &[0x00]);
-        let second = protocol::build_packet(0x4321, &[0x01, 0x02, 0x03]);
+        let first = protocol::build_packet(0x1111, &[0x00]).unwrap();
+        let second = protocol::build_packet(0x4321, &[0x01, 0x02, 0x03]).unwrap();
         let mut assembler = PacketAssembler::new();
         let mut combined = first;
         combined.extend_from_slice(&second);

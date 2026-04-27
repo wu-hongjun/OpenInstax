@@ -68,6 +68,7 @@ fn error_code(e: &PrinterError) -> i32 {
         PrinterError::PrinterBusy => -11,
         PrinterError::Protocol(_) => -3,
         PrinterError::Io(_) => -3,
+        PrinterError::PayloadTooLarge { .. } => -3,
     }
 }
 

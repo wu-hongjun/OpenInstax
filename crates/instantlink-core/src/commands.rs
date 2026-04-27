@@ -2,6 +2,7 @@
 //!
 //! Opcodes derived from javl/InstaxBLE reference implementation.
 
+use crate::error::Result;
 use crate::protocol;
 
 // ── Opcode constants (EventType values from reference) ────────────────────────
@@ -86,7 +87,14 @@ pub enum Command {
 
 impl Command {
     /// Encode this command into a complete protocol packet.
-    pub fn encode(&self) -> Vec<u8> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the payload exceeds the protocol maximum (see
+    /// [`protocol::MAX_PACKET_PAYLOAD`]). In practice all built-in commands
+    /// produce small payloads, so this only fires for [`Command::Data`] with
+    /// a chunk larger than the limit.
+    pub fn encode(&self) -> Result<Vec<u8>> {
         match self {
             Command::DeviceInfo => protocol::build_packet(OP_DEVICE_INFO_SERVICE, &[]),
             // Info queries use SUPPORT_FUNCTION_INFO opcode with InfoType as payload
@@ -286,7 +294,7 @@ mod tests {
 
     #[test]
     fn encode_device_info() {
-        let pkt = Command::DeviceInfo.encode();
+        let pkt = Command::DeviceInfo.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DEVICE_INFO_SERVICE);
         assert!(parsed.payload.is_empty());
@@ -294,7 +302,7 @@ mod tests {
 
     #[test]
     fn encode_image_support_info() {
-        let pkt = Command::ImageSupportInfo.encode();
+        let pkt = Command::ImageSupportInfo.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_SUPPORT_FUNCTION_INFO);
         assert_eq!(parsed.payload, vec![INFO_IMAGE_SUPPORT]);
@@ -302,7 +310,7 @@ mod tests {
 
     #[test]
     fn encode_battery_status() {
-        let pkt = Command::BatteryStatus.encode();
+        let pkt = Command::BatteryStatus.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_SUPPORT_FUNCTION_INFO);
         assert_eq!(parsed.payload, vec![INFO_BATTERY]);
@@ -314,7 +322,7 @@ mod tests {
             image_size: 50000,
             print_option: 0,
         };
-        let pkt = cmd.encode();
+        let pkt = cmd.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DOWNLOAD_START);
         // First 4 bytes: pictureType=0x02, printOption, printOption2, zero
@@ -330,7 +338,7 @@ mod tests {
             image_size: 50000,
             print_option: 1,
         };
-        let pkt = cmd.encode();
+        let pkt = cmd.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DOWNLOAD_START);
         assert_eq!(&parsed.payload[0..4], &[0x02, 0x01, 0x00, 0x00]);
@@ -343,7 +351,7 @@ mod tests {
             index: 3,
             data: data.clone(),
         };
-        let pkt = cmd.encode();
+        let pkt = cmd.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DATA);
         let index = u32::from_be_bytes(parsed.payload[0..4].try_into().unwrap());
@@ -353,14 +361,14 @@ mod tests {
 
     #[test]
     fn encode_download_end() {
-        let pkt = Command::DownloadEnd.encode();
+        let pkt = Command::DownloadEnd.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_DOWNLOAD_END);
     }
 
     #[test]
     fn encode_print_image() {
-        let pkt = Command::PrintImage.encode();
+        let pkt = Command::PrintImage.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_PRINT_IMAGE);
     }
@@ -373,7 +381,7 @@ mod tests {
             blue: 0,
             pattern: 1,
         };
-        let pkt = cmd.encode();
+        let pkt = cmd.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_LED_PATTERN_SETTINGS);
         // [when=1, count=1, speed=1, repeat=255, B=0, G=128, R=255]
@@ -506,7 +514,7 @@ mod tests {
 
     #[test]
     fn encode_shutdown() {
-        let pkt = Command::Shutdown.encode();
+        let pkt = Command::Shutdown.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_SHUT_DOWN);
         assert!(parsed.payload.is_empty());
@@ -514,7 +522,7 @@ mod tests {
 
     #[test]
     fn encode_reset() {
-        let pkt = Command::Reset.encode();
+        let pkt = Command::Reset.encode().unwrap();
         let parsed = protocol::parse_packet(&pkt).unwrap();
         assert_eq!(parsed.opcode, OP_RESET);
         assert!(parsed.payload.is_empty());
@@ -523,7 +531,7 @@ mod tests {
     #[test]
     fn encode_decode_roundtrip() {
         let cmd = Command::BatteryStatus;
-        let raw = cmd.encode();
+        let raw = cmd.encode().unwrap();
         let packet = protocol::parse_packet(&raw).unwrap();
         assert_eq!(packet.opcode, OP_SUPPORT_FUNCTION_INFO);
         assert_eq!(packet.payload, vec![INFO_BATTERY]);
