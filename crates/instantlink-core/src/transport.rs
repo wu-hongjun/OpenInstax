@@ -375,7 +375,7 @@ impl Transport for BleTransport {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn receive_packet_from_channel_uses_total_deadline_across_fragments() {
         let (tx, mut rx) = mpsc::channel(4);
         let mut assembler = PacketAssembler::new();
@@ -456,6 +456,8 @@ mod tests {
             .await
             .unwrap_err();
 
-        assert!(matches!(err, PrinterError::Ble(message) if message == "notification channel closed"));
+        assert!(
+            matches!(err, PrinterError::Ble(message) if message == "notification channel closed")
+        );
     }
 }
