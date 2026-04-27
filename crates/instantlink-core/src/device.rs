@@ -253,6 +253,37 @@ impl BlePrinterDevice {
         }
     }
 
+    /// Shared post-prepare print flow: transfer data, LED handoff, pre-execute delay, PrintImage.
+    /// Must be called while the operation lock is already held.
+    async fn print_prepared_unlocked(
+        &self,
+        jpeg_data: Vec<u8>,
+        chunks: Vec<Vec<u8>>,
+        print_option: u8,
+        progress: Option<&(dyn Fn(usize, usize) + Send + Sync)>,
+    ) -> Result<()> {
+        self.send_image_data(&jpeg_data, &chunks, print_option, progress)
+            .await?;
+
+        self.signal_print_handoff_unlocked().await;
+
+        // Pre-execute delay (critical for Link 3 and Square)
+        let pre_delay = self.model.spec().pre_execute_delay_ms;
+        if pre_delay > 0 {
+            log::debug!("Waiting {}ms before print execute", pre_delay);
+            tokio::time::sleep(Duration::from_millis(pre_delay)).await;
+        }
+
+        // Trigger print
+        match self.command_unlocked(&Command::PrintImage).await? {
+            Response::PrintStatus { status } if self.is_success(status) => Ok(()),
+            Response::PrintStatus { status } => self.check_status(status, "print"),
+            _ => Err(PrinterError::UnexpectedResponse(
+                "expected PrintStatus".into(),
+            )),
+        }
+    }
+
     /// Send JPEG data to the printer with ACK-based flow control.
     async fn send_image_data(
         &self,
@@ -393,26 +424,8 @@ impl PrinterDevice for BlePrinterDevice {
     ) -> Result<()> {
         let _guard = self.operation_lock.lock().await;
         let (jpeg_data, chunks) = image::prepare_image(path, self.model, fit, quality)?;
-        self.send_image_data(&jpeg_data, &chunks, print_option, progress)
-            .await?;
-
-        self.signal_print_handoff_unlocked().await;
-
-        // Pre-execute delay (critical for Link 3 and Square)
-        let pre_delay = self.model.spec().pre_execute_delay_ms;
-        if pre_delay > 0 {
-            log::debug!("Waiting {}ms before print execute", pre_delay);
-            tokio::time::sleep(Duration::from_millis(pre_delay)).await;
-        }
-
-        // Trigger print
-        match self.command_unlocked(&Command::PrintImage).await? {
-            Response::PrintStatus { status } if self.is_success(status) => Ok(()),
-            Response::PrintStatus { status } => self.check_status(status, "print"),
-            _ => Err(PrinterError::UnexpectedResponse(
-                "expected PrintStatus".into(),
-            )),
-        }
+        self.print_prepared_unlocked(jpeg_data, chunks, print_option, progress)
+            .await
     }
 
     async fn print_bytes(
@@ -425,25 +438,8 @@ impl PrinterDevice for BlePrinterDevice {
     ) -> Result<()> {
         let _guard = self.operation_lock.lock().await;
         let (jpeg_data, chunks) = image::prepare_image_from_bytes(data, self.model, fit, quality)?;
-        self.send_image_data(&jpeg_data, &chunks, print_option, progress)
-            .await?;
-
-        self.signal_print_handoff_unlocked().await;
-
-        // Pre-execute delay (critical for Link 3 and Square)
-        let pre_delay = self.model.spec().pre_execute_delay_ms;
-        if pre_delay > 0 {
-            log::debug!("Waiting {}ms before print execute", pre_delay);
-            tokio::time::sleep(Duration::from_millis(pre_delay)).await;
-        }
-
-        match self.command_unlocked(&Command::PrintImage).await? {
-            Response::PrintStatus { status } if self.is_success(status) => Ok(()),
-            Response::PrintStatus { status } => self.check_status(status, "print"),
-            _ => Err(PrinterError::UnexpectedResponse(
-                "expected PrintStatus".into(),
-            )),
-        }
+        self.print_prepared_unlocked(jpeg_data, chunks, print_option, progress)
+            .await
     }
 
     async fn set_led(&self, r: u8, g: u8, b: u8, pattern: u8) -> Result<()> {
@@ -1114,5 +1110,102 @@ mod tests {
     async fn name_stored_and_returned() {
         let (device, _) = make_device(PrinterModel::Mini, vec![]).await;
         assert_eq!(device.name(), "TestPrinter");
+    }
+
+    // ── print_prepared_unlocked (exercised via print_bytes) ────────────────
+
+    /// Builds a minimal valid PNG in memory for use in print_bytes tests.
+    fn make_png_bytes(model: PrinterModel) -> Vec<u8> {
+        use ::image::{DynamicImage, ImageFormat};
+        use std::io::Cursor;
+        let spec = model.spec();
+        let img = DynamicImage::new_rgb8(spec.width, spec.height);
+        let mut buf = Cursor::new(Vec::new());
+        img.write_to(&mut buf, ImageFormat::Png).unwrap();
+        buf.into_inner()
+    }
+
+    #[tokio::test]
+    async fn print_prepared_unlocked_led_handoff_and_print_status() {
+        // Verify that print_bytes goes through print_prepared_unlocked:
+        // - sends LED handoff (OP_LED_PATTERN_SETTINGS)
+        // - sends PrintImage command
+        // - correctly matches PrintStatus success response
+        let png = make_png_bytes(PrinterModel::Mini);
+        let chunk_count = {
+            let (jpeg, _) =
+                image::prepare_image_from_bytes(&png, PrinterModel::Mini, image::FitMode::Crop, 97)
+                    .unwrap();
+            image::chunk_image_data(&jpeg, PrinterModel::Mini).len()
+        };
+
+        let mut responses = vec![download_ack_packet(OP_DOWNLOAD_START, 0)];
+        for _ in 0..chunk_count {
+            responses.push(download_ack_packet(OP_DATA, 0));
+        }
+        responses.push(download_ack_packet(OP_DOWNLOAD_END, 0));
+        responses.push(led_ack_packet()); // LED handoff
+        responses.push(Ok(protocol::Packet {
+            opcode: crate::commands::OP_PRINT_IMAGE,
+            payload: vec![0], // status 0 = success
+        }));
+
+        let (device, state) = make_device(PrinterModel::Mini, responses).await;
+        device
+            .print_bytes(&png, image::FitMode::Crop, 97, 0, None)
+            .await
+            .unwrap();
+
+        let sent = state.lock().unwrap().sent.clone();
+        // Verify LED handoff packet was sent after data transfer
+        let led_packet = sent
+            .iter()
+            .skip(1) // skip ImageSupportInfo
+            .map(|b| protocol::parse_packet(b).unwrap())
+            .find(|p| p.opcode == OP_LED_PATTERN_SETTINGS)
+            .expect("LED handoff packet not found");
+        // LED color is PRINT_START_LED_COLOR (248, 120, 67) — payload[4..7] = B, G, R
+        assert_eq!(led_packet.payload[4], 67); // R
+        assert_eq!(led_packet.payload[5], 120); // G
+        assert_eq!(led_packet.payload[6], 248); // B
+
+        // Verify PrintImage was sent as the last meaningful command
+        let print_packet = sent
+            .iter()
+            .skip(1)
+            .map(|b| protocol::parse_packet(b).unwrap())
+            .find(|p| p.opcode == crate::commands::OP_PRINT_IMAGE)
+            .expect("PrintImage packet not found");
+        assert_eq!(print_packet.opcode, crate::commands::OP_PRINT_IMAGE);
+    }
+
+    #[tokio::test]
+    async fn print_prepared_unlocked_print_rejected_returns_error() {
+        // Verify that a non-success PrintStatus from print_prepared_unlocked
+        // is correctly propagated as an error.
+        let png = make_png_bytes(PrinterModel::Mini);
+        let chunk_count = {
+            let (jpeg, _) =
+                image::prepare_image_from_bytes(&png, PrinterModel::Mini, image::FitMode::Crop, 97)
+                    .unwrap();
+            image::chunk_image_data(&jpeg, PrinterModel::Mini).len()
+        };
+
+        let mut responses = vec![download_ack_packet(OP_DOWNLOAD_START, 0)];
+        for _ in 0..chunk_count {
+            responses.push(download_ack_packet(OP_DATA, 0));
+        }
+        responses.push(download_ack_packet(OP_DOWNLOAD_END, 0));
+        responses.push(led_ack_packet()); // LED handoff
+        responses.push(Ok(protocol::Packet {
+            opcode: crate::commands::OP_PRINT_IMAGE,
+            payload: vec![178], // status 178 = no film
+        }));
+
+        let (device, _) = make_device(PrinterModel::Mini, responses).await;
+        let result = device
+            .print_bytes(&png, image::FitMode::Crop, 97, 0, None)
+            .await;
+        assert!(matches!(result.unwrap_err(), PrinterError::NoFilm));
     }
 }
