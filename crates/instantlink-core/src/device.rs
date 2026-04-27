@@ -137,7 +137,7 @@ impl BlePrinterDevice {
         emit_connect_progress(progress, ConnectStage::ModelDetecting, None::<String>);
         let cmd = Command::ImageSupportInfo;
         let packet = transport
-            .send_and_receive(&cmd.encode(), DEFAULT_TIMEOUT)
+            .send_and_receive(&cmd.encode()?, DEFAULT_TIMEOUT)
             .await?;
         let response = Response::decode(&packet);
 
@@ -166,7 +166,7 @@ impl BlePrinterDevice {
     async fn command_unlocked(&self, cmd: &Command) -> Result<Response> {
         let packet = self
             .transport
-            .send_and_receive(&cmd.encode(), DEFAULT_TIMEOUT)
+            .send_and_receive(&cmd.encode()?, DEFAULT_TIMEOUT)
             .await?;
         Ok(Response::decode(&packet))
     }
@@ -332,8 +332,10 @@ impl BlePrinterDevice {
         }
         .await;
 
-        if transfer_result.is_err() {
-            let _ = self.transport.send(&Command::DownloadCancel.encode()).await;
+        if transfer_result.is_err()
+            && let Ok(cancel_bytes) = Command::DownloadCancel.encode()
+        {
+            let _ = self.transport.send(&cancel_bytes).await;
         }
 
         transfer_result
@@ -451,14 +453,14 @@ impl PrinterDevice for BlePrinterDevice {
 
     async fn shutdown(&self) -> Result<()> {
         let _guard = self.operation_lock.lock().await;
-        self.transport.send(&Command::Shutdown.encode()).await?;
+        self.transport.send(&Command::Shutdown.encode()?).await?;
         // Printer powers off; no response expected
         Ok(())
     }
 
     async fn reset(&self) -> Result<()> {
         let _guard = self.operation_lock.lock().await;
-        self.transport.send(&Command::Reset.encode()).await?;
+        self.transport.send(&Command::Reset.encode()?).await?;
         // Printer resets; no response expected
         Ok(())
     }

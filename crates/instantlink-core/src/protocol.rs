@@ -14,7 +14,7 @@
 //!
 //! BLE packets larger than 182 bytes are split into sub-packets for transmission.
 
-use crate::error::ProtocolError;
+use crate::error::{PrinterError, ProtocolError, Result};
 
 /// Request header bytes (client → printer: "Ab").
 pub const HEADER: [u8; 2] = [0x41, 0x62];
@@ -34,6 +34,13 @@ pub const MTU_SIZE: usize = 182;
 /// Minimum packet size: header(2) + length(2) + opcode(2) + checksum(1) = 7.
 pub const MIN_PACKET_SIZE: usize = 7;
 
+/// Maximum payload size for a single protocol packet.
+///
+/// The length field is a `u16` (max 65535) encoding the total packet size.
+/// With 7 bytes of fixed overhead (`MIN_PACKET_SIZE`), the payload is capped at
+/// `65535 - 7 = 65528` bytes.
+pub const MAX_PACKET_PAYLOAD: usize = 65535 - MIN_PACKET_SIZE;
+
 /// Compute the Instax checksum over a byte slice.
 ///
 /// Formula: `(255 - (sum & 255)) & 255`
@@ -45,9 +52,21 @@ pub fn checksum(data: &[u8]) -> u8 {
 /// Build a complete Instax protocol packet.
 ///
 /// Returns the full packet bytes: `[header][length][opcode][payload][checksum]`.
-pub fn build_packet(opcode: u16, payload: &[u8]) -> Vec<u8> {
+///
+/// # Errors
+///
+/// Returns [`PrinterError::PayloadTooLarge`] if `payload.len()` exceeds
+/// [`MAX_PACKET_PAYLOAD`] (the length field is a `u16`, capping total size at 65535).
+pub fn build_packet(opcode: u16, payload: &[u8]) -> Result<Vec<u8>> {
+    if payload.len() > MAX_PACKET_PAYLOAD {
+        return Err(PrinterError::PayloadTooLarge {
+            len: payload.len(),
+            max: MAX_PACKET_PAYLOAD,
+        });
+    }
+
     // Length = total packet size: header(2) + length(2) + opcode(2) + payload + checksum(1)
-    let total_size = 7 + payload.len();
+    let total_size = MIN_PACKET_SIZE + payload.len();
     let mut packet = Vec::with_capacity(total_size);
 
     // Header
@@ -62,7 +81,7 @@ pub fn build_packet(opcode: u16, payload: &[u8]) -> Vec<u8> {
     let chk = checksum(&packet);
     packet.push(chk);
 
-    packet
+    Ok(packet)
 }
 
 /// Parsed Instax protocol packet.
@@ -224,7 +243,7 @@ mod tests {
 
     #[test]
     fn build_packet_empty_payload() {
-        let pkt = build_packet(0x0102, &[]);
+        let pkt = build_packet(0x0102, &[]).unwrap();
         // header(2) + len(2) + opcode(2) + checksum(1) = 7
         assert_eq!(pkt.len(), 7);
         assert_eq!(&pkt[0..2], &HEADER);
@@ -240,7 +259,7 @@ mod tests {
     #[test]
     fn build_packet_with_payload() {
         let payload = vec![0xAA, 0xBB, 0xCC];
-        let pkt = build_packet(0x2010, &payload);
+        let pkt = build_packet(0x2010, &payload).unwrap();
         assert_eq!(pkt.len(), 10); // 7 + 3
         // length = total packet size = 10
         assert_eq!(u16::from_be_bytes([pkt[2], pkt[3]]), 10);
@@ -248,8 +267,26 @@ mod tests {
     }
 
     #[test]
+    fn build_packet_rejects_oversize_payload() {
+        let oversized = vec![0u8; MAX_PACKET_PAYLOAD + 1];
+        let err = build_packet(0x0001, &oversized).unwrap_err();
+        assert!(matches!(err, PrinterError::PayloadTooLarge { len, max }
+                if len == MAX_PACKET_PAYLOAD + 1 && max == MAX_PACKET_PAYLOAD));
+    }
+
+    #[test]
+    fn build_packet_accepts_max_payload() {
+        let max_payload = vec![0u8; MAX_PACKET_PAYLOAD];
+        let pkt = build_packet(0x0001, &max_payload).unwrap();
+        assert_eq!(pkt.len(), 65535);
+        // Verify checksum is correct
+        let chk = checksum(&pkt[..pkt.len() - 1]);
+        assert_eq!(pkt[pkt.len() - 1], chk);
+    }
+
+    #[test]
     fn parse_packet_roundtrip() {
-        let pkt = build_packet(0x4321, &[0x01, 0x02]);
+        let pkt = build_packet(0x4321, &[0x01, 0x02]).unwrap();
         let parsed = parse_packet(&pkt).expect("should parse");
         assert_eq!(parsed.opcode, 0x4321);
         assert_eq!(parsed.payload, vec![0x01, 0x02]);
@@ -257,7 +294,7 @@ mod tests {
 
     #[test]
     fn parse_packet_empty_payload() {
-        let pkt = build_packet(0x1000, &[]);
+        let pkt = build_packet(0x1000, &[]).unwrap();
         let parsed = parse_packet(&pkt).expect("should parse");
         assert_eq!(parsed.opcode, 0x1000);
         assert!(parsed.payload.is_empty());
@@ -265,14 +302,14 @@ mod tests {
 
     #[test]
     fn parse_packet_bad_header() {
-        let mut pkt = build_packet(0x0000, &[]);
+        let mut pkt = build_packet(0x0000, &[]).unwrap();
         pkt[0] = 0xFF;
         assert!(parse_packet(&pkt).is_none());
     }
 
     #[test]
     fn parse_packet_bad_checksum() {
-        let mut pkt = build_packet(0x0000, &[]);
+        let mut pkt = build_packet(0x0000, &[]).unwrap();
         let last = pkt.len() - 1;
         pkt[last] ^= 0xFF; // corrupt checksum
         assert!(parse_packet(&pkt).is_none());
@@ -285,14 +322,14 @@ mod tests {
 
     #[test]
     fn parse_packet_truncated() {
-        let pkt = build_packet(0x0000, &[0x01, 0x02, 0x03]);
+        let pkt = build_packet(0x0000, &[0x01, 0x02, 0x03]).unwrap();
         // Remove last byte
         assert!(parse_packet(&pkt[..pkt.len() - 1]).is_none());
     }
 
     #[test]
     fn fragment_small_packet() {
-        let pkt = build_packet(0x0000, &[]);
+        let pkt = build_packet(0x0000, &[]).unwrap();
         let fragments = fragment(&pkt);
         assert_eq!(fragments.len(), 1);
         assert_eq!(fragments[0], pkt);
@@ -301,7 +338,7 @@ mod tests {
     #[test]
     fn fragment_large_packet() {
         let payload = vec![0u8; MTU_SIZE * 2]; // will need 3 fragments (with overhead)
-        let pkt = build_packet(0x0000, &payload);
+        let pkt = build_packet(0x0000, &payload).unwrap();
         let fragments = fragment(&pkt);
         assert!(fragments.len() > 1);
         // Reassemble and verify
@@ -312,7 +349,7 @@ mod tests {
     #[test]
     fn fragment_exact_mtu() {
         let payload = vec![0u8; MTU_SIZE - 7]; // exactly one MTU fragment
-        let pkt = build_packet(0x0000, &payload);
+        let pkt = build_packet(0x0000, &payload).unwrap();
         assert_eq!(pkt.len(), MTU_SIZE);
         let fragments = fragment(&pkt);
         assert_eq!(fragments.len(), 1);
@@ -320,7 +357,7 @@ mod tests {
 
     #[test]
     fn assembler_single_packet() {
-        let pkt = build_packet(0x1234, &[0xAB]);
+        let pkt = build_packet(0x1234, &[0xAB]).unwrap();
         let mut asm = PacketAssembler::new();
         let result = asm.feed(&pkt).expect("should not error");
         assert!(result.is_some());
@@ -331,7 +368,7 @@ mod tests {
 
     #[test]
     fn assembler_fragmented() {
-        let pkt = build_packet(0x5678, &[0x01, 0x02, 0x03]);
+        let pkt = build_packet(0x5678, &[0x01, 0x02, 0x03]).unwrap();
         let mut asm = PacketAssembler::new();
 
         // Feed first half
@@ -352,13 +389,13 @@ mod tests {
         let err = asm.feed(&[0xFF, 0xFF, 0x00, 0x03]).unwrap_err();
         assert!(matches!(err, ProtocolError::InvalidHeader { .. }));
         // Buffer should be cleared, so a valid packet can still parse
-        let pkt = build_packet(0x0001, &[]);
+        let pkt = build_packet(0x0001, &[]).unwrap();
         assert!(asm.feed(&pkt).expect("should not error").is_some());
     }
 
     #[test]
     fn assembler_reset() {
-        let pkt = build_packet(0x0001, &[0x01]);
+        let pkt = build_packet(0x0001, &[0x01]).unwrap();
         let mut asm = PacketAssembler::new();
         let _ = asm.feed(&pkt[..3]); // partial
         asm.reset();

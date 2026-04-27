@@ -51,6 +51,10 @@ pub enum PrinterError {
     #[error("image too large: {size} bytes (max {max} bytes)")]
     ImageTooLarge { size: usize, max: usize },
 
+    /// The payload supplied to `build_packet` exceeds the protocol maximum.
+    #[error("packet payload too large: {len} bytes (max {max} bytes)")]
+    PayloadTooLarge { len: usize, max: usize },
+
     /// The printer rejected a print command.
     #[error("print rejected: {0}")]
     PrintRejected(String),
