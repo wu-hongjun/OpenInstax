@@ -557,6 +557,36 @@ fix_remote_config_permissions() {
      fi"
 }
 
+stop_remote_bridge_service_for_update() {
+  if [[ "${RESTART}" -ne 1 && "${SYSTEM}" -ne 1 && "${INSTALL_DEPS}" -ne 1 &&
+    "${INSTALL_INSTANTLINK_ARTIFACTS}" -ne 1 ]]; then
+    return
+  fi
+
+  "${SSH_CMD[@]}" -t "${USER}@${HOST}" "sudo sh -s" <<'SH'
+set -eu
+if ! systemctl list-unit-files instantlink-bridge.service >/dev/null 2>&1; then
+  exit 0
+fi
+
+systemctl stop instantlink-bridge.service --no-block || true
+i=0
+while [ "${i}" -lt 15 ]; do
+  state="$(systemctl is-active instantlink-bridge.service || true)"
+  case "${state}" in
+    inactive|failed|unknown)
+      exit 0
+      ;;
+  esac
+  sleep 1
+  i=$((i + 1))
+done
+
+systemctl kill -s SIGKILL instantlink-bridge.service || true
+systemctl reset-failed instantlink-bridge.service || true
+SH
+}
+
 install_runtime_deps_on_pi() {
   "${SSH_CMD[@]}" -t "${USER}@${HOST}" \
     "sudo env \
@@ -691,6 +721,7 @@ main() {
   if [[ "${SYSTEM}" -eq 1 ]]; then
     bootstrap_remote_runtime_identity
   fi
+  stop_remote_bridge_service_for_update
 
   CONSTRAINTS_SOURCE="${ROOT}/${CONSTRAINTS_RELATIVE_PATH}"
   if [[ ! -f "${CONSTRAINTS_SOURCE}" ]]; then
