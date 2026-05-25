@@ -11,6 +11,8 @@ helpers for the current vertical slice.
 ## Read First
 
 - [CLAUDE.md](CLAUDE.md) is the persistent context anchor for future Claude Code sessions.
+- [docs/current-context.md](docs/current-context.md) is the latest handoff for deployment,
+  hardware status, and verified operating assumptions.
 - [ARCHITECTURE.md](ARCHITECTURE.md) describes data flow, state, and asyncio task topology.
 - [HARDWARE.md](HARDWARE.md) records BOM, pinout, wiring, assembly, and enclosure notes.
 - [DECISIONS.md](DECISIONS.md) contains ADRs for the major architectural choices.
@@ -31,12 +33,16 @@ helpers for the current vertical slice.
 
 ## Current Status
 
+- Last verified on hardware: 2026-05-25, deployed commit
+  `c1f016a04234afb5a32104e3a11b2b76f7895772`.
 - The Pi service starts the LCD UI, Bridge Wi-Fi FTP, advanced Same Wi-Fi FTP,
   printer discovery/status keepalive, and the FTP-received-image auto-print flow.
 - The LCD Settings menu can pair/forget a printer, explicitly choose Wi-Fi mode options, and persist
   printer, image-prep, keepalive, and auto-print settings.
 - The runtime supports model-specific Mini, Mini Link 3, Square, and Wide image preparation.
 - Provisioning and deployment helpers are tracked in `scripts/`, `config/`, `systemd/`, and `udev/`.
+- Legacy standalone InstantBridge installs are removed with
+  `scripts/cleanup-legacy-instantbridge.sh /` after the InstantLink Bridge service is healthy.
 
 ## Hotspot-Only Pi Deployment
 
@@ -47,9 +53,11 @@ with a known-good seed virtualenv from an earlier install:
 INSTANTLINK_BRIDGE_HOST=192.168.7.1 \
 INSTANTLINK_BRIDGE_USER=hongjunwu \
 INSTANTLINK_BRIDGE_OFFLINE_DEPS=1 \
-INSTANTLINK_BRIDGE_SEED_VENV=/opt/InstantBridge/.venv \
 scripts/deploy-to-pi.sh --system --instantlink-artifacts --deps --restart
 ```
+
+Only set `INSTANTLINK_BRIDGE_SEED_VENV=/opt/InstantBridge/.venv` during one-time migration from an
+old device that has no outbound internet and no `/opt/InstantLinkBridge/.venv` yet.
 
 This still records deployment metadata, installed Python packages, apt package state, and native
 InstantLink artifact hashes under `/opt/InstantLinkBridge/.deployment/`.

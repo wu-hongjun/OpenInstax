@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import replace
 from pathlib import Path
 
@@ -857,6 +858,39 @@ async def test_repeated_unavailable_printer_status_escalates_offline() -> None:
 
     assert display.snapshots[-1].mode is UiMode.PRINTER_OFFLINE
     assert display.snapshots[-1].printer_status_message == "Hold K3 to re-pair"
+
+
+@pytest.mark.asyncio
+async def test_repeated_unavailable_printer_status_rate_limits_warning_logs(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    status_provider = _FakeStatusProvider(
+        error=PrinterStatusUnavailableError(
+            "not advertising",
+            diagnostics=scanner_diagnostics(printer, []),
+        )
+    )
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=_FakeDisplay(),
+        input_device=NullInput(),
+        pairer=_FakePairer([printer]),
+        status_provider=status_provider,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_SEARCHING, paired_printer=printer)
+    caplog.set_level(logging.WARNING, logger="instantlink_bridge.ui.controller")
+
+    for _ in range(3):
+        assert not await ui._refresh_printer_status_in_background(printer)
+
+    warning_messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("ui.printer_status_unavailable")
+    ]
+    assert len(warning_messages) == 1
 
 
 @pytest.mark.asyncio

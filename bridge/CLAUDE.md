@@ -4,6 +4,9 @@
 
 InstantLink Bridge is a giftable, portable bridge between a Sony a7C II and Fujifilm Instax Link printers. The core user gesture is selecting an image in camera playback and pressing C1, mapped to `FTP Trans. (This Img.)`; the bridge receives a camera still over FTP, decodes JPEG/HIF and best-effort Sony RAW, prepares a model-specific Instax-ready JPEG, and prints it over BLE with minimal setup and no SSH required for normal use.
 
+Read [docs/current-context.md](docs/current-context.md) first for the latest hardware deployment
+state, verified commit, cleanup status, and operational assumptions.
+
 ## Hardware Summary
 
 - Compute: Raspberry Pi Zero 2 W, BCM2710A1, quad Cortex-A53 at 1 GHz, 512 MB RAM, BLE 4.2, Wi-Fi 4.
@@ -177,10 +180,16 @@ state in v1.
 
 ## Things That Will Trip You Up
 
+- The current implementation lives in this InstantLink repository under `bridge/`. The old
+  standalone InstantBridge app and `/opt/InstantBridge` device install are legacy migration sources,
+  not the place for new feature work.
 - The working full implementation lives in the parent InstantLink workspace, especially `crates/instantlink-core/src/protocol.rs`, `printer.rs`, `transport.rs`, `commands.rs`, `models.rs`, and `image.rs`.
 - The default printer runtime uses `crates/instantlink-ffi`, built to
   `/opt/InstantLinkBridge/lib/libinstantlink_ffi.so`. Do not debug new printer connection failures in
   Bleak first unless `INSTANTLINK_BRIDGE_PRINTER_BACKEND=bleak` is explicitly set.
+- The deployment script now stops and, if needed, force-clears stuck bridge processes before updating
+  files. The systemd unit also has `TimeoutStopSec=12` because btleplug/BlueZ status calls can wedge
+  during shutdown when a printer is offline.
 - `libgphoto2` 2.5.31 has a `has_sony_mode_300` regression affecting ILCE-7C/7CM2; pin to 2.5.30 if the deferred PTP path is used.
 - BlueZ bonded printers must be marked `Trusted=true` under `/var/lib/bluetooth/<adapter>/<device>/info` or reconnect after reboot can fail.
 - No public Instax Link sleep-disable command is documented. Keep the printer awake through

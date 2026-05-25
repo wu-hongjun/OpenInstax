@@ -81,6 +81,7 @@ from instantlink_bridge.ui.status import (
 LOGGER = logging.getLogger(__name__)
 OFFLINE_STATUS_RETRY_S = 1.0
 RESTART_PRINTER_RETRY_S = 5.0
+PRINTER_STATUS_WARNING_INTERVAL_S = 30.0
 OFFLINE_MESSAGE_AFTER_MISSES = 3
 USB_STATUS_POLL_S = 1.0
 PREVIEW_BUILD_TIMEOUT_S = 20.0
@@ -168,6 +169,8 @@ class BridgeUi:
         self._idle_stage = IdleStage.ACTIVE
         self._printer_keepalive_interval_s = config.printer.keepalive_interval_s
         self._printer_status_misses = 0
+        self._last_printer_status_warning_at = -math.inf
+        self._last_printer_status_warning_signature: tuple[str, ...] | None = None
         self._actions: asyncio.Queue[UiAction] = asyncio.Queue(maxsize=20)
         self._snapshot = self._build_snapshot(
             mode=UiMode.BOOTING,
@@ -1622,13 +1625,20 @@ class BridgeUi:
         except asyncio.CancelledError:
             raise
         except PrinterStatusUnavailableError as exc:
-            LOGGER.warning(
-                "ui.printer_status_unavailable address=%s name=%s error=%s diagnostics=%s",
-                printer.address,
-                printer.name,
-                exc,
-                scanner_diagnostics_summary(exc),
-            )
+            diagnostics = scanner_diagnostics_summary(exc)
+            if self._should_log_printer_status_warning(
+                "unavailable",
+                printer,
+                str(exc),
+                diagnostics,
+            ):
+                LOGGER.warning(
+                    "ui.printer_status_unavailable address=%s name=%s error=%s diagnostics=%s",
+                    printer.address,
+                    printer.name,
+                    exc,
+                    diagnostics,
+                )
             self._printer_status_misses += 1
             message = (
                 "Hold K3 to re-pair"
@@ -1638,31 +1648,39 @@ class BridgeUi:
             self._apply_printer_searching(printer, message)
             return False
         except TimeoutError as exc:
-            LOGGER.warning(
-                "ui.printer_status_connect_timeout address=%s name=%s error=%s",
-                printer.address,
-                printer.name,
-                exc,
-            )
+            if self._should_log_printer_status_warning("timeout", printer, str(exc)):
+                LOGGER.warning(
+                    "ui.printer_status_connect_timeout address=%s name=%s error=%s",
+                    printer.address,
+                    printer.name,
+                    exc,
+                )
             self._apply_printer_searching(
                 printer,
                 self._connect_failure_message("Printer seen; connecting"),
             )
             return False
         except Exception as exc:
-            LOGGER.warning(
-                "ui.printer_status_refresh_failed address=%s name=%s error_type=%s error=%s",
-                printer.address,
-                printer.name,
+            if self._should_log_printer_status_warning(
+                "refresh_failed",
+                printer,
                 type(exc).__name__,
-                exc,
-            )
+                str(exc),
+            ):
+                LOGGER.warning(
+                    "ui.printer_status_refresh_failed address=%s name=%s error_type=%s error=%s",
+                    printer.address,
+                    printer.name,
+                    type(exc).__name__,
+                    exc,
+                )
             self._apply_printer_searching(
                 printer,
                 self._connect_failure_message("Printer seen; connecting"),
             )
             return False
         self._printer_status_misses = 0
+        self._clear_printer_status_warning_state()
         LOGGER.info(
             "ui.printer_status film_remaining=%s battery=%s charging=%s model=%s "
             "keepalive_interval_s=%s",
@@ -1797,6 +1815,27 @@ class BridgeUi:
             printer_model=self._known_printer_model(),
         )
         self._render()
+
+    def _should_log_printer_status_warning(
+        self,
+        kind: str,
+        printer: PairedPrinter,
+        *details: str,
+    ) -> bool:
+        signature = (kind, printer.address, printer.name, *details)
+        now = asyncio.get_running_loop().time()
+        if (
+            signature != self._last_printer_status_warning_signature
+            or now - self._last_printer_status_warning_at >= PRINTER_STATUS_WARNING_INTERVAL_S
+        ):
+            self._last_printer_status_warning_signature = signature
+            self._last_printer_status_warning_at = now
+            return True
+        return False
+
+    def _clear_printer_status_warning_state(self) -> None:
+        self._last_printer_status_warning_signature = None
+        self._last_printer_status_warning_at = -math.inf
 
     def _offline_message(self, default: str) -> str:
         self._printer_status_misses += 1
