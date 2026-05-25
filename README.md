@@ -11,7 +11,7 @@ The Instax Link BLE protocol was reverse-engineered by the open-source community
 
 ## What's Included
 
-| Crate | Description |
+| Component | Description |
 |-------|-------------|
 | **instantlink-core** | Core library — BLE protocol, image processing, device communication |
 | **instantlink-cli** (`instantlink` binary) | Command-line tool to scan, query, and print |

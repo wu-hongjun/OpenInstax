@@ -40,7 +40,7 @@ Status: Superseded
 
 Context: Direct BlueZ D-Bus control gives maximum control but increases implementation surface.
 
-Decision: Use Bleak 3.0.1 with BlueZ 5.79 for v1, while declaring `dbus-fast` as an optional future escape hatch.
+Decision: Keep the Python/Bleak path as a diagnostic fallback, with `dbus-fast` installed for the required BlueZ pairing agent.
 
 Consequences: Bleak's abstraction was mature enough for the first Python transport, but hardware testing on 2026-05-24 showed a Square Link advertising reliably while Bleak disconnected during GATT service discovery. See ADR-009 for the runtime replacement.
 

@@ -20,9 +20,8 @@ editables==0.6
 
 # Direct runtime dependencies from pyproject.toml.
 aiohttp==3.13.5
-# Mirrors pyproject.toml's current Bleak floor; update both files together
-# if the selected Bluetooth stack version changes.
-bleak==3.0.1
+bleak==1.1.1
+dbus-fast==2.45.1
 gpiozero==2.0.1
 lgpio==0.2.2.0
 luma.lcd==2.13.0
@@ -38,7 +37,6 @@ aiosignal==1.4.0
 attrs==26.1.0
 cbor2==5.9.0
 colorzero==2.0
-dbus-fast==2.45.1
 frozenlist==1.8.0
 idna==3.15
 luma.core==2.5.3

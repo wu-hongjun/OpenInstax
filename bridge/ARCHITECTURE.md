@@ -38,9 +38,9 @@ Pillow / pillow-heif / rawpy image pipeline
   | ImageOps.fit(model dimensions, Image.Resampling.LANCZOS)
   | JPEG q100, 4:2:0, model max-size enforcement
   v
-Bleak client on BlueZ 5.79
+InstantLink Rust FFI backend on BlueZ
   |
-  | Instax Link GATT protocol
+  | InstantLink core BLE transport + printer protocol
   v
 Fujifilm Instax Mini / Mini Link 3 / Square / Wide Link
 ```
@@ -139,8 +139,9 @@ These are architecture examples, not implemented code.
 - USB gadget failures are diagnostics/admin issues and should not gate v1 camera readiness. Direct
   Sony USB-LAN via the Pi gadget is unsupported for v1 based on the 2026-05-22 Mac-proven
   cable/camera retest.
-- BLE print-path failures should retry with 1, 2, 5, and 15 s capped backoff and should remove
-  stale BlueZ device paths on `BleakDeviceNotFoundError`.
+- BLE print-path failures should be handled by the InstantLink FFI backend first. The Python/Bleak
+  path is retained only as a diagnostic fallback and may remove stale BlueZ device paths on
+  `BleakDeviceNotFoundError`.
 - The boot UI status path uses 1 s discovery windows while searching, keeps the BLE connection
   open after a successful status read, and polls status every 10 s by default as the printer
   keepalive.

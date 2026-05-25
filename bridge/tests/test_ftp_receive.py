@@ -214,6 +214,30 @@ async def test_ftp_received_file_relocates_root_upload_to_incoming(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_ftp_received_file_does_not_overwrite_queued_root_upload(tmp_path: Path) -> None:
+    queue: asyncio.Queue[ReceivedImage] = asyncio.Queue(maxsize=2)
+    incoming_dir = tmp_path / "incoming"
+    incoming_dir.mkdir()
+    existing_path = incoming_dir / "root.jpg"
+    existing_path.write_bytes(b"first")
+    root_image_path = tmp_path / "root.jpg"
+    root_image_path.write_bytes(b"second")
+    service = FtpReceiveService(
+        FtpConfig(mode=FtpReceiveMode.HOTSPOT, incoming_dir=incoming_dir),
+        queue,
+        asyncio.get_running_loop(),
+    )
+
+    service._handle_received_file(str(root_image_path), "192.168.8.59")
+    await asyncio.sleep(0)
+
+    relocated_path = incoming_dir / "root-1.jpg"
+    assert existing_path.read_bytes() == b"first"
+    assert relocated_path.read_bytes() == b"second"
+    assert queue.get_nowait() == ReceivedImage(path=relocated_path, remote_ip="192.168.8.59")
+
+
+@pytest.mark.asyncio
 async def test_ftp_received_file_records_upload_activity(tmp_path: Path) -> None:
     queue: asyncio.Queue[ReceivedImage] = asyncio.Queue(maxsize=1)
     image_path = tmp_path / "peer.jpg"

@@ -1240,7 +1240,7 @@ async def test_settings_menu_shows_hotspot_pin(
 ) -> None:
     ssid_path = tmp_path / "hotspot.ssid"
     psk_path = tmp_path / "hotspot.psk"
-    ssid_path.write_text("InstBrdg-TEST1234\n", encoding="utf-8")
+    ssid_path.write_text("LinkBrdg-TEST1234\n", encoding="utf-8")
     psk_path.write_text("12345678\n", encoding="utf-8")
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
@@ -1260,7 +1260,7 @@ async def test_settings_menu_shows_hotspot_pin(
 
     rows = display.snapshots[-1].settings_rows
     assert rows[1].label == "Bridge Wi-Fi"
-    assert rows[1].value == "InstBrdg-TEST1234"
+    assert rows[1].value == "LinkBrdg-TEST1234"
     assert rows[2].label == "Wi-Fi PIN"
     assert rows[2].value == "12345678"
     assert rows[3].label == "FTP host"

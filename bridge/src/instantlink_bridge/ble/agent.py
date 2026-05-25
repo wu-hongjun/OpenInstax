@@ -19,7 +19,7 @@ LOGGER = logging.getLogger(__name__)
 BLUEZ_SERVICE = "org.bluez"
 BLUEZ_ROOT = "/org/bluez"
 DEFAULT_ADAPTER_PATH = "/org/bluez/hci0"
-DEFAULT_AGENT_PATH = "/com/instantlink-bridge/agent"
+DEFAULT_AGENT_PATH = "/com/instantlink_bridge/agent"
 
 
 class NoInputNoOutputAgent(ServiceInterface):

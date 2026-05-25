@@ -285,7 +285,7 @@ class FtpReceiveService:
         if resolved_path.parent != ftp_root:
             return path
 
-        target = incoming_dir / resolved_path.name
+        target = _unique_received_path(incoming_dir / resolved_path.name)
         try:
             incoming_dir.mkdir(parents=True, exist_ok=True)
             shutil.move(str(path), str(target))
@@ -400,6 +400,18 @@ def validate_runtime_ftp_config(config: FtpConfig) -> None:
         raise RuntimeError(
             "Refusing to start FTP with the default password; run provisioning first"
         )
+
+
+def _unique_received_path(path: Path) -> Path:
+    """Return a non-existing path so queued uploads cannot overwrite each other."""
+
+    if not path.exists():
+        return path
+    for index in range(1, 10_000):
+        candidate = path.with_name(f"{path.stem}-{index}{path.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise OSError(f"could not find available upload name for {path}")
 
 
 def ftp_home_dir_for_incoming(incoming_dir: Path) -> Path:

@@ -13,14 +13,14 @@ to any tested Pi USB Ethernet gadget personality.
 ## Mode 1: Bridge Wi-Fi FTP
 
 - Pi interface: `wlan0` in AP mode
-- Pi SSID: `InstBrdg-XXXXXXXX`, where `XXXXXXXX` is the bridge's device suffix
+- Pi SSID: `LinkBrdg-XXXXXXXX`, where `XXXXXXXX` is the bridge's device suffix
 - Pi Wi-Fi password: 8-digit numeric PIN in `/etc/InstantLinkBridge/hotspot.psk`
 - Pi FTP address: `192.168.8.1`
 - Wi-Fi radio shape: 2.4 GHz channel 6, WPA2-PSK/RSN, CCMP/AES only
 - Camera connection method: Wi-Fi to the bridge SSID
 
 This is the giftable/portable wireless mode. The camera joins the bridge's own Wi-Fi network,
-`InstBrdg-XXXXXXXX` by default, and uploads to `192.168.8.1`. No existing Wi-Fi password is needed for
+`LinkBrdg-XXXXXXXX` by default, and uploads to `192.168.8.1`. No existing Wi-Fi password is needed for
 the bridge workflow.
 
 Configure and activate on the Pi:
@@ -49,7 +49,7 @@ present. The file is readable by the service group so the LCD can display it. To
 password:
 
 ```bash
-printf '%s\n' 'InstBrdg-1234ABCD' | sudo tee /etc/InstantLinkBridge/hotspot.ssid
+printf '%s\n' 'LinkBrdg-1234ABCD' | sudo tee /etc/InstantLinkBridge/hotspot.ssid
 INSTANTLINK_BRIDGE_HOTSPOT_PSK='12345678' \
 scripts/wifi-mode.sh hotspot
 ```

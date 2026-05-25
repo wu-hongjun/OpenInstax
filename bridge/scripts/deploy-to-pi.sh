@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-HOST="${INSTANTLINK_BRIDGE_HOST:-riverps-rpi-zero-2w.burro-ling.ts.net}"
-USER="${INSTANTLINK_BRIDGE_USER:-hongjunwu}"
+HOST="${INSTANTLINK_BRIDGE_HOST:-}"
+USER="${INSTANTLINK_BRIDGE_USER:-}"
 TARGET="${INSTANTLINK_BRIDGE_TARGET:-/opt/InstantLinkBridge}"
 OWNER="${INSTANTLINK_BRIDGE_OWNER:-ib}"
 GROUP="${INSTANTLINK_BRIDGE_GROUP:-ib}"
@@ -13,6 +13,7 @@ DEPLOY_MANIFEST_PATH="${INSTANTLINK_BRIDGE_DEPLOY_MANIFEST_PATH:-${DEPLOY_METADA
 RUNTIME_PACKAGES_ARTIFACT="${INSTANTLINK_BRIDGE_RUNTIME_PACKAGES_ARTIFACT:-${DEPLOY_METADATA_DIR}/runtime-installed-packages.txt}"
 RUNTIME_APT_PACKAGES_ARTIFACT="${INSTANTLINK_BRIDGE_RUNTIME_APT_PACKAGES_ARTIFACT:-${DEPLOY_METADATA_DIR}/runtime-apt-packages.txt}"
 RUNTIME_DEPS_MANIFEST="${INSTANTLINK_BRIDGE_RUNTIME_DEPS_MANIFEST:-${DEPLOY_METADATA_DIR}/runtime-deps-manifest.json}"
+INSTANTLINK_ARTIFACTS_MANIFEST="${INSTANTLINK_BRIDGE_ARTIFACTS_MANIFEST:-${DEPLOY_METADATA_DIR}/instantlink-artifacts-manifest.json}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 TARGET_PYTHON_BIN="${TARGET_PYTHON_BIN:-python3}"
 SSH_BIN="${SSH_BIN:-ssh}"
@@ -30,8 +31,8 @@ usage() {
 Usage: scripts/deploy-to-pi.sh [--restart] [--system] [--deps] [--instantlink-artifacts] [--allow-dirty]
 
 Environment overrides:
-  INSTANTLINK_BRIDGE_HOST    SSH host, default riverps-rpi-zero-2w.burro-ling.ts.net
-  INSTANTLINK_BRIDGE_USER    SSH user, default hongjunwu
+  INSTANTLINK_BRIDGE_HOST    SSH host, required
+  INSTANTLINK_BRIDGE_USER    SSH user, required
   INSTANTLINK_BRIDGE_TARGET  Target directory, default /opt/InstantLinkBridge
   INSTANTLINK_BRIDGE_OWNER   Installed file owner, default ib
   INSTANTLINK_BRIDGE_GROUP   Installed file group, default ib
@@ -50,9 +51,9 @@ Environment overrides:
   SCP_BIN              SCP command, default scp
   TARGET_PYTHON_BIN    Pi runtime Python command for --deps, default python3
 
-By default this refuses dirty working trees and deploys the checked-out source tree,
-including submodule content and without .git metadata. With --allow-dirty it copies the current
-working tree and records dirty=true in the
+By default this refuses dirty working trees and deploys a git archive of the committed bridge
+source without .git metadata. With --allow-dirty it copies the current working tree and records
+dirty=true in the
 deployment manifest. It does not install Python packages; use it for
 source/config/docs updates after the Pi has been provisioned. Use --deps when
 pyproject.toml or requirements/constraints.txt changed.
@@ -79,6 +80,13 @@ init_ssh_commands() {
     fi
     SSH_CMD=(sshpass -e "${SSH_BIN}")
     SCP_CMD=(sshpass -e "${SCP_BIN}")
+  fi
+}
+
+require_deploy_target() {
+  if [[ -z "${HOST}" || -z "${USER}" ]]; then
+    echo "ERROR: set INSTANTLINK_BRIDGE_HOST and INSTANTLINK_BRIDGE_USER before deploying" >&2
+    exit 2
   fi
 }
 
@@ -165,6 +173,7 @@ render_deployment_manifest() {
   local runtime_deps_manifest="${14}"
   local repo_root="${15:-$(pwd)}"
   local runtime_apt_packages_artifact="${16:-${DEPLOY_METADATA_DIR}/runtime-apt-packages.txt}"
+  local instantlink_artifacts_manifest="${17:-${DEPLOY_METADATA_DIR}/instantlink-artifacts-manifest.json}"
 
   local constraints_sha
   local pyproject_sha
@@ -202,6 +211,7 @@ render_deployment_manifest() {
     "${runtime_deps_manifest}" \
     "${repo_root}" \
     "${runtime_apt_packages_artifact}" \
+    "${instantlink_artifacts_manifest}" \
     "${apt_packages_file}" <<'PY'
 import hashlib
 import json
@@ -226,6 +236,7 @@ import sys
     runtime_deps_manifest,
     repo_root,
     runtime_apt_packages_artifact,
+    instantlink_artifacts_manifest,
     apt_packages_file,
 ) = sys.argv[1:]
 
@@ -289,6 +300,9 @@ manifest = {
             "apt_packages_artifact": runtime_apt_packages_artifact,
             "runtime_deps_manifest": runtime_deps_manifest,
         },
+        "instantlink_artifacts": {
+            "manifest": instantlink_artifacts_manifest,
+        },
         "provision": {
             "script": "scripts/provision-sd.sh",
             "script_sha256": provision_script_sha or None,
@@ -308,12 +322,24 @@ PY
 
 create_commit_archive() {
   local repo="$1"
-  local _commit_sha="$2"
+  local commit_sha="$2"
   local archive="$3"
-  (
-    cd "${repo}"
-    create_working_tree_archive "${archive}"
-  )
+  local top
+  local prefix
+  local temp_dir
+
+  top="$(git -C "${repo}" rev-parse --show-toplevel)"
+  prefix="$(git -C "${repo}" rev-parse --show-prefix)"
+  temp_dir="$(mktemp -d -t instantlink-bridge-archive.XXXXXX)"
+
+  git -C "${top}" archive --format=tar "${commit_sha}" -- "${prefix}" |
+    tar -xf - -C "${temp_dir}"
+  if [[ -n "${prefix}" ]]; then
+    COPYFILE_DISABLE=1 tar -C "${temp_dir}/${prefix%/}" -czf "${archive}" .
+  else
+    COPYFILE_DISABLE=1 tar -C "${temp_dir}" -czf "${archive}" .
+  fi
+  rm -rf "${temp_dir}"
 }
 
 create_working_tree_archive() {
@@ -345,7 +371,8 @@ deploy_archive_to_pi() {
        sudo find '${TARGET}' -name '._*' -delete"
   else
     "${SSH_CMD[@]}" -t "${USER}@${HOST}" \
-      "sudo tar -xzf '${remote_archive}' -C '${TARGET}' --owner='${OWNER}' --group='${GROUP}' && \
+      "sudo mkdir -p '${TARGET}' && \
+       sudo tar -xzf '${remote_archive}' -C '${TARGET}' --owner='${OWNER}' --group='${GROUP}' && \
        rm '${remote_archive}' && \
        sudo rm -rf '${TARGET}/.omc' '${TARGET}/target' && \
        sudo find '${TARGET}' -name '._*' -delete"
@@ -366,7 +393,8 @@ deploy_working_tree_to_pi() {
     create_working_tree_archive "${ARCHIVE}"
     "${SCP_CMD[@]}" -q "${ARCHIVE}" "${USER}@${HOST}:/tmp/instantlink-bridge-deploy.tar.gz"
     "${SSH_CMD[@]}" -t "${USER}@${HOST}" \
-      "sudo tar -xzf /tmp/instantlink-bridge-deploy.tar.gz -C '${TARGET}' --owner='${OWNER}' --group='${GROUP}' && \
+      "sudo mkdir -p '${TARGET}' && \
+       sudo tar -xzf /tmp/instantlink-bridge-deploy.tar.gz -C '${TARGET}' --owner='${OWNER}' --group='${GROUP}' && \
        rm /tmp/instantlink-bridge-deploy.tar.gz && \
        sudo rm -rf '${TARGET}/.omc' '${TARGET}/target' && \
        sudo find '${TARGET}' -name '._*' -delete"
@@ -377,8 +405,11 @@ install_instantlink_artifacts_on_pi() {
   local artifacts_dir="$1"
   local lib_source="${artifacts_dir}/libinstantlink_ffi.so"
   local cli_source="${artifacts_dir}/instantlink"
+  local workspace_root="${ROOT}/.."
+  local artifact_manifest
   local remote_lib="/tmp/libinstantlink_ffi.so"
   local remote_cli="/tmp/instantlink"
+  local remote_manifest="/tmp/instantlink-bridge-artifacts-manifest.json"
 
   if [[ ! -f "${lib_source}" ]]; then
     echo "ERROR: missing InstantLink FFI artifact: ${lib_source}" >&2
@@ -391,12 +422,103 @@ install_instantlink_artifacts_on_pi() {
     exit 1
   fi
 
+  artifact_manifest="$(mktemp -t instantlink-bridge-artifacts.XXXXXX.json)"
+  render_instantlink_artifacts_manifest \
+    "${artifact_manifest}" \
+    "${artifacts_dir}" \
+    "${lib_source}" \
+    "${cli_source}" \
+    "${workspace_root}"
+
   "${SCP_CMD[@]}" -q "${lib_source}" "${USER}@${HOST}:${remote_lib}"
   "${SCP_CMD[@]}" -q "${cli_source}" "${USER}@${HOST}:${remote_cli}"
+  "${SCP_CMD[@]}" -q "${artifact_manifest}" "${USER}@${HOST}:${remote_manifest}"
   "${SSH_CMD[@]}" -t "${USER}@${HOST}" \
     "sudo install -D -m 0755 -o '${OWNER}' -g '${GROUP}' '${remote_lib}' '${TARGET}/lib/libinstantlink_ffi.so' && \
      sudo install -D -m 0755 -o '${OWNER}' -g '${GROUP}' '${remote_cli}' '${TARGET}/bin/instantlink' && \
-     rm -f '${remote_lib}' '${remote_cli}'"
+     sudo install -D -m 0644 -o '${OWNER}' -g '${GROUP}' '${remote_manifest}' '${INSTANTLINK_ARTIFACTS_MANIFEST}' && \
+     rm -f '${remote_lib}' '${remote_cli}' '${remote_manifest}'"
+  rm -f "${artifact_manifest}"
+}
+
+render_instantlink_artifacts_manifest() {
+  local output_path="$1"
+  local artifacts_dir="$2"
+  local lib_source="$3"
+  local cli_source="$4"
+  local workspace_root="$5"
+  local lib_sha
+  local cli_sha
+  local commit_sha=""
+  local branch=""
+  local dirty="unknown"
+
+  lib_sha="$(sha256_file "${lib_source}")"
+  cli_sha="$(sha256_file "${cli_source}")"
+  if git -C "${workspace_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    commit_sha="$(git -C "${workspace_root}" rev-parse --verify HEAD)"
+    branch="$(git_branch_name "${workspace_root}")"
+    if git_worktree_dirty "${workspace_root}"; then
+      dirty=true
+    else
+      dirty=false
+    fi
+  fi
+
+  "${PYTHON_BIN}" - \
+    "${output_path}" \
+    "$(utc_now)" \
+    "${artifacts_dir}" \
+    "${lib_source}" \
+    "${lib_sha}" \
+    "${cli_source}" \
+    "${cli_sha}" \
+    "${commit_sha}" \
+    "${branch}" \
+    "${dirty}" <<'PY'
+import json
+import pathlib
+import sys
+
+(
+    output_path,
+    recorded_at,
+    artifacts_dir,
+    lib_source,
+    lib_sha,
+    cli_source,
+    cli_sha,
+    commit_sha,
+    branch,
+    dirty,
+) = sys.argv[1:]
+
+manifest = {
+    "schema_version": 1,
+    "recorded_at_utc": recorded_at,
+    "artifacts_dir": artifacts_dir,
+    "instantlink_workspace": {
+        "commit_sha": commit_sha or None,
+        "branch": branch or None,
+        "dirty": None if dirty == "unknown" else dirty == "true",
+    },
+    "artifacts": {
+        "libinstantlink_ffi.so": {
+            "source_path": lib_source,
+            "sha256": lib_sha or None,
+        },
+        "instantlink": {
+            "source_path": cli_source,
+            "sha256": cli_sha or None,
+        },
+    },
+}
+
+pathlib.Path(output_path).write_text(
+    json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
 }
 
 install_deployment_manifest_on_pi() {
@@ -546,7 +668,7 @@ main() {
   REMOTE_URL="$(git_remote_url "${ROOT}" "${BRANCH}")"
   DEPLOY_TIMESTAMP="$(utc_now)"
   DIRTY=false
-  SOURCE_MODE=source-tree-clean
+  SOURCE_MODE=git-archive
   if git_worktree_dirty "${ROOT}"; then
     DIRTY=true
     SOURCE_MODE=working-tree
@@ -556,6 +678,8 @@ main() {
     echo "ERROR: refusing to deploy dirty working tree; commit changes or pass --allow-dirty" >&2
     exit 1
   fi
+
+  require_deploy_target
 
   CONSTRAINTS_SOURCE="${ROOT}/${CONSTRAINTS_RELATIVE_PATH}"
   if [[ ! -f "${CONSTRAINTS_SOURCE}" ]]; then
@@ -584,7 +708,8 @@ main() {
     "${RUNTIME_PACKAGES_ARTIFACT}" \
     "${RUNTIME_DEPS_MANIFEST}" \
     "${ROOT}" \
-    "${RUNTIME_APT_PACKAGES_ARTIFACT}"
+    "${RUNTIME_APT_PACKAGES_ARTIFACT}" \
+    "${INSTANTLINK_ARTIFACTS_MANIFEST}"
 
   if [[ "${DIRTY}" == "true" ]]; then
     deploy_working_tree_to_pi
@@ -600,15 +725,15 @@ main() {
     "${SSH_CMD[@]}" -t "${USER}@${HOST}" "sudo '${TARGET}/scripts/provision-sd.sh' /"
   fi
 
+  if [[ "${INSTALL_INSTANTLINK_ARTIFACTS}" -eq 1 ]]; then
+    INSTANTLINK_ARTIFACT_DIR="${INSTANTLINK_BRIDGE_INSTANTLINK_ARTIFACT_DIR:-${ROOT}/../target/aarch64-unknown-linux-gnu/release}"
+    install_instantlink_artifacts_on_pi "${INSTANTLINK_ARTIFACT_DIR}"
+  fi
+
   if [[ "${INSTALL_DEPS}" -eq 1 ]]; then
     install_runtime_deps_on_pi
   elif [[ "${RESTART}" -eq 1 ]]; then
     verify_remote_runtime_deps_current
-  fi
-
-  if [[ "${INSTALL_INSTANTLINK_ARTIFACTS}" -eq 1 ]]; then
-    INSTANTLINK_ARTIFACT_DIR="${INSTANTLINK_BRIDGE_INSTANTLINK_ARTIFACT_DIR:-${ROOT}/../target/aarch64-unknown-linux-gnu/release}"
-    install_instantlink_artifacts_on_pi "${INSTANTLINK_ARTIFACT_DIR}"
   fi
 
   if [[ "${RESTART}" -eq 1 ]]; then

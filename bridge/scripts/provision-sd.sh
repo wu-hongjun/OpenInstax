@@ -215,18 +215,18 @@ default_hotspot_ssid() {
     if [[ -r "${machine_id_path}" ]]; then
       machine_id="$(sed -n '1p' "${machine_id_path}" | tr '[:lower:]' '[:upper:]')"
       if [[ "${machine_id}" =~ ^[0-9A-F]{8} ]]; then
-        printf 'InstBrdg-%s\n' "${machine_id:0:8}"
+        printf 'LinkBrdg-%s\n' "${machine_id:0:8}"
         return
       fi
     fi
   done
-  printf '%s\n' 'InstBrdg-SETUP'
+  printf '%s\n' 'LinkBrdg-SETUP'
 }
 
 HOTSPOT_SSID_FILE="${ROOT%/}/etc/InstantLinkBridge/hotspot.ssid"
 HOTSPOT_PSK_FILE="${ROOT%/}/etc/InstantLinkBridge/hotspot.psk"
 if [[ ! -f "${HOTSPOT_SSID_FILE}" ]] ||
-  ! sed -n '1p' "${HOTSPOT_SSID_FILE}" | grep -Eq '^InstBrdg-[0-9A-F]{8}$'; then
+  ! sed -n '1p' "${HOTSPOT_SSID_FILE}" | grep -Eq '^LinkBrdg-[0-9A-F]{8}$'; then
   printf '%s\n' "$(default_hotspot_ssid)" > "${HOTSPOT_SSID_FILE}"
 fi
 if [[ ! -f "${HOTSPOT_PSK_FILE}" ]] ||

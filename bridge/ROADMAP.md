@@ -8,7 +8,7 @@ v1 ships the core giftable appliance behavior.
 - Optional same-Wi-Fi peer FTP profile.
 - USB gadget admin/SSH/diagnostics profile, not a supported v1 camera wired mode.
 - Image pipeline to model-specific Mini, Mini Link 3, Square, or Wide JPEG.
-- BLE Instax Link print path using the InstantLink-derived Python protocol implementation.
+- Printer scan, status, model detection, and print path through the InstantLink Rust FFI backend.
 - LCD UI with preview, cancel, printing, ready, settings, and errors.
 - Explicit state machine and bounded image queue.
 - X306 UPS/no-telemetry power backend, idle display management, and idle shutdown.

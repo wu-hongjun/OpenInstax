@@ -6,7 +6,7 @@ HOTSPOT_CONNECTION="${INSTANTLINK_BRIDGE_HOTSPOT_CONNECTION:-InstantLink Bridge-
 HOME_CONNECTION="${INSTANTLINK_BRIDGE_HOME_CONNECTION:-InstantLink Bridge-Home}"
 CONFIG_FILE="${INSTANTLINK_BRIDGE_CONFIG:-/etc/InstantLinkBridge/config.toml}"
 HOTSPOT_SSID_FILE="${INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE:-/etc/InstantLinkBridge/hotspot.ssid}"
-FALLBACK_HOTSPOT_SSID="InstBrdg-SETUP"
+FALLBACK_HOTSPOT_SSID="LinkBrdg-SETUP"
 PSK_FILE="${INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE:-/etc/InstantLinkBridge/hotspot.psk}"
 NM_READY_TIMEOUT_S="${INSTANTLINK_BRIDGE_NM_READY_TIMEOUT_S:-30}"
 HOTSPOT_CHANNEL="${INSTANTLINK_BRIDGE_HOTSPOT_CHANNEL:-6}"
@@ -62,7 +62,7 @@ default_hotspot_ssid() {
     if [[ -r "${machine_id_path}" ]]; then
       machine_id="$(sed -n '1p' "${machine_id_path}" | tr '[:lower:]' '[:upper:]')"
       if [[ "${machine_id}" =~ ^[0-9A-F]{8} ]]; then
-        printf 'InstBrdg-%s\n' "${machine_id:0:8}"
+        printf 'LinkBrdg-%s\n' "${machine_id:0:8}"
         return
       fi
     fi

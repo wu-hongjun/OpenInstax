@@ -216,17 +216,25 @@ class InstantLinkBackend:
         """Prepare an edited image and send it through InstantLink."""
 
         async with self._lock:
-            await asyncio.to_thread(
-                self._print_file_blocking,
-                name,
-                image_path,
-                fit,
-                quality,
-                edit,
-                print_option,
-                model_override,
-                progress,
+            print_task = asyncio.ensure_future(
+                asyncio.to_thread(
+                    self._print_file_blocking,
+                    name,
+                    image_path,
+                    fit,
+                    quality,
+                    edit,
+                    print_option,
+                    model_override,
+                    progress,
+                )
             )
+            try:
+                await asyncio.shield(print_task)
+            except asyncio.CancelledError:
+                LOGGER.warning("instantlink.print_cancel_waiting_for_worker name=%s", name)
+                await print_task
+                raise
 
     async def disconnect(self) -> None:
         """Disconnect the current InstantLink device."""
@@ -470,10 +478,12 @@ def _candidate_library_paths(library_path: Path | None) -> Iterable[Path]:
         yield Path(env_path)
     system = platform.system()
     file_name = "libinstantlink_ffi.dylib" if system == "Darwin" else "libinstantlink_ffi.so"
-    repo_root = Path(__file__).resolve().parents[3]
+    bridge_root = Path(__file__).resolve().parents[3]
+    workspace_root = bridge_root.parent
     yield Path("/opt/InstantLinkBridge/lib") / file_name
-    yield repo_root / "lib" / file_name
-    yield repo_root / "third-party" / "instantlink" / "target" / "release" / file_name
+    yield bridge_root / "lib" / file_name
+    yield workspace_root / "target" / "release" / file_name
+    yield workspace_root / "target" / "aarch64-unknown-linux-gnu" / "release" / file_name
 
 
 def _configure_library(lib: ctypes.CDLL) -> None:

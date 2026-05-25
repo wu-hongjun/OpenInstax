@@ -6,7 +6,7 @@ autoconnect=false
 
 [wifi]
 mode=ap
-ssid=InstBrdg-SETUP
+ssid=LinkBrdg-SETUP
 band=bg
 channel=6
 

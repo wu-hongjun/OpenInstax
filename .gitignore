@@ -10,6 +10,12 @@ bridge/.mypy_cache/
 bridge/.pytest_cache/
 bridge/.ruff_cache/
 bridge/*.egg-info/
+bridge/build/
+bridge/dist/
+bridge/.coverage
+bridge/htmlcov/
+bridge/config/config.local.toml
+bridge/config/*.secret
 
 # macOS
 .DS_Store

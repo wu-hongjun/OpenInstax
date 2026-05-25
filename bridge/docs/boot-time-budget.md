@@ -75,7 +75,7 @@ Observed service state:
 - `e2scrub_reap.service` is enabled.
 - Many earlier slow-service candidates are already disabled or not installed.
 
-Previous baseline measured on `riverps-rpi-zero-2w` on 2026-05-20:
+Previous baseline measured on one Pi Zero 2 W target on 2026-05-20:
 
 ```text
 Startup finished in 5.609s (kernel) + 29.244s (userspace) = 34.854s

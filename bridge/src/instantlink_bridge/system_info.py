@@ -49,8 +49,8 @@ def default_hotspot_ssid() -> str:
 
     suffix = read_device_suffix()
     if suffix is not None:
-        return f"InstBrdg-{suffix}"
-    return "InstBrdg-UNKNOWN"
+        return f"LinkBrdg-{suffix}"
+    return "LinkBrdg-UNKNOWN"
 
 
 def read_device_suffix() -> str | None:

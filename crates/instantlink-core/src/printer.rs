@@ -135,11 +135,11 @@ fn normalized_printer_name(name: &str) -> String {
 fn extracted_printer_serial(name: &str) -> Option<String> {
     let normalized = normalized_printer_name(name);
     let suffix = normalized.strip_prefix("INSTAX-")?;
-    let digits: String = suffix
+    let serial: String = suffix
         .chars()
-        .take_while(|ch| ch.is_ascii_digit())
+        .take_while(|ch| ch.is_ascii_alphanumeric())
         .collect();
-    (!digits.is_empty()).then_some(digits)
+    (!serial.is_empty()).then_some(serial)
 }
 
 fn select_matching_result<T>(results: Vec<(T, String)>, device_name: &str) -> Result<(T, String)> {
@@ -191,6 +191,11 @@ fn has_platform_suffix(name: &str) -> bool {
 }
 
 fn select_preferred_advertisement<T>(mut matches: Vec<(T, String)>) -> Result<(T, String)> {
+    if !all_same_printer_identity(&matches) {
+        return Err(PrinterError::MultiplePrinters {
+            count: matches.len(),
+        });
+    }
     matches.sort_by_key(|(_, name)| advertisement_priority(name));
     let best_priority = matches
         .first()
@@ -206,6 +211,20 @@ fn select_preferred_advertisement<T>(mut matches: Vec<(T, String)>) -> Result<(T
     Err(PrinterError::MultiplePrinters {
         count: matches.len(),
     })
+}
+
+fn all_same_printer_identity<T>(matches: &[(T, String)]) -> bool {
+    let Some((_, first_name)) = matches.first() else {
+        return false;
+    };
+    let first_identity = printer_identity(first_name);
+    matches
+        .iter()
+        .all(|(_, name)| printer_identity(name) == first_identity)
+}
+
+fn printer_identity(name: &str) -> String {
+    extracted_printer_serial(name).unwrap_or_else(|| normalized_printer_name(name))
 }
 
 fn advertisement_priority(name: &str) -> u8 {
@@ -279,6 +298,10 @@ mod tests {
             extracted_printer_serial("INSTAX-12345678 (iOS)").as_deref(),
             Some("12345678")
         );
+        assert_eq!(
+            extracted_printer_serial("INSTAX-1N034655 (iOS)").as_deref(),
+            Some("1N034655")
+        );
     }
 
     #[test]
@@ -292,7 +315,7 @@ mod tests {
     #[test]
     fn extracted_printer_serial_returns_none_for_non_instax_names() {
         assert_eq!(extracted_printer_serial("mini-link"), None);
-        assert_eq!(extracted_printer_serial("INSTAX-ABCDEF"), None);
+        assert_eq!(extracted_printer_serial("INSTAX-"), None);
     }
 
     #[test]
@@ -300,6 +323,10 @@ mod tests {
         assert!(!printer_name_matches(
             "INSTAX-12345678 (iOS)",
             "INSTAX-87654321"
+        ));
+        assert!(!printer_name_matches(
+            "INSTAX-1N034655 (iOS)",
+            "INSTAX-1X999999"
         ));
     }
 
@@ -361,6 +388,16 @@ mod tests {
             (2, "INSTAX-12345".to_string()),
         ];
         let err = select_matching_result(results, "123").unwrap_err();
+        assert!(matches!(err, PrinterError::MultiplePrinters { count: 2 }));
+    }
+
+    #[test]
+    fn select_matching_result_does_not_prefer_platform_suffix_across_different_printers() {
+        let results = vec![
+            (1, "INSTAX-1N034655 (iOS)".to_string()),
+            (2, "INSTAX-1X999999 (ANDROID)".to_string()),
+        ];
+        let err = select_matching_result(results, "1").unwrap_err();
         assert!(matches!(err, PrinterError::MultiplePrinters { count: 2 }));
     }
 

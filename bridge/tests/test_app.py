@@ -156,7 +156,7 @@ async def test_handle_received_image_handles_preview_image_errors(tmp_path: Path
 
 
 @pytest.mark.asyncio
-async def test_handle_received_image_times_out_stuck_print_job(
+async def test_handle_received_image_reports_slow_print_without_cancelling(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -167,14 +167,14 @@ async def test_handle_received_image_times_out_stuck_print_job(
     async def resolve_target(selected: PairedPrinter) -> PairedPrinter:
         return selected
 
-    async def stuck_sender(
+    async def slow_sender(
         _printer: PairedPrinter,
         _received: ReceivedImage,
         _config: BridgeConfig,
         _edit: PrintEdit,
         _progress: PrintProgressCallback,
     ) -> None:
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.02)
 
     monkeypatch.setattr(app, "PRINT_JOB_TIMEOUT_S", 0.01)
     monkeypatch.setattr(app, "resolve_print_target", resolve_target)
@@ -184,10 +184,11 @@ async def test_handle_received_image_times_out_stuck_print_job(
         config=BridgeConfig(),
         ui=ui,
         pairer=pairer,
-        printer_sender=stuck_sender,
+        printer_sender=slow_sender,
     )
 
-    assert ui.events[-1] == "failed:Printer timed out"
+    assert "progress:finishing:Still printing:Waiting for printer:" in ui.events
+    assert ui.events[-1] == "complete:image.jpg"
 
 
 @pytest.mark.asyncio

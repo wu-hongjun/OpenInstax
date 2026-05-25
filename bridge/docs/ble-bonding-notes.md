@@ -4,7 +4,7 @@ Target stack:
 
 - BlueZ 5.79+
 - InstantLink Rust FFI (`btleplug` backend) as the default runtime path
-- Bleak 3.0.1 only as a diagnostic fallback
+- Bleak 1.1.1 only as a diagnostic fallback
 - Fujifilm Instax Mini, Mini Link 3, Square, or Wide Link advertising as `INSTAX-XXXXXXXX`
 
 ## Current v1 Behavior: Select, Then Bond Headlessly

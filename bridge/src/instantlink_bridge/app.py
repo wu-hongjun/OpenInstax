@@ -271,7 +271,7 @@ async def start_bluez_agent_if_needed() -> AsyncStopService | None:
         return agent
     except Exception:
         LOGGER.exception("bluetooth.agent_start_failed")
-        return None
+        raise
 
 
 def build_power_monitor(config: BridgeConfig, *, ui: BridgeUi) -> PowerMonitor:
@@ -389,21 +389,14 @@ async def handle_received_image(
                 asyncio.run_coroutine_threadsafe(ui.print_progress(progress), loop)
             )
 
-        await asyncio.wait_for(
+        await await_print_sender_without_cancelling_on_timeout(
             sender(target, received, config, edit, progress_callback),
-            timeout=PRINT_JOB_TIMEOUT_S,
+            ui=ui,
+            received=received,
+            slow_after_s=PRINT_JOB_TIMEOUT_S,
         )
         accepting_progress = False
         await drain_print_progress(progress_tasks)
-    except TimeoutError:
-        accepting_progress = False
-        await drain_print_progress(progress_tasks)
-        LOGGER.warning(
-            "bridge.print_timeout path=%s timeout_s=%s",
-            received.path,
-            PRINT_JOB_TIMEOUT_S,
-        )
-        await ui.print_failed("Printer timed out")
     except ImagePipelineError as exc:
         accepting_progress = False
         await drain_print_progress(progress_tasks)
@@ -429,6 +422,30 @@ async def handle_received_image(
     else:
         LOGGER.info("bridge.print_complete path=%s", received.path)
         await ui.print_complete(received)
+
+
+async def await_print_sender_without_cancelling_on_timeout(
+    send: Awaitable[None],
+    *,
+    ui: PrintUi,
+    received: ReceivedImage,
+    slow_after_s: float | None,
+) -> None:
+    """Wait for one print send while keeping an over-time hardware job serialized."""
+
+    send_task = asyncio.ensure_future(send)
+    try:
+        await asyncio.wait_for(asyncio.shield(send_task), timeout=slow_after_s)
+    except TimeoutError:
+        LOGGER.warning(
+            "bridge.print_slow path=%s timeout_s=%s",
+            received.path,
+            slow_after_s,
+        )
+        await ui.print_progress(
+            PrintProgress(PrintStage.FINISHING, "Still printing", "Waiting for printer")
+        )
+        await send_task
 
 
 async def drain_print_progress(

@@ -52,7 +52,7 @@ Fujifilm Instax Link BLE printer
 
 - Python 3.11+; Raspberry Pi OS Lite 64-bit Trixie currently ships Python 3.13, so the project supports `>=3.11,<3.14`.
 - `asyncio` service with systemd `Type=notify` and `WatchdogSec=30`.
-- Bleak 3.0.1.
+- Bleak 1.1.1 as a diagnostic fallback.
 - pyftpdlib 2.2+.
 - Pillow 11.x, pillow-heif 1.3+, rawpy 0.27+.
 - luma.lcd 2.13+.

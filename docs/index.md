@@ -6,11 +6,12 @@ The Instax Link BLE protocol was reverse-engineered by the open-source community
 
 ## Components
 
-| Crate | Description |
+| Component | Description |
 |-------|-------------|
 | **instantlink-core** | BLE protocol, image processing, model detection, device communication |
 | **instantlink-cli** | Command-line interface with progress output and JSON for `scan`, `info`, and `status` |
 | **instantlink-ffi** | C FFI bindings for Swift and other native frontends |
+| **bridge** | Raspberry Pi camera FTP appliance using `instantlink-ffi` for printer transport |
 
 ## Supported Printers
 

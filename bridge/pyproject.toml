@@ -12,7 +12,8 @@ license = { text = "See the parent InstantLink repository license" }
 authors = [{ name = "InstantLink Bridge contributors" }]
 dependencies = [
   "aiohttp>=3.10",
-  "bleak>=3.0.1",
+  "bleak>=1.1.1",
+  "dbus-fast>=2.21",
   "gpiozero>=2.0",
   "lgpio>=0.2.2.0",
   "luma.lcd>=2.13",
@@ -29,7 +30,6 @@ instantlink-bridge = "instantlink_bridge.app:main"
 instantlink-bridge-splash = "instantlink_bridge.boot_splash:main"
 
 [project.optional-dependencies]
-bluez-direct = ["dbus-fast>=2.21"]
 dev = [
   "mypy",
   "pytest",
