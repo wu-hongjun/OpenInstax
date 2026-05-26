@@ -2656,6 +2656,13 @@ PIN, printer bond, and SSH.</p>
 <li>After rollback, show <code>Update restored</code> and <code>Open app for details</code>.</li>
 </ul>
 <h2 id="implementation-phases">Implementation Phases<a class="headerlink" href="#implementation-phases" title="Permanent link">&para;</a></h2>
+<p>Current implementation status (May 2026): Phase 1 scaffolding is present for the manager CLI/API,
+route catalog, signed-request verification primitives, read-only discovery/status, Swift models, and
+an in-memory <code>BridgeTransport</code>. Phase 3 scaffolding is present for Ed25519 manifest signing and
+signed bundle sidecars. Phase 4/5 planning helpers exist for backup manifests and release-slot
+switch plans. Product update controls must remain hidden until physical pairing, real signed HTTP
+transport, trusted key embedding, backup archive/restore, privileged release-slot install, durable
+boot recovery, and health gates are implemented end to end.</p>
 <h3 id="phase-1-management-contract">Phase 1: Management contract<a class="headerlink" href="#phase-1-management-contract" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Add <code>instantlink-bridge-manager</code> package entrypoint.</li>

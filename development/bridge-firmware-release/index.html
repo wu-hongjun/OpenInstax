@@ -2032,7 +2032,9 @@ by the future Bridge control panel after management auth, preflight, backup, and
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.tar.gz
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.tar.gz.sha256
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.manifest.json
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>`-- latest.json
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.manifest.sig   # signed builds only
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>|-- latest.json
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>`-- latest.json.sig                                                # signed builds only
 </code></pre></div>
 <p>Inside the tarball:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>bridge/                         # Python runtime, configs, systemd, udev, scripts, docs
@@ -2044,7 +2046,12 @@ by the future Bridge control panel after management auth, preflight, backup, and
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>SHA256SUMS                       # In-bundle file checksums
 </code></pre></div>
 <p>The macOS app build copies the staged <code>BridgeFirmware</code> directory into app resources. App code can
-read <code>latest.json</code> through <code>BridgeFirmwareBundleService</code>.</p>
+read <code>latest.json</code> through <code>BridgeFirmwareBundleService</code>, which requires <code>latest.json.sig</code>, the
+package <code>.manifest.sig</code>, and matching SHA-256 values before returning a bundled package.</p>
+<p>Signed release builds add Ed25519 JSON signature sidecars for the package manifest and <code>latest.json</code>.
+The signature payload is deterministic canonical JSON, not the tarball bytes or shell scripts. The
+future macOS updater and Bridge manager must verify these signatures against embedded trusted public
+keys before upload or install.</p>
 <h2 id="ci-workflows">CI Workflows<a class="headerlink" href="#ci-workflows" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>.github/workflows/bridge-firmware.yml</code> runs on <code>bridge-v*</code> tags and manual dispatch. It builds
@@ -2059,18 +2066,46 @@ read <code>latest.json</code> through <code>BridgeFirmwareBundleService</code>.<
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cargo<span class="w"> </span>install<span class="w"> </span>cargo-zigbuild<span class="w"> </span>--locked
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>bridge/scripts/build-firmware-bundle.sh<span class="w"> </span><span class="m">0</span>.1.0
 </code></pre></div>
-<p>To reuse already-built Linux arm64 artifacts:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">INSTANTLINK_BRIDGE_BUILD_NATIVE</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">INSTANTLINK_BRIDGE_INSTANTLINK_ARTIFACT_DIR</span><span class="o">=</span>target/aarch64-unknown-linux-gnu/release<span class="w"> </span><span class="se">\</span>
+<p>Local builds are unsigned by default. To produce signed release assets, provide an Ed25519 private
+key path through the environment:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY</span><span class="o">=</span>/secure/path/bridge-firmware-ed25519.pem<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID</span><span class="o">=</span>bridge-release-2026-05<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bridge/scripts/build-firmware-bundle.sh<span class="w"> </span><span class="m">0</span>.1.0
 </code></pre></div>
+<p><code>INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID</code> is optional; if omitted, the signer derives an
+<code>ed25519-sha256:&lt;digest&gt;</code> key id from the public key. Encrypted PEM keys can be used by setting
+<code>INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_PASSWORD_ENV</code> to the name of an environment variable that
+contains the password. The private key must live outside the repository and should be injected only
+by protected release CI.</p>
+<p>Tagged Bridge firmware and app releases require the <code>BRIDGE_FIRMWARE_SIGNING_KEY_PEM</code> secret.
+<code>BRIDGE_FIRMWARE_SIGNING_KEY_ID</code> is optional but recommended so release assets carry a stable key
+identifier. Workflow-dispatch development builds may remain unsigned; app-side bundle discovery is
+fail-closed and ignores unsigned bundles.</p>
+<p>For test keys only:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bridge/scripts/sign-firmware-manifest.py<span class="w"> </span>generate-test-key<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>--private-key<span class="w"> </span>/tmp/bridge-firmware-test.pem<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--public-key<span class="w"> </span>/tmp/bridge-firmware-test.pub.pem
+</code></pre></div>
+<p>To reuse already-built Linux arm64 artifacts:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">INSTANTLINK_BRIDGE_BUILD_NATIVE</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">INSTANTLINK_BRIDGE_INSTANTLINK_ARTIFACT_DIR</span><span class="o">=</span>target/aarch64-unknown-linux-gnu/release<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>bridge/scripts/build-firmware-bundle.sh<span class="w"> </span><span class="m">0</span>.1.0
+</code></pre></div>
 <h2 id="installation-contract">Installation Contract<a class="headerlink" href="#installation-contract" title="Permanent link">&para;</a></h2>
-<p>The package contains <code>install-firmware-bundle.sh</code> for the Pi. The future app updater should:</p>
+<p>The package still contains <code>install-firmware-bundle.sh</code> for manual developer recovery installs.
+The product updater must not run that root shell script. The Bridge manager should install from
+declarative package metadata into release slots, with backup and rollback controlled by the manager.</p>
+<p>The future app updater should:</p>
 <ol>
+<li>Verify <code>latest.json.sig</code> against a trusted firmware signing public key.</li>
+<li>Verify the package manifest <code>.manifest.sig</code> against the same trust store.</li>
+<li>Reject unknown key ids, invalid signatures, malformed SHA-256 digests, or artifact names that are
+   not clean relative paths/basenames.</li>
 <li>Verify the archive SHA-256 from <code>latest.json</code>.</li>
+<li>Confirm the live Bridge manager reports <code>auth</code>, <code>backup</code>, <code>release_slots</code>, <code>rollback</code>, and
+   <code>health_gates</code> capabilities.</li>
 <li>Upload and extract the bundle into a staging directory on the Bridge.</li>
-<li>Run <code>install-firmware-bundle.sh &lt;bundle-dir&gt;</code> as the Bridge update helper.</li>
-<li>Restart and verify <code>instantlink-bridge.service</code>.</li>
+<li>Ask the Bridge manager to create a backup, install into a new release slot, restart, and verify.</li>
 <li>Mark the update good only after service, FTP, LCD, network, and printer-status checks pass.</li>
 </ol>
 <p>This is not yet a complete product updater. One-click updates must remain hidden until the Bridge
