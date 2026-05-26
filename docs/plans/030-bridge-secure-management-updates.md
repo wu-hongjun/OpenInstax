@@ -324,6 +324,14 @@ LCD behavior:
 
 ## Implementation Phases
 
+Current implementation status (May 2026): Phase 1 scaffolding is present for the manager CLI/API,
+route catalog, signed-request verification primitives, read-only discovery/status, Swift models, and
+an in-memory `BridgeTransport`. Phase 3 scaffolding is present for Ed25519 manifest signing and
+signed bundle sidecars. Phase 4/5 planning helpers exist for backup manifests and release-slot
+switch plans. Product update controls must remain hidden until physical pairing, real signed HTTP
+transport, trusted key embedding, backup archive/restore, privileged release-slot install, durable
+boot recovery, and health gates are implemented end to end.
+
 ### Phase 1: Management contract
 
 - Add `instantlink-bridge-manager` package entrypoint.

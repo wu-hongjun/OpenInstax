@@ -11,6 +11,9 @@ BUILD_NATIVE="${INSTANTLINK_BRIDGE_BUILD_NATIVE:-1}"
 ARTIFACT_DIR="${INSTANTLINK_BRIDGE_INSTANTLINK_ARTIFACT_DIR:-${ROOT}/target/${TARGET_TRIPLE}/release}"
 ARTIFACT_MANIFEST_NAME="${INSTANTLINK_BRIDGE_ARTIFACTS_MANIFEST_NAME:-instantlink-artifacts-manifest.json}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
+SIGNING_PRIVATE_KEY="${INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY:-}"
+SIGNING_KEY_ID="${INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID:-}"
+SIGNING_KEY_PASSWORD_ENV="${INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_PASSWORD_ENV:-}"
 
 usage() {
   cat <<'USAGE'
@@ -31,6 +34,11 @@ Environment overrides:
   INSTANTLINK_BRIDGE_FIRMWARE_APP_BUNDLE_DIR
                                            App resource staging dir
   INSTANTLINK_BRIDGE_RUST_TARGET           Rust target, default aarch64-unknown-linux-gnu
+  INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY  Optional Ed25519 private key path for signed builds
+  INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID
+                                           Optional key id written into signature sidecars
+  INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_PASSWORD_ENV
+                                           Optional env var containing encrypted key password
 USAGE
 }
 
@@ -121,6 +129,38 @@ create_clean_tar() {
   COPYFILE_DISABLE=1 tar -C "${source_dir}" -czf "${archive}" .
 }
 
+sign_manifest_sidecar() {
+  local manifest_path="$1"
+  local signature_path="$2"
+
+  if [[ -z "${SIGNING_PRIVATE_KEY}" ]]; then
+    return 0
+  fi
+  if [[ "$(git_dirty_json_bool)" == "true" ]]; then
+    echo "ERROR: refusing to sign firmware bundle from a dirty worktree" >&2
+    exit 1
+  fi
+  if [[ ! -f "${SIGNING_PRIVATE_KEY}" ]]; then
+    echo "ERROR: firmware signing key does not exist: ${SIGNING_PRIVATE_KEY}" >&2
+    exit 1
+  fi
+
+  local args=(
+    "${BRIDGE_ROOT}/scripts/sign-firmware-manifest.py"
+    "${manifest_path}"
+    --private-key "${SIGNING_PRIVATE_KEY}"
+    --output "${signature_path}"
+  )
+  if [[ -n "${SIGNING_KEY_ID}" ]]; then
+    args+=(--key-id "${SIGNING_KEY_ID}")
+  fi
+  if [[ -n "${SIGNING_KEY_PASSWORD_ENV}" ]]; then
+    args+=(--private-key-pass-env "${SIGNING_KEY_PASSWORD_ENV}")
+  fi
+
+  "${PYTHON_BIN}" "${args[@]}"
+}
+
 render_bundle_manifest() {
   local output_path="$1"
   local version="$2"
@@ -180,6 +220,9 @@ manifest = {
     "bridge_version": version,
     "source_ref": source_ref,
     "built_at_utc": built_at,
+    "required_bridge_api_version": 1,
+    "migration_notes": [],
+    "minimum_rollback_version": None,
     "target": {
         "platform": "linux",
         "architecture": "aarch64",
@@ -286,6 +329,14 @@ payload = {
     "schema_version": 1,
     "package_kind": "instantlink_bridge_firmware",
     "bridge_version": version,
+    "required_bridge_api_version": 1,
+    "migration_notes": [],
+    "minimum_rollback_version": None,
+    "instantlink_workspace": {
+        "commit_sha": "0" * 40,
+        "branch": "release-index",
+        "dirty": False,
+    },
     "target": "linux-aarch64",
     "archive_name": archive_name,
     "archive_sha256": archive_sha,
@@ -322,7 +373,10 @@ main() {
   local package_dir="${STAGE_ROOT}/${archive_basename}"
   local archive_path="${DIST_DIR}/${archive_basename}.tar.gz"
   local manifest_dist_path="${DIST_DIR}/${archive_basename}.manifest.json"
+  local manifest_sig_path="${DIST_DIR}/${archive_basename}.manifest.sig"
   local checksum_path="${archive_path}.sha256"
+  local latest_path="${DIST_DIR}/latest.json"
+  local latest_sig_path="${DIST_DIR}/latest.json.sig"
 
   if is_truthy "${BUILD_NATIVE}"; then
     "${BRIDGE_ROOT}/scripts/build-instantlink-artifacts.sh"
@@ -377,15 +431,26 @@ main() {
     > "${checksum_path}"
   cp "${package_dir}/manifest.json" "${manifest_dist_path}"
   cp "${archive_path}" "${checksum_path}" "${manifest_dist_path}" "${APP_BUNDLE_DIR}/"
+  sign_manifest_sidecar "${manifest_dist_path}" "${manifest_sig_path}"
+  if [[ -f "${manifest_sig_path}" ]]; then
+    cp "${manifest_sig_path}" "${APP_BUNDLE_DIR}/"
+  fi
   render_latest_json \
-    "${DIST_DIR}/latest.json" \
+    "${latest_path}" \
     "${version}" \
     "${archive_path}" \
     "${manifest_dist_path}" \
     "${checksum_path}"
-  cp "${DIST_DIR}/latest.json" "${APP_BUNDLE_DIR}/latest.json"
+  cp "${latest_path}" "${APP_BUNDLE_DIR}/latest.json"
+  sign_manifest_sidecar "${latest_path}" "${latest_sig_path}"
+  if [[ -f "${latest_sig_path}" ]]; then
+    cp "${latest_sig_path}" "${APP_BUNDLE_DIR}/"
+  fi
 
   printf 'Bridge firmware bundle ready: %s\n' "${archive_path}"
+  if [[ -n "${SIGNING_PRIVATE_KEY}" ]]; then
+    printf 'Bridge firmware signatures ready: %s, %s\n' "${manifest_sig_path}" "${latest_sig_path}"
+  fi
   printf 'App bundle staging ready: %s\n' "${APP_BUNDLE_DIR}"
 }
 

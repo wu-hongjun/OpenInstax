@@ -1,0 +1,20 @@
+[Unit]
+Description=InstantLink Bridge management API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ib
+Group=ib
+WorkingDirectory=/opt/InstantLinkBridge
+ExecStart=/opt/InstantLinkBridge/.venv/bin/instantlink-bridge-manager --config /etc/InstantLinkBridge/config.toml serve --host 192.168.7.1 --host 192.168.8.1 --port 8742
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target

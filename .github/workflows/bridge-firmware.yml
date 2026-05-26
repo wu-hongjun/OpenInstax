@@ -40,8 +40,21 @@ jobs:
       - name: Build firmware bundle
         env:
           INPUT_VERSION: ${{ inputs.version }}
+          BRIDGE_FIRMWARE_SIGNING_KEY_PEM: ${{ secrets.BRIDGE_FIRMWARE_SIGNING_KEY_PEM }}
+          BRIDGE_FIRMWARE_SIGNING_KEY_ID: ${{ secrets.BRIDGE_FIRMWARE_SIGNING_KEY_ID }}
         run: |
           version="${INPUT_VERSION:-${GITHUB_REF_NAME}}"
+          if [[ -z "${BRIDGE_FIRMWARE_SIGNING_KEY_PEM}" && "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            echo "ERROR: signed Bridge firmware tags require BRIDGE_FIRMWARE_SIGNING_KEY_PEM" >&2
+            exit 1
+          fi
+          if [[ -n "${BRIDGE_FIRMWARE_SIGNING_KEY_PEM}" ]]; then
+            signing_key="${RUNNER_TEMP}/bridge-firmware-signing-key.pem"
+            printf '%s' "${BRIDGE_FIRMWARE_SIGNING_KEY_PEM}" > "${signing_key}"
+            chmod 0600 "${signing_key}"
+            export INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY="${signing_key}"
+            export INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID="${BRIDGE_FIRMWARE_SIGNING_KEY_ID}"
+          fi
           bash bridge/scripts/build-firmware-bundle.sh "${version}"
 
       - name: Upload firmware artifact

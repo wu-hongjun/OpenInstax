@@ -21,7 +21,9 @@ target/bridge-firmware/dist/
 |-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.tar.gz
 |-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.tar.gz.sha256
 |-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.manifest.json
-`-- latest.json
+|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.manifest.sig   # signed builds only
+|-- latest.json
+`-- latest.json.sig                                                # signed builds only
 ```
 
 Inside the tarball:
@@ -37,7 +39,13 @@ SHA256SUMS                       # In-bundle file checksums
 ```
 
 The macOS app build copies the staged `BridgeFirmware` directory into app resources. App code can
-read `latest.json` through `BridgeFirmwareBundleService`.
+read `latest.json` through `BridgeFirmwareBundleService`, which requires `latest.json.sig`, the
+package `.manifest.sig`, and matching SHA-256 values before returning a bundled package.
+
+Signed release builds add Ed25519 JSON signature sidecars for the package manifest and `latest.json`.
+The signature payload is deterministic canonical JSON, not the tarball bytes or shell scripts. The
+future macOS updater and Bridge manager must verify these signatures against embedded trusted public
+keys before upload or install.
 
 ## CI Workflows
 
@@ -57,6 +65,34 @@ cargo install cargo-zigbuild --locked
 bridge/scripts/build-firmware-bundle.sh 0.1.0
 ```
 
+Local builds are unsigned by default. To produce signed release assets, provide an Ed25519 private
+key path through the environment:
+
+```bash
+INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY=/secure/path/bridge-firmware-ed25519.pem \
+INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID=bridge-release-2026-05 \
+bridge/scripts/build-firmware-bundle.sh 0.1.0
+```
+
+`INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_ID` is optional; if omitted, the signer derives an
+`ed25519-sha256:<digest>` key id from the public key. Encrypted PEM keys can be used by setting
+`INSTANTLINK_BRIDGE_FIRMWARE_SIGNING_KEY_PASSWORD_ENV` to the name of an environment variable that
+contains the password. The private key must live outside the repository and should be injected only
+by protected release CI.
+
+Tagged Bridge firmware and app releases require the `BRIDGE_FIRMWARE_SIGNING_KEY_PEM` secret.
+`BRIDGE_FIRMWARE_SIGNING_KEY_ID` is optional but recommended so release assets carry a stable key
+identifier. Workflow-dispatch development builds may remain unsigned; app-side bundle discovery is
+fail-closed and ignores unsigned bundles.
+
+For test keys only:
+
+```bash
+bridge/scripts/sign-firmware-manifest.py generate-test-key \
+  --private-key /tmp/bridge-firmware-test.pem \
+  --public-key /tmp/bridge-firmware-test.pub.pem
+```
+
 To reuse already-built Linux arm64 artifacts:
 
 ```bash
@@ -67,13 +103,22 @@ bridge/scripts/build-firmware-bundle.sh 0.1.0
 
 ## Installation Contract
 
-The package contains `install-firmware-bundle.sh` for the Pi. The future app updater should:
+The package still contains `install-firmware-bundle.sh` for manual developer recovery installs.
+The product updater must not run that root shell script. The Bridge manager should install from
+declarative package metadata into release slots, with backup and rollback controlled by the manager.
 
-1. Verify the archive SHA-256 from `latest.json`.
-2. Upload and extract the bundle into a staging directory on the Bridge.
-3. Run `install-firmware-bundle.sh <bundle-dir>` as the Bridge update helper.
-4. Restart and verify `instantlink-bridge.service`.
-5. Mark the update good only after service, FTP, LCD, network, and printer-status checks pass.
+The future app updater should:
+
+1. Verify `latest.json.sig` against a trusted firmware signing public key.
+2. Verify the package manifest `.manifest.sig` against the same trust store.
+3. Reject unknown key ids, invalid signatures, malformed SHA-256 digests, or artifact names that are
+   not clean relative paths/basenames.
+4. Verify the archive SHA-256 from `latest.json`.
+5. Confirm the live Bridge manager reports `auth`, `backup`, `release_slots`, `rollback`, and
+   `health_gates` capabilities.
+6. Upload and extract the bundle into a staging directory on the Bridge.
+7. Ask the Bridge manager to create a backup, install into a new release slot, restart, and verify.
+8. Mark the update good only after service, FTP, LCD, network, and printer-status checks pass.
 
 This is not yet a complete product updater. One-click updates must remain hidden until the Bridge
 management API, local authorization, signed package trust chain, automatic backup, and rollback gate

@@ -92,9 +92,13 @@ ensure_runtime_identity() {
 ensure_state_dirs() {
   install -d -m 2770 "${ROOT%/}/var/lib/InstantLinkBridge"
   install -d -m 2770 "${ROOT%/}/var/lib/InstantLinkBridge/incoming"
+  install -d -m 0700 "${ROOT%/}/var/lib/InstantLinkBridge/management"
+  install -d -m 0700 "${ROOT%/}/var/lib/InstantLinkBridge/management/clients"
   chown_runtime \
     "${ROOT%/}/var/lib/InstantLinkBridge" \
-    "${ROOT%/}/var/lib/InstantLinkBridge/incoming"
+    "${ROOT%/}/var/lib/InstantLinkBridge/incoming" \
+    "${ROOT%/}/var/lib/InstantLinkBridge/management" \
+    "${ROOT%/}/var/lib/InstantLinkBridge/management/clients"
 }
 
 tighten_netplan_permissions() {
@@ -108,10 +112,16 @@ tighten_netplan_permissions() {
 enable_service() {
   if [[ "${LIVE_ROOT}" -eq 1 ]]; then
     systemctl daemon-reload
-    systemctl enable instantlink-bridge.service instantlink-bridge-boot-splash.service
+    systemctl enable \
+      instantlink-bridge.service \
+      instantlink-bridge-boot-splash.service \
+      instantlink-bridge-manager.service
     return
   fi
-  systemctl --root="${ROOT%/}" enable instantlink-bridge.service instantlink-bridge-boot-splash.service
+  systemctl --root="${ROOT%/}" enable \
+    instantlink-bridge.service \
+    instantlink-bridge-boot-splash.service \
+    instantlink-bridge-manager.service
 }
 
 disable_legacy_instantbridge_services() {
@@ -172,6 +182,8 @@ install_file udev/99-instantlink-bridge-usb0.rules /etc/udev/rules.d/99-instantl
 install_file systemd/instantlink-bridge.service /etc/systemd/system/instantlink-bridge.service
 install_file systemd/instantlink-bridge-boot-splash.service \
   /etc/systemd/system/instantlink-bridge-boot-splash.service
+install_file systemd/instantlink-bridge-manager.service \
+  /etc/systemd/system/instantlink-bridge-manager.service
 install_file systemd/instantlink-bridge-usb0-rearm.service \
   /etc/systemd/system/instantlink-bridge-usb0-rearm.service
 install_file systemd/instantlink-bridge-usb0-lost.service \

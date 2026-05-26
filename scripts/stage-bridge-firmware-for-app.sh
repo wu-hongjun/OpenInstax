@@ -59,10 +59,12 @@ fi
 
 basename="$(basename "${archive}")"
 manifest="${SOURCE_DIR}/${basename%.tar.gz}.manifest.json"
+manifest_sig="${SOURCE_DIR}/${basename%.tar.gz}.manifest.sig"
 checksum="${archive}.sha256"
 latest="${SOURCE_DIR}/latest.json"
+latest_sig="${SOURCE_DIR}/latest.json.sig"
 
-for required in "${manifest}" "${checksum}" "${latest}"; do
+for required in "${manifest}" "${manifest_sig}" "${checksum}" "${latest}" "${latest_sig}"; do
   if [[ ! -f "${required}" ]]; then
     echo "ERROR: missing firmware sidecar: ${required}" >&2
     exit 1
@@ -71,6 +73,6 @@ done
 
 rm -rf "${DEST_DIR}"
 mkdir -p "${DEST_DIR}"
-cp "${archive}" "${checksum}" "${manifest}" "${latest}" "${DEST_DIR}/"
+cp "${archive}" "${checksum}" "${manifest}" "${manifest_sig}" "${latest}" "${latest_sig}" "${DEST_DIR}/"
 
 printf 'Staged Bridge firmware for app resources at %s\n' "${DEST_DIR}"

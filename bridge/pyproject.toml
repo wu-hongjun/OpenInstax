@@ -13,6 +13,7 @@ authors = [{ name = "InstantLink Bridge contributors" }]
 dependencies = [
   "aiohttp>=3.10",
   "bleak>=1.1.1",
+  "cryptography>=42.0",
   "dbus-fast>=2.21",
   "gpiozero>=2.0",
   "lgpio>=0.2.2.0",
@@ -27,6 +28,7 @@ dependencies = [
 
 [project.scripts]
 instantlink-bridge = "instantlink_bridge.app:main"
+instantlink-bridge-manager = "instantlink_bridge.manager.cli:main"
 instantlink-bridge-splash = "instantlink_bridge.boot_splash:main"
 
 [project.optional-dependencies]

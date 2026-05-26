@@ -21,6 +21,7 @@ editables==0.6
 # Direct runtime dependencies from pyproject.toml.
 aiohttp==3.13.5
 bleak==1.1.1
+cryptography==43.0.0
 dbus-fast==2.45.1
 gpiozero==2.0.1
 lgpio==0.2.2.0
@@ -36,6 +37,7 @@ aiohappyeyeballs==2.6.1
 aiosignal==1.4.0
 attrs==26.1.0
 cbor2==5.9.0
+cffi==1.17.1
 colorzero==2.0
 frozenlist==1.8.0
 idna==3.15
@@ -45,6 +47,7 @@ numpy==2.4.6
 propcache==0.4.1
 pyasynchat==1.0.5 ; python_version >= "3.12"
 pyasyncore==1.0.5 ; python_version >= "3.12"
+pycparser==2.21
 rpi-lgpio==0.6
 smbus2==0.6.1
 spidev==3.8

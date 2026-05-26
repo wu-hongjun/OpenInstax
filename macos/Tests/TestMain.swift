@@ -32,6 +32,21 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeFirmwareBundleTests.testPackageReturnsNilWhenSidecarsAreMissing", {
                 try BridgeFirmwareBundleTests().testPackageReturnsNilWhenSidecarsAreMissing()
             }),
+            ("BridgeFirmwareBundleTests.testPackageMapsToBridgeUpdatePackage", {
+                try BridgeFirmwareBundleTests().testPackageMapsToBridgeUpdatePackage()
+            }),
+            ("BridgeModelsTests.testDecodesStableStatusEnvelope", {
+                try BridgeModelsTests().testDecodesStableStatusEnvelope()
+            }),
+            ("BridgeModelsTests.testDecodesAuthRequiredErrorEnvelope", {
+                try BridgeModelsTests().testDecodesAuthRequiredErrorEnvelope()
+            }),
+            ("BridgeTransportTests.testInMemoryTransportThrowsAuthRequiredForManagedEndpoints", {
+                try await BridgeTransportTests().testInMemoryTransportThrowsAuthRequiredForManagedEndpoints()
+            }),
+            ("BridgeTransportTests.testInMemoryTransportUpdateFlowAdvancesToDone", {
+                try await BridgeTransportTests().testInMemoryTransportUpdateFlowAdvancesToDone()
+            }),
             ("QueueEditCoordinatorTests.testAddItemsEnforcesQueueLimitAndReportsDroppedItems", {
                 let suite = QueueEditCoordinatorTests()
                 suite.setUp()
