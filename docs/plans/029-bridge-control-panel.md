@@ -430,7 +430,9 @@ Never include by default:
 
 ### Phase 4: updates and backup
 
-- Build signed bridge update package.
+- Build signed bridge update package. The unsigned package/bundling substrate now exists in
+  `bridge/scripts/build-firmware-bundle.sh`, `.github/workflows/bridge-firmware.yml`, and the app
+  resource staging path documented in `docs/development/bridge-firmware-release.md`.
 - Implement preflight/install/reconnect/verify.
 - Implement backup/restore.
 

@@ -105,6 +105,14 @@ if [[ -d "$FONTS_SRC" ]]; then
   fi
 fi
 
+# Copy a staged Bridge firmware bundle, if CI or a local release build prepared one.
+BRIDGE_FIRMWARE_SRC="${INSTANTLINK_BRIDGE_FIRMWARE_APP_BUNDLE_DIR:-$REPO_ROOT/target/bridge-firmware/app-bundle/BridgeFirmware}"
+if [[ -d "$BRIDGE_FIRMWARE_SRC" ]]; then
+  BRIDGE_FIRMWARE_DST="$RESOURCES_DIR/BridgeFirmware"
+  rm -rf "$BRIDGE_FIRMWARE_DST"
+  cp -R "$BRIDGE_FIRMWARE_SRC" "$BRIDGE_FIRMWARE_DST"
+fi
+
 # --- Compile SwiftUI launcher (Contents/MacOS/InstantLink) -----------------
 echo "==> Compiling SwiftUI launcher..."
 SWIFT_SOURCES=()

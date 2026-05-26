@@ -26,6 +26,12 @@ struct InstantLinkMacOSTestRunner {
             ("AppRuntimeServicesTests.testCompareVersionsHandlesPrefixesSuffixesAndDifferentLengths", {
                 try AppRuntimeServicesTests().testCompareVersionsHandlesPrefixesSuffixesAndDifferentLengths()
             }),
+            ("BridgeFirmwareBundleTests.testPackageLoadsBundledFirmwareMetadata", {
+                try BridgeFirmwareBundleTests().testPackageLoadsBundledFirmwareMetadata()
+            }),
+            ("BridgeFirmwareBundleTests.testPackageReturnsNilWhenSidecarsAreMissing", {
+                try BridgeFirmwareBundleTests().testPackageReturnsNilWhenSidecarsAreMissing()
+            }),
             ("QueueEditCoordinatorTests.testAddItemsEnforcesQueueLimitAndReportsDroppedItems", {
                 let suite = QueueEditCoordinatorTests()
                 suite.setUp()

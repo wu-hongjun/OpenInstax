@@ -42,6 +42,7 @@ nav:
       - FFI: reference/ffi.md
   - Development:
       - Architecture: development/architecture.md
+      - Bridge Firmware Release: development/bridge-firmware-release.md
       - Contributing: development/contributing.md
       - Reverse Engineering: development/reverse-engineering.md
   - Plans:

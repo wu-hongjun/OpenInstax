@@ -1,0 +1,59 @@
+name: Bridge Firmware
+
+on:
+  push:
+    tags: ["bridge-v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Bridge firmware version or tag, for example 0.1.0 or bridge-v0.1.0"
+        required: true
+        default: "0.1.0"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build Bridge firmware
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.14.1"
+
+      - name: Install cross-build tools
+        run: cargo install cargo-zigbuild --locked
+
+      - name: Build firmware bundle
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION:-${GITHUB_REF_NAME}}"
+          bash bridge/scripts/build-firmware-bundle.sh "${version}"
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: instantlink-bridge-firmware
+          path: target/bridge-firmware/dist/*
+          if-no-files-found: error
+
+      - name: Publish tag release
+        if: startsWith(github.ref, 'refs/tags/bridge-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: target/bridge-firmware/dist/*

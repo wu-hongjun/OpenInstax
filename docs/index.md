@@ -32,6 +32,7 @@ The Instax Link BLE protocol was reverse-engineered by the open-source community
 - LED color control with solid, blink, and breathe patterns
 - Native macOS app with camera capture, queue-based editing, film simulation, overlays for text/QR/timestamp/image/location, stage-aware reconnect UI, and experimental LED diagnostics in Settings
 - C FFI with 20 exported functions for native app integrations, including connect-stage progress callbacks
+- Bridge firmware bundles for Raspberry Pi appliances, published by CI and staged into the macOS app for the future Bridge control panel updater
 
 ## Architecture
 

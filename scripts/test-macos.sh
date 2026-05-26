@@ -17,6 +17,7 @@ SOURCES=(
   "$REPO_ROOT/macos/InstantLink/OverlayModels.swift"
   "$REPO_ROOT/macos/InstantLink/InstantLinkFFI.swift"
   "$REPO_ROOT/macos/InstantLink/Core/AppModels.swift"
+  "$REPO_ROOT/macos/InstantLink/Core/BridgeFirmwareBundle.swift"
   "$REPO_ROOT/macos/InstantLink/Core/AppRuntimeServices.swift"
   "$REPO_ROOT/macos/InstantLink/Core/QueueEditCoordinator.swift"
   "$REPO_ROOT/macos/InstantLink/Core/PrinterConnectionCoordinator.swift"
@@ -25,6 +26,7 @@ SOURCES=(
 TESTS=(
   "$REPO_ROOT/macos/Tests/TestSupport.swift"
   "$REPO_ROOT/macos/Tests/AppModelsTests.swift"
+  "$REPO_ROOT/macos/Tests/BridgeFirmwareBundleTests.swift"
   "$REPO_ROOT/macos/Tests/AppRuntimeServicesTests.swift"
   "$REPO_ROOT/macos/Tests/QueueEditCoordinatorTests.swift"
   "$REPO_ROOT/macos/Tests/PrinterConnectionCoordinatorTests.swift"

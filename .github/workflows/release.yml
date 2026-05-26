@@ -18,18 +18,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.14.1"
+
       - name: Install tools
-        run: brew install create-dmg
+        run: |
+          brew install create-dmg
+          cargo install cargo-zigbuild --locked
 
       - name: Build Rust workspace
         run: cargo build --workspace --release --target "$RUST_TARGET"
 
       - name: Generate FFI header
         run: INSTANTLINK_UPDATE_HEADER=1 cargo build --release -p instantlink-ffi --target "$RUST_TARGET"
+
+      - name: Build bundled Bridge firmware
+        run: bash bridge/scripts/build-firmware-bundle.sh "${GITHUB_REF_NAME}"
 
       - name: Build .app bundle and DMG
         run: RUST_TARGET="$RUST_TARGET" bash scripts/build-app.sh "${GITHUB_REF_NAME}"
@@ -72,3 +85,5 @@ jobs:
             InstantLink-CLI-*.zip.sha256
             InstantLink-FFI-*.zip
             InstantLink-FFI-*.zip.sha256
+            target/bridge-firmware/dist/InstantLinkBridgeFirmware-*
+            target/bridge-firmware/dist/latest.json
