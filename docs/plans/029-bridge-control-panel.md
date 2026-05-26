@@ -432,7 +432,9 @@ Never include by default:
 
 - Build signed bridge update package. The unsigned package/bundling substrate now exists in
   `bridge/scripts/build-firmware-bundle.sh`, `.github/workflows/bridge-firmware.yml`, and the app
-  resource staging path documented in `docs/development/bridge-firmware-release.md`.
+  resource staging path documented in `docs/development/bridge-firmware-release.md`. The required
+  product-grade management/auth/signing/backup/rollback plan is tracked in
+  `docs/plans/030-bridge-secure-management-updates.md`.
 - Implement preflight/install/reconnect/verify.
 - Implement backup/restore.
 

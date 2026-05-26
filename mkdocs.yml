@@ -63,6 +63,19 @@ nav:
       - Plan 015 FFI Callback Safety and Concurrency: plans/015-ffi-callback-safety.md
       - Plan 016 Transport Command Serialization and Protocol Hardening: plans/016-transport-command-serialization.md
       - Plan 017 Reconnect Fallback and Recovery UX: plans/017-reconnect-fallback-behavior.md
+      - Plan 018 Auto-Update Signature Verification: plans/018-auto-update-signature-verification.md
+      - Plan 019 Packet Assembler Error Surfacing: plans/019-packet-assembler-error-surfacing.md
+      - Plan 020 Notification Listener Lifecycle: plans/020-notification-listener-lifecycle.md
+      - Plan 021 Print Flow Deduplication: plans/021-print-flow-deduplication.md
+      - Plan 022 FFI Device Guard Concurrency: plans/022-ffi-device-guard-concurrency.md
+      - Plan 023 FFI Unsafe Block Discipline: plans/023-ffi-unsafe-block-discipline.md
+      - Plan 024 Protocol Build Packet Bounds: plans/024-protocol-build-packet-bounds.md
+      - Plan 025 Rand Dependency Upgrade: plans/025-rand-dependency-upgrade.md
+      - Plan 026 Docs FFI Symbol Count and Context Variants: plans/026-docs-ffi-symbol-count-and-context-variants.md
+      - Plan 027 Docs Protocol Mini Link 3 Flip: plans/027-docs-protocol-mini-link-3-flip.md
+      - Plan 028 Sparkle 2 Migration: plans/028-sparkle-2-migration.md
+      - Plan 029 Bridge Control Panel: plans/029-bridge-control-panel.md
+      - Plan 030 Bridge Secure Management and Updates: plans/030-bridge-secure-management-updates.md
 
 plugins:
   - search

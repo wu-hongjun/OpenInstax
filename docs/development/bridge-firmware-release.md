@@ -77,4 +77,5 @@ The package contains `install-firmware-bundle.sh` for the Pi. The future app upd
 
 This is not yet a complete product updater. One-click updates must remain hidden until the Bridge
 management API, local authorization, signed package trust chain, automatic backup, and rollback gate
-from `docs/plans/029-bridge-control-panel.md` are implemented.
+from `docs/plans/029-bridge-control-panel.md` and
+`docs/plans/030-bridge-secure-management-updates.md` are implemented.
