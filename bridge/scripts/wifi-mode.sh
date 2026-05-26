@@ -31,6 +31,14 @@ wait_for_networkmanager() {
   exit 1
 }
 
+run_root() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
 hotspot_ssid() {
   if [[ -n "${INSTANTLINK_BRIDGE_HOTSPOT_SSID:-}" ]]; then
     printf '%s\n' "${INSTANTLINK_BRIDGE_HOTSPOT_SSID}"
@@ -112,7 +120,7 @@ hotspot_psk() {
     printf '%s\n' "${existing}"
     return
   fi
-  sudo install -d -m 0750 "$(dirname "${PSK_FILE}")"
+  run_root install -d -m 0750 "$(dirname "${PSK_FILE}")"
   local generated
   generated="$(generate_hotspot_psk)"
   write_hotspot_psk "${generated}"
@@ -140,15 +148,15 @@ generate_hotspot_psk() {
 }
 
 write_hotspot_psk() {
-  printf '%s\n' "$1" | sudo tee "${PSK_FILE}" >/dev/null
+  printf '%s\n' "$1" | run_root tee "${PSK_FILE}" >/dev/null
   ensure_hotspot_psk_permissions
 }
 
 ensure_hotspot_psk_permissions() {
   if getent group ib >/dev/null 2>&1; then
-    sudo chgrp ib "${PSK_FILE}"
+    run_root chgrp ib "${PSK_FILE}"
   fi
-  sudo chmod 0640 "${PSK_FILE}"
+  run_root chmod 0640 "${PSK_FILE}"
 }
 
 configure_hotspot() {
@@ -158,12 +166,12 @@ configure_hotspot() {
   host="$(hotspot_host)"
   ssid="$(hotspot_ssid)"
   psk="$(hotspot_psk)"
-  sudo nmcli radio wifi on
+  run_root nmcli radio wifi on
   if ! nmcli -t -f NAME connection show | grep -qxF "${HOTSPOT_CONNECTION}"; then
-    sudo nmcli connection add type wifi ifname wlan0 con-name "${HOTSPOT_CONNECTION}" \
+    run_root nmcli connection add type wifi ifname wlan0 con-name "${HOTSPOT_CONNECTION}" \
       ssid "${ssid}"
   fi
-  sudo nmcli connection modify "${HOTSPOT_CONNECTION}" \
+  run_root nmcli connection modify "${HOTSPOT_CONNECTION}" \
     connection.autoconnect no \
     802-11-wireless.mode ap \
     802-11-wireless.band bg \
@@ -178,7 +186,7 @@ configure_hotspot() {
     ipv4.addresses "${host}/24" \
     ipv4.never-default yes \
     ipv6.method disabled
-  sudo nmcli connection up "${HOTSPOT_CONNECTION}"
+  run_root nmcli connection up "${HOTSPOT_CONNECTION}"
   echo "Hotspot active: SSID=${ssid} FTP=${host}"
 }
 
@@ -189,9 +197,9 @@ configure_home() {
     echo "Usage: scripts/wifi-mode.sh home <ssid> <password>" >&2
     exit 2
   fi
-  sudo nmcli radio wifi on
+  run_root nmcli radio wifi on
   if nmcli -t -f NAME connection show | grep -qxF "${HOME_CONNECTION}"; then
-    sudo nmcli connection modify "${HOME_CONNECTION}" \
+    run_root nmcli connection modify "${HOME_CONNECTION}" \
       802-11-wireless.ssid "${ssid}" \
       wifi-sec.key-mgmt wpa-psk \
       wifi-sec.psk "${password}" \
@@ -199,11 +207,11 @@ configure_home() {
       ipv4.never-default no \
       ipv6.method disabled
   else
-    sudo nmcli connection add type wifi ifname wlan0 con-name "${HOME_CONNECTION}" ssid "${ssid}" \
+    run_root nmcli connection add type wifi ifname wlan0 con-name "${HOME_CONNECTION}" ssid "${ssid}" \
       wifi-sec.key-mgmt wpa-psk wifi-sec.psk "${password}" ipv4.method auto ipv6.method disabled
   fi
-  sudo nmcli connection down "${HOTSPOT_CONNECTION}" >/dev/null 2>&1 || true
-  sudo nmcli connection up "${HOME_CONNECTION}"
+  run_root nmcli connection down "${HOTSPOT_CONNECTION}" >/dev/null 2>&1 || true
+  run_root nmcli connection up "${HOME_CONNECTION}"
   echo "Home Wi-Fi active: SSID=${ssid}"
 }
 
@@ -224,9 +232,9 @@ configure_home_saved() {
     echo "No saved home Wi-Fi connection found" >&2
     exit 1
   fi
-  sudo nmcli radio wifi on
-  sudo nmcli connection down "${HOTSPOT_CONNECTION}" >/dev/null 2>&1 || true
-  sudo nmcli connection up "${connection}"
+  run_root nmcli radio wifi on
+  run_root nmcli connection down "${HOTSPOT_CONNECTION}" >/dev/null 2>&1 || true
+  run_root nmcli connection up "${connection}"
   echo "Home Wi-Fi active: connection=${connection}"
 }
 
@@ -254,8 +262,8 @@ case "${MODE}" in
     configure_home_saved "$@"
     ;;
   off)
-    sudo nmcli connection down "${HOTSPOT_CONNECTION}" >/dev/null 2>&1 || true
-    sudo nmcli radio wifi off
+    run_root nmcli connection down "${HOTSPOT_CONNECTION}" >/dev/null 2>&1 || true
+    run_root nmcli radio wifi off
     echo "Wi-Fi radio disabled"
     ;;
   status)

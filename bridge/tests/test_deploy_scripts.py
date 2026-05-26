@@ -11,6 +11,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "deploy-to-pi.sh"
 INSTALL_RUNTIME_DEPS_SCRIPT = REPO_ROOT / "scripts" / "install-runtime-deps.sh"
+WIFI_MODE_SCRIPT = REPO_ROOT / "scripts" / "wifi-mode.sh"
 
 
 def run(
@@ -211,6 +212,15 @@ def test_deploy_uses_noninteractive_ssh_for_remote_maintenance_commands() -> Non
 
     assert '"${SSH_CMD[@]}" -t' not in text
     assert '"${SSH_CMD[@]}" -T' in text
+
+
+def test_wifi_mode_helper_does_not_log_wifi_secrets_through_nested_sudo() -> None:
+    text = WIFI_MODE_SCRIPT.read_text(encoding="utf-8")
+
+    assert "run_root()" in text
+    assert "run_root nmcli connection modify" in text
+    assert "sudo nmcli" not in text
+    assert "sudo tee" not in text
 
 
 def test_deploy_bootstraps_runtime_identity_before_copy_for_system_installs() -> None:
