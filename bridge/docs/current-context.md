@@ -28,8 +28,9 @@ for cameras and the bridge on an existing network.
 
 ## Current Deployed State
 
-- Hardware-verified runtime baseline: `fa9d969c7d2c98161a74fd7d452d4a97d0c08378`
-- Parent InstantBridge `main` should point at this submodule commit or newer.
+- Hardware-verified runtime baseline: `504ecdac6e515324894b11a02fed25c14ec660ca`
+- Parent InstantBridge `main` should point at submodule commit `504ecdac6e515324894b11a02fed25c14ec660ca`
+  or newer. Parent commit `f0289ab` records this pointer.
 - Service: `instantlink-bridge.service`
 - Install root: `/opt/InstantLinkBridge`
 - Config root: `/etc/InstantLinkBridge`
@@ -95,17 +96,28 @@ Expected healthy state:
 - Logs contain `ftp.server_started`, `bridge.ready`, and `instantlink.library_loaded`.
 - Offline-printer status warnings are rate-limited; do not reintroduce per-second warning spam while
   keeping the UI scan loop responsive.
+- Source-only deploys must preserve `/opt/InstantLinkBridge/lib` and
+  `/opt/InstantLinkBridge/bin`; the native FFI library and CLI live there.
+- The deployed NetworkManager state should contain one `InstantLink Bridge-Hotspot` profile and no
+  legacy `InstantBridge-Hotspot` profile.
 
 ## Current Hardware Notes
 
 - The Waveshare ST7789 display path is wired through the bridge UI and boot splash units.
 - The active UPS is a SupTronics/Geekworm X306 18650 shield. It has no host-readable fuel gauge, so
   the UI must not show fake battery percentage.
-- A Square Link printer has been paired and marked trusted on the test Pi. If logs show
-  `selected_visible=False`, the printer is not currently advertising to BlueZ; power-cycle the
-  printer and make sure no phone app connects first before judging the bridge pairing path.
-- The final 2026-05-25 deploy validated service startup, hotspot FTP login, source gating, and
-  systemd restart. It did not validate a physical print because the paired printer was not visible.
+- Latest on-device audit, 2026-05-25:
+  - `instantlink-bridge.service` was active/enabled with `NRestarts=0`.
+  - `/opt/InstantLinkBridge/.venv/bin/instantlink-bridge --version` reported Python 3.13.5,
+    BlueZ 5.82, Debian 13.
+  - Hotspot mode was active on `wlan0` at `192.168.8.1/24`; USB admin was active on `usb0` at
+    `192.168.7.1/24`; FTP was listening on `0.0.0.0:21`.
+  - `/opt/InstantLinkBridge/lib/libinstantlink_ffi.so` loaded successfully.
+  - The old BlueZ bond for `INSTAX-52006924 (IOS)` was removed after native connects failed with
+    BlueZ `InProgress`, `le-connection-abort-by-local`, and `Timeout waiting for reply`.
+  - After removing the stale bond, InstantLink scans did not see the printer. The LCD should show
+    the no-printer/pairing flow until the printer is power-cycled and paired again from the bridge.
+- Physical printing is still the remaining hardware validation step after successful re-pairing.
 
 ## Local Development Checks
 
