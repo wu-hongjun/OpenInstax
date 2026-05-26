@@ -284,6 +284,18 @@ class InstantLinkBackend:
         return _dedupe_names(names)
 
     def _status_blocking(self, name: str, scan_duration_s: int) -> InstantLinkStatus:
+        try:
+            return self._status_blocking_connected(name, scan_duration_s)
+        except (InstantLinkBleError, InstantLinkPrinterNotFoundError, TimeoutError):
+            LOGGER.warning(
+                "instantlink.status_failed_disconnect name=%s",
+                normalize_printer_name(name),
+                exc_info=True,
+            )
+            self._disconnect_blocking()
+            raise
+
+    def _status_blocking_connected(self, name: str, scan_duration_s: int) -> InstantLinkStatus:
         self._ensure_connected_blocking(name, scan_duration_s=scan_duration_s)
 
         film = ctypes.c_int()

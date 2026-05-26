@@ -1,8 +1,8 @@
-# Camera FTP Modes
+# FTP Upload Modes
 
-InstantLink Bridge v1 camera FTP is hotspot-first. The supported camera receive paths are:
+InstantLink Bridge v1 FTP receive is hotspot-first. Any FTP-capable sender can use the bridge:
 
-- `Bridge Wi-Fi`: primary portable/giftable mode. The camera joins the bridge-created Wi-Fi AP.
+- `Bridge Wi-Fi`: primary portable/giftable mode. The sender joins the bridge-created Wi-Fi AP.
 - `Same Wi-Fi adv`: advanced mode for an existing same-Wi-Fi network.
 
 The USB gadget network at `192.168.7.1` is retained for admin, SSH, and diagnostics only. Direct
@@ -17,9 +17,9 @@ to any tested Pi USB Ethernet gadget personality.
 - Pi Wi-Fi password: 8-digit numeric PIN in `/etc/InstantLinkBridge/hotspot.psk`
 - Pi FTP address: `192.168.8.1`
 - Wi-Fi radio shape: 2.4 GHz channel 6, WPA2-PSK/RSN, CCMP/AES only
-- Camera connection method: Wi-Fi to the bridge SSID
+- Sender connection method: Wi-Fi to the bridge SSID
 
-This is the giftable/portable wireless mode. The camera joins the bridge's own Wi-Fi network,
+This is the giftable/portable wireless mode. The sender joins the bridge's own Wi-Fi network,
 `LinkBrdg-XXXXXXXX` by default, and uploads to `192.168.8.1`. No existing Wi-Fi password is needed for
 the bridge workflow.
 
@@ -32,10 +32,10 @@ scripts/wifi-mode.sh hotspot
 Or from the LCD:
 
 ```text
-KEY1 -> Camera FTP -> FTP mode -> Bridge Wi-Fi -> KEY1
+KEY1 -> Upload FTP -> FTP mode -> Bridge Wi-Fi -> KEY1
 ```
 
-The camera setup values are visible together on `Settings -> Camera FTP`: `Bridge Wi-Fi`,
+The upload setup values are visible together on `Settings -> Upload FTP`: `Bridge Wi-Fi`,
 `Wi-Fi PIN`, `FTP host`, `FTP user`, and `FTP pass`. `Settings -> Network` remains a diagnostics
 page for checking whether the hotspot is actually active.
 
@@ -64,11 +64,11 @@ name from the hostname.
 - Pi FTP address: the LCD `Same Wi-Fi adv` address, currently `192.168.5.149` on the live bridge
 - FTP credentials: LCD `FTP user` and `FTP pass`; provisioning generates an 8-digit numeric
   password for fresh devices
-- Camera connection method: Wi-Fi to the same home network
+- Sender connection method: Wi-Fi to the same home network
 
-Use this only when you intentionally want the camera and bridge on an existing Wi-Fi network. It is
-an advanced path because the Pi must already know the network Wi-Fi password, the camera must join
-the same network, and router DHCP can change the FTP address. The camera's FTP host must be the
+Use this only when you intentionally want the sender and bridge on an existing Wi-Fi network. It is
+an advanced path because the Pi must already know the network Wi-Fi password, the sender must join
+the same network, and router DHCP can change the FTP address. The sender's FTP host must be the
 actual `Same Wi-Fi adv` address on the LCD. Reserve the Pi's Wi-Fi MAC in the router only after this
 path works, then set `preferred_wifi_host` to that reserved address.
 
@@ -88,19 +88,19 @@ scripts/wifi-mode.sh home-saved
 The LCD path is:
 
 ```text
-Settings -> Camera FTP -> FTP mode -> Same Wi-Fi adv -> KEY1
+Settings -> Upload FTP -> FTP mode -> Same Wi-Fi adv -> KEY1
 ```
 
 The `FTP mode` row opens an explicit option list. It does not cycle hidden values:
 
 - `Bridge Wi-Fi`: start the bridge-created Wi-Fi AP and accept only hotspot-subnet FTP clients. The
-  bridge Wi-Fi name, PIN, FTP host, and FTP credentials are shown under `Settings -> Camera FTP`.
+  bridge Wi-Fi name, PIN, FTP host, and FTP credentials are shown under `Settings -> Upload FTP`.
 - `Same Wi-Fi adv`: reconnect to a saved same-network Wi-Fi profile and accept only non-USB,
   non-hotspot, non-link-local peer clients.
 
-If legacy builds still show `Auto` or `Wired`, do not use them for v1 camera setup. `Wired` is a
+If legacy builds still show `Auto` or `Wired`, do not use them for v1 upload setup. `Wired` is a
 diagnostic/admin USB gadget path, and `Auto` must not make USB gadget FTP count as a supported
-camera path.
+upload path.
 
 Optional, after the router reservation exists:
 
@@ -109,7 +109,7 @@ Optional, after the router reservation exists:
 preferred_wifi_host = "192.168.5.7"
 ```
 
-Do not point the camera at the preferred address until the LCD actually shows that address. The LCD
+Do not point the sender at the preferred address until the LCD actually shows that address. The LCD
 always shows the actual Same Wi-Fi adv address. If it differs from the preferred reservation, the
 Same Wi-Fi adv line is highlighted.
 
@@ -132,7 +132,7 @@ Wi-Fi, and USB gadget diagnostics. The selected receive mode is enforced by sour
 | --- | --- | --- |
 | Bridge Wi-Fi | hotspot subnet only, for example `192.168.8.0/24` | USB and existing Wi-Fi clients |
 | Same Wi-Fi adv | non-USB, non-hotspot, non-link-local Wi-Fi clients | `169.254.0.0/16`, USB, and hotspot clients |
-| USB gadget diagnostics | admin/diagnostic host on `192.168.7.0/24` | camera workflows |
+| USB gadget diagnostics | admin/diagnostic host on `192.168.7.0/24` | upload workflows |
 
 Rejected uploads are refused when possible. If a file is already present by the time the policy is
 checked, it is removed and is not queued for printing.
@@ -145,7 +145,7 @@ Keep the transport subnets separate:
 | --- | --- | --- |
 | Bridge Wi-Fi | `192.168.8.1` | Owned by InstantLink Bridge AP mode |
 | Same Wi-Fi adv | router-reserved, e.g. `192.168.5.7` | Owned by the shared Wi-Fi router |
-| USB gadget diagnostics | `192.168.7.1` | Owned by the admin/SSH link, not a v1 camera path |
+| USB gadget diagnostics | `192.168.7.1` | Owned by the admin/SSH link, not a v1 upload path |
 
 Do not use `192.168.7.2` for Wi-Fi. It belongs to the USB gadget subnet `192.168.7.0/24`, so using
 it on Wi-Fi can create ambiguous routes while the admin/diagnostic link is active.

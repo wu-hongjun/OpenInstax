@@ -24,14 +24,14 @@ Display: 240x240 LCD, event-driven render loop, 1-2 fps maximum unless an animat
 | Bridge Wi-Fi | Sq 8/10|
 |   Ready              |
 |   to print           |
-| Waiting for camera   |
+| Waiting for upload   |
 | Next photo in order  |
-| KEY1 Settings Hold K3|
+| KEY1 Settings KEY3 FTP|
 +----------------------+
 ```
 
-The screen only says `READY` / `Ready to print` when both ends are healthy: at least one camera
-FTP receive path is visible and the selected printer has a current status read with film available.
+The screen only says `READY` / `Ready to print` when both ends are healthy: at least one FTP
+receive path is visible and the selected printer has a current status read with film available.
 
 Power status is global UI chrome, not a separate workflow. The current X306 battery case exposes
 battery state through hardware LEDs only, so the LCD shows `Battery case` / `LED only` in System
@@ -50,14 +50,14 @@ state and concise causes:
 | Ready check          |
 |       WAITING        |
 |     Ready check      |
-| FTP: no camera Wi-Fi |
+| FTP: no FTP Wi-Fi    |
 | Printer ready 8/10   |
-| Connect camera Wi-Fi |
+| Choose FTP Wi-Fi     |
 | KEY1 Settings Hold K3|
 +----------------------+
 ```
 
-The renderer keeps these lines short for the 240x240 LCD. Common causes are `Connect camera Wi-Fi`,
+The renderer keeps these lines short for the 240x240 LCD. Common causes are `Choose FTP Wi-Fi`,
 `Wait for printer status`, `No printer signal`, `Hold KEY3 to re-pair`, `Replace film
 pack`, and `Find printer`.
 
@@ -119,7 +119,7 @@ Shown at boot when no `INSTAX-*` printer is selected.
 | Settings             |
 | Up/Dn KEY1/Right 1/5|
 | > Printer           >|
-|   Camera FTP        >|
+|   Upload FTP        >|
 |   Network           >|
 |   Print             >|
 |   System            >|
@@ -127,13 +127,13 @@ Shown at boot when no `INSTAX-*` printer is selected.
 +----------------------+
 ```
 
-Settings is sectioned so camera-side FTP setup is not mixed with bridge settings:
+Settings is sectioned so upload FTP setup is not mixed with bridge diagnostics:
 
-- Main Settings has five sections: `Printer`, `Camera FTP`, `Network`, `Print`, and `System`. It
+- Main Settings has five sections: `Printer`, `Upload FTP`, `Network`, `Print`, and `System`. It
   does not run actions directly and does not show per-row explanatory text. The top line stays
   `Choose category`; KEY3 on this page shows only page-level help.
 - `Printer`: `Find printer`, `Forget printer`, `Printer type`, and `Keepalive`.
-- `Camera FTP`: starts with an explicit `FTP mode` selector, then hotspot-first setup values. This
+- `Upload FTP`: starts with hotspot-first setup values, then an explicit `FTP mode` selector. This
   page shows `Bridge Wi-Fi`, `Wi-Fi PIN`, `FTP host`, `FTP user`, and `FTP pass` so the normal
   bridge Wi-Fi setup does not require jumping to Network.
 - `Network`: read-only connection diagnostics for `Bridge FTP`, `Bridge Wi-Fi`, `Wi-Fi PIN`,
@@ -150,14 +150,14 @@ Setting details:
 - `FTP mode`: opens `Bridge Wi-Fi` and `Same Wi-Fi adv` options. `Bridge Wi-Fi` is the normal
   portable mode and should remain the default. `Same Wi-Fi adv` is for an existing saved Wi-Fi
   profile.
-- `Bridge Wi-Fi`: switches `wlan0` into bridge AP mode. The camera Wi-Fi FTP profile should use
+- `Bridge Wi-Fi`: switches `wlan0` into bridge AP mode. The sender FTP profile should use
   host `192.168.8.1`.
 - `Same Wi-Fi adv`: switches `wlan0` back to a saved NetworkManager same-network Wi-Fi profile.
   Entering a new SSID/password remains a shell/provisioning task.
-- If legacy builds still expose `Auto` or `Wired`, do not document them as v1 camera setup choices.
+- If legacy builds still expose `Auto` or `Wired`, do not document them as v1 upload setup choices.
   USB gadget networking is admin/SSH/diagnostics only.
 - `Wi-Fi PIN`: shows the 8-digit numeric WPA password from `/etc/InstantLinkBridge/hotspot.psk` on
-  the Camera FTP page.
+  the Upload FTP page.
 - `FTP user` / `FTP pass`: shows the credentials configured in `/etc/InstantLinkBridge/config.toml`.
   Provisioning generates an 8-digit numeric FTP password when the default sentinel is present.
 - `Printer type`: opens `Auto`, `Mini`, `Mini 3`, `Square`, and `Wide`.
@@ -208,20 +208,20 @@ Boot behavior:
   reconnecting and show `READY` / `Ready to print` only after a successful status read and at
   least one FTP receive path is visible.
 - When the model is known, show the printer type as `Mini`, `Mini Link 3`, `Square`, or `Wide`.
-- USB gadget status belongs under System or Network diagnostics and must not count as camera
+- USB gadget status belongs under System or Network diagnostics and must not count as upload
   readiness. Direct Sony USB-LAN is unsupported for v1 based on the Mac-proven cable/camera retest.
-- Show camera FTP receive modes distinctly and consistently as `Bridge Wi-Fi` and `Same Wi-Fi adv`.
+- Show FTP receive modes distinctly and consistently as `Bridge Wi-Fi` and `Same Wi-Fi adv`.
 - `Bridge FTP 192.168.8.1` means the bridge hotspot is active. `Bridge Wi-Fi off 192.168.8.1`
   means the bridge hotspot profile exists but is not the active wireless mode.
 - If `[ftp].preferred_wifi_host` is configured, the LCD still shows the actual Same Wi-Fi adv
   address. If the actual Same Wi-Fi adv address differs from the preferred reservation, draw that line as a
   warning.
-- If neither Bridge Wi-Fi nor Same Wi-Fi adv is visible, show `WAITING`, `FTP: no camera Wi-Fi`,
-  and `Choose camera Wi-Fi` even when the printer is ready.
+- If neither Bridge Wi-Fi nor Same Wi-Fi adv is visible, show `WAITING`, `FTP: no FTP Wi-Fi`,
+  and `Choose FTP Wi-Fi` even when the printer is ready.
 - Avoid redundant status copy on the 240x240 display. Compact live state belongs in the top bar.
   Body content should be action-oriented, such as `Turn printer on` or `Replace film pack`, not a
   second copy of `Printer offline`.
-- If the camera is linked but the printer status is not current or film is unknown, show `WAITING`;
+- If FTP receive is ready but the printer status is not current or film is unknown, show `WAITING`;
   do not show `Ready to print`.
 - If film remaining is `0` and `No-film test` is `Off`, show `NO FILM` / `No film left`; do not
   show `READY`. If `No-film test` is `On`, show ready/test status and allow print transfer.
@@ -325,7 +325,7 @@ printing screen.
 | Error | Two-line text | Recovery hint |
 | --- | --- | --- |
 | BLE not found | `Printer not found` / `Scanning nearby` | Move printer closer or hold KEY3 to pair |
-| Camera Wi-Fi lost | `Camera link lost` / `Check Wi-Fi` | Reconnect to Bridge Wi-Fi or Same Wi-Fi |
+| FTP Wi-Fi lost | `FTP link lost` / `Check Wi-Fi` | Reconnect to Bridge Wi-Fi or Same Wi-Fi |
 | Wrong mode | `Camera not ready` / `Use playback FTP` | Select playback and press C1 |
 | Image too large | `Image too large` / `Could not prepare` | Retry with a smaller still image |
 | Decode unsupported | `Image unsupported` / `Could not decode` | Use JPEG/HIF, or install RAW support |

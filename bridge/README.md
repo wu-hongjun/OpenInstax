@@ -1,7 +1,7 @@
 # InstantLink Bridge
 
-InstantLink Bridge is the Raspberry Pi appliance runtime for camera FTP receive plus InstantLink
-printing. It receives selected JPEG/HIF/RAW-capable stills over the bridge hotspot FTP path,
+InstantLink Bridge is the Raspberry Pi appliance runtime for FTP receive plus InstantLink
+printing. It receives selected JPEG/HIF/RAW-capable stills from any FTP-capable sender,
 prepares them for the detected printer format, and prints through the parent repository's
 `instantlink-ffi` backend with a small LCD/joystick interface.
 
@@ -69,7 +69,7 @@ devices without NTP from generating misleading logs or tar timestamp warnings. S
 
 Raspberry Pi Zero 2 W running Raspberry Pi OS Lite 64-bit Trixie, advertising a bridge hotspot at
 `192.168.8.1`, optionally joining an existing Wi-Fi network for advanced Same Wi-Fi FTP, receiving
-camera uploads, and printing to a bonded Mini, Mini Link 3, Square, or Wide Link printer over BLE.
+FTP uploads, and printing to a bonded Mini, Mini Link 3, Square, or Wide Link printer over BLE.
 The USB gadget network at `192.168.7.1` remains available for admin, SSH, firmware update, and
 diagnostics only; direct camera USB-LAN is unsupported for v1 after the Mac-proven cable/camera
 retest.

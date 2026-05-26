@@ -92,12 +92,12 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.KEEPALIVE,
     ),
     SettingsPage.CAMERA: (
-        SettingKey.FTP_RECEIVE_MODE,
         SettingKey.NETWORK_HOTSPOT_SSID_INFO,
         SettingKey.NETWORK_HOTSPOT_PASSWORD_INFO,
         SettingKey.FTP_HOST_INFO,
         SettingKey.FTP_USERNAME_INFO,
         SettingKey.FTP_PASSWORD_INFO,
+        SettingKey.FTP_RECEIVE_MODE,
         SettingKey.CAMERA_SETUP_INFO,
     ),
     SettingsPage.NETWORK: (
@@ -131,7 +131,7 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
 PAGE_TITLES: dict[SettingsPage, str] = {
     SettingsPage.MAIN: "Settings",
     SettingsPage.PRINTER: "Printer",
-    SettingsPage.CAMERA: "Camera FTP",
+    SettingsPage.CAMERA: "Upload FTP",
     SettingsPage.NETWORK: "Network",
     SettingsPage.PRINT: "Print",
     SettingsPage.SYSTEM: "System",
@@ -229,22 +229,22 @@ def setting_action_hint(key: SettingKey) -> str:
 
 SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.OPEN_PRINTER: "Printer selection and status",
-    SettingKey.OPEN_CAMERA: "Camera FTP setup",
+    SettingKey.OPEN_CAMERA: "Wi-Fi and FTP credentials",
     SettingKey.OPEN_NETWORK: "Wi-Fi, Bluetooth, and USB debug",
     SettingKey.OPEN_PRINT: "Photo size and print options",
-    SettingKey.OPEN_SYSTEM: "Refresh live status",
+    SettingKey.OPEN_SYSTEM: "Device info and power",
     SettingKey.FTP_RECEIVE_MODE: "Choose Bridge or Same-Wi-Fi FTP",
     SettingKey.PAIR_PRINTER: "Scan and save one printer",
     SettingKey.FORGET_PRINTER: "Remove saved printer",
-    SettingKey.FTP_MODE_INFO: "Active camera Wi-Fi path",
-    SettingKey.FTP_HOST_INFO: "FTP address to enter on camera",
-    SettingKey.FTP_USERNAME_INFO: "Camera FTP login user",
-    SettingKey.FTP_PASSWORD_INFO: "Camera FTP login password",
-    SettingKey.CAMERA_SETUP_INFO: "Which camera FTP profile to use",
+    SettingKey.FTP_MODE_INFO: "Active FTP Wi-Fi path",
+    SettingKey.FTP_HOST_INFO: "FTP host to enter",
+    SettingKey.FTP_USERNAME_INFO: "FTP login user",
+    SettingKey.FTP_PASSWORD_INFO: "FTP login password",
+    SettingKey.CAMERA_SETUP_INFO: "Any FTP sender can upload",
     SettingKey.NETWORK_ETHERNET_INFO: "USB debug SSH and firmware link",
     SettingKey.NETWORK_WIFI_INFO: "Advanced Same-Wi-Fi FTP address",
     SettingKey.NETWORK_HOTSPOT_INFO: "Bridge Wi-Fi FTP address",
-    SettingKey.NETWORK_HOTSPOT_SSID_INFO: "Camera joins this bridge Wi-Fi",
+    SettingKey.NETWORK_HOTSPOT_SSID_INFO: "FTP sender joins this Wi-Fi",
     SettingKey.NETWORK_HOTSPOT_PASSWORD_INFO: "8-digit Wi-Fi password",
     SettingKey.NETWORK_BLUETOOTH_INFO: "Printer Bluetooth status",
     SettingKey.PRINTER_MODEL: "Auto detects Mini/Square/Wide",
@@ -262,7 +262,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.SYSTEM_BATTERY_INFO: "Bridge battery telemetry",
     SettingKey.SYSTEM_IDLE_INFO: "Idle dim and poweroff",
     SettingKey.SYSTEM_IDLE_POWEROFF: "Allow 10 min idle shutdown",
-    SettingKey.REFRESH_STATUS: "Check printer and camera now",
+    SettingKey.REFRESH_STATUS: "Check printer and FTP now",
 }
 
 

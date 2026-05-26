@@ -304,6 +304,18 @@ def test_settings_footer_includes_key2_back() -> None:
     assert ("Move", "Left Back", "KEY2 Back") in lines
 
 
+def test_ready_footer_exposes_upload_credentials_when_printer_is_paired() -> None:
+    lines = _footer_label_lines(
+        UiSnapshot(
+            mode=UiMode.READY,
+            ftp_host="192.168.7.1",
+            paired_printer=PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678"),
+        )
+    )
+
+    assert lines == (("KEY1 Settings", "KEY2 Refresh", "KEY3 FTP"),)
+
+
 def test_settings_status_message_stays_in_settings_body_not_top_bar() -> None:
     snapshot = UiSnapshot(
         mode=UiMode.SETTINGS,
@@ -467,8 +479,7 @@ def test_ftp_mode_label_names_bridge_wifi_same_wifi_and_admin_usb() -> None:
     assert ftp_mode_label(peer) == "Same Wi-Fi adv"
     assert active_ftp_status_text(peer) == "Same Wi-Fi adv 192.168.5.149"
     assert (
-        ftp_mode_label(UiSnapshot(mode=UiMode.VALIDATION, ftp_host="192.168.7.1"))
-        == "No camera Wi-Fi"
+        ftp_mode_label(UiSnapshot(mode=UiMode.VALIDATION, ftp_host="192.168.7.1")) == "No FTP Wi-Fi"
     )
 
 
@@ -543,10 +554,10 @@ def test_readiness_cause_texts_explain_not_ready_states() -> None:
         film_remaining=0,
     )
 
-    assert camera_link_text(snapshot) == "FTP: no camera Wi-Fi"
+    assert camera_link_text(snapshot) == "FTP: no FTP Wi-Fi"
     assert printer_readiness_text(snapshot) == "Printer: no film"
     assert readiness_cause_texts(snapshot) == [
-        "Choose camera Wi-Fi",
+        "Choose FTP Wi-Fi",
         "Replace film pack",
     ]
 

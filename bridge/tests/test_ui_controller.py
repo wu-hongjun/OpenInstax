@@ -68,8 +68,8 @@ def test_camera_health_messages_report_no_receive_mode_for_auto_without_paths() 
         wifi_ipv4_addresses=[],
     )
 
-    assert camera_status_message_for_health(health) == "No camera Wi-Fi"
-    assert camera_transport_message_for_health(health) == "No camera Wi-Fi"
+    assert camera_status_message_for_health(health) == "No FTP Wi-Fi"
+    assert camera_transport_message_for_health(health) == "No FTP Wi-Fi"
 
 
 def test_camera_health_messages_report_usb_cable_warning_for_wired_mode() -> None:
@@ -116,8 +116,8 @@ def test_camera_health_messages_report_usb_cable_warning() -> None:
         wifi_ipv4_addresses=[],
     )
 
-    assert camera_status_message_for_health(health) == "No camera Wi-Fi"
-    assert camera_transport_message_for_health(health) == "No camera Wi-Fi"
+    assert camera_status_message_for_health(health) == "No FTP Wi-Fi"
+    assert camera_transport_message_for_health(health) == "No FTP Wi-Fi"
     assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug no IP"
     assert camera_transport_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug no IP"
 
@@ -146,8 +146,8 @@ def test_camera_health_messages_ignore_stale_wired_dhcp_without_link() -> None:
         leases=[DnsmasqLease(1200, "aa:bb:cc:dd:ee:01", "192.168.7.10", "camera", None)],
     )
 
-    assert camera_status_message_for_health(health) == "No camera Wi-Fi"
-    assert camera_transport_message_for_health(health) == "No camera Wi-Fi"
+    assert camera_status_message_for_health(health) == "No FTP Wi-Fi"
+    assert camera_transport_message_for_health(health) == "No FTP Wi-Fi"
 
 
 def test_camera_health_messages_report_recent_wireless_ftp_activity() -> None:
@@ -1013,7 +1013,7 @@ async def test_settings_save_failure_keeps_runtime_config(
 
 
 @pytest.mark.asyncio
-async def test_settings_camera_connection_help_describes_wifi_choices() -> None:
+async def test_upload_ftp_help_describes_sender_wifi() -> None:
     display = _FakeDisplay()
     ui = BridgeUi(
         BridgeConfig(),
@@ -1028,8 +1028,8 @@ async def test_settings_camera_connection_help_describes_wifi_choices() -> None:
     await ui._handle_action(UiAction.SELECT)
     await ui._handle_action(UiAction.HELP)
 
-    assert display.snapshots[-1].settings_title == "Camera FTP"
-    assert display.snapshots[-1].settings_message == "Choose Bridge or Same-Wi-Fi FTP"
+    assert display.snapshots[-1].settings_title == "Upload FTP"
+    assert display.snapshots[-1].settings_message == "FTP sender joins this Wi-Fi"
 
 
 @pytest.mark.asyncio
@@ -1055,7 +1055,7 @@ async def test_settings_ftp_receive_mode_selects_bridge_wifi_from_advanced_mode(
 
     assert [row.label for row in display.snapshots[-1].settings_rows] == [
         "Printer",
-        "Camera FTP",
+        "Upload FTP",
         "Network",
         "Print",
         "System",
@@ -1063,6 +1063,8 @@ async def test_settings_ftp_receive_mode_selects_bridge_wifi_from_advanced_mode(
 
     await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.SELECT)
+    for _ in range(5):
+        await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.RIGHT)
 
     assert calls == []
@@ -1076,11 +1078,13 @@ async def test_settings_ftp_receive_mode_selects_bridge_wifi_from_advanced_mode(
 
     assert calls == [WifiMode.HOTSPOT]
     assert _ftp_mode(ui) is FtpReceiveMode.HOTSPOT
-    assert display.snapshots[-1].settings_title == "Camera FTP"
-    assert display.snapshots[-1].settings_rows[0].label == "FTP mode"
-    assert display.snapshots[-1].settings_rows[0].value
-    assert display.snapshots[-1].settings_rows[3].label == "FTP host"
-    assert display.snapshots[-1].settings_rows[3].value == "192.168.8.1"
+    assert display.snapshots[-1].settings_title == "Upload FTP"
+    assert display.snapshots[-1].settings_rows[0].label == "Bridge Wi-Fi"
+    assert display.snapshots[-1].settings_rows[2].label == "FTP host"
+    assert display.snapshots[-1].settings_rows[2].value == "192.168.8.1"
+    assert display.snapshots[-1].settings_rows[3].label == "FTP user"
+    assert display.snapshots[-1].settings_rows[4].label == "FTP pass"
+    assert display.snapshots[-1].settings_rows[5].label == "FTP mode"
     assert display.snapshots[-1].settings_message == "Bridge Wi-Fi ready"
     assert [config.mode for config in applied_ftp_configs] == [FtpReceiveMode.HOTSPOT]
 
@@ -1128,7 +1132,7 @@ async def test_settings_main_page_uses_stable_category_prompt() -> None:
     await ui._handle_action(UiAction.DOWN)
 
     assert display.snapshots[-1].settings_rows[display.snapshots[-1].selected_index].label == (
-        "Camera FTP"
+        "Upload FTP"
     )
     assert display.snapshots[-1].settings_message == "Choose category"
 
@@ -1261,10 +1265,10 @@ async def test_settings_menu_shows_ftp_credentials() -> None:
     await ui._handle_action(UiAction.SELECT)
 
     rows = display.snapshots[-1].settings_rows
-    assert rows[4].label == "FTP user"
-    assert rows[4].value == "ib"
-    assert rows[5].label == "FTP pass"
-    assert rows[5].value == "12345678"
+    assert rows[3].label == "FTP user"
+    assert rows[3].value == "ib"
+    assert rows[4].label == "FTP pass"
+    assert rows[4].value == "12345678"
 
 
 @pytest.mark.asyncio
@@ -1293,12 +1297,12 @@ async def test_settings_menu_shows_hotspot_pin(
     await ui._handle_action(UiAction.SELECT)
 
     rows = display.snapshots[-1].settings_rows
-    assert rows[1].label == "Bridge Wi-Fi"
-    assert rows[1].value == "LinkBrdg-TEST1234"
-    assert rows[2].label == "Wi-Fi PIN"
-    assert rows[2].value == "12345678"
-    assert rows[3].label == "FTP host"
-    assert rows[3].value == "192.168.8.1"
+    assert rows[0].label == "Bridge Wi-Fi"
+    assert rows[0].value == "LinkBrdg-TEST1234"
+    assert rows[1].label == "Wi-Fi PIN"
+    assert rows[1].value == "12345678"
+    assert rows[2].label == "FTP host"
+    assert rows[2].value == "192.168.8.1"
 
 
 @pytest.mark.asyncio
@@ -1706,6 +1710,68 @@ async def test_key3_press_on_pair_failed_starts_pairing() -> None:
     await ui._handle_action(UiAction.HELP)
 
     assert display.snapshots[-1].mode is UiMode.PAIRING
+
+
+@pytest.mark.asyncio
+async def test_key3_press_with_paired_printer_opens_upload_ftp_credentials() -> None:
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([printer]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._hotspot_host = "192.168.8.1"
+    ui._snapshot = ui._build_snapshot(
+        mode=UiMode.READY,
+        paired_printer=printer,
+        film_remaining=8,
+    )
+
+    await ui._handle_action(UiAction.HELP)
+
+    assert display.snapshots[-1].mode is UiMode.SETTINGS
+    assert display.snapshots[-1].settings_title == "Upload FTP"
+    assert display.snapshots[-1].settings_message == "Wi-Fi + FTP credentials"
+    assert [row.label for row in display.snapshots[-1].settings_rows[:5]] == [
+        "Bridge Wi-Fi",
+        "Wi-Fi PIN",
+        "FTP host",
+        "FTP user",
+        "FTP pass",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_first_printer_pairing_opens_upload_ftp_credentials() -> None:
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([printer]),
+        status_provider=_FakeStatusProvider(
+            snapshot=PrinterStatusSnapshot(
+                film_remaining=8,
+                battery=90,
+                is_charging=False,
+                model=PrinterModel.SQUARE,
+                message="Ready",
+            )
+        ),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.PAIRING)
+
+    await ui._pair_in_background(previous_printer=None)
+
+    assert display.snapshots[-1].mode is UiMode.SETTINGS
+    assert display.snapshots[-1].settings_title == "Upload FTP"
+    assert display.snapshots[-1].settings_message == "Enter these on sender"
+    await ui._cancel_status_refresh()
 
 
 def test_background_printer_search_does_not_leave_settings() -> None:

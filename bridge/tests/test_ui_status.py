@@ -7,7 +7,11 @@ from typing import Any, cast
 import pytest
 
 from instantlink_bridge.ble.client import DiscoveredPrinter
-from instantlink_bridge.ble.instantlink import ERROR_NO_FILM, InstantLinkBackend
+from instantlink_bridge.ble.instantlink import (
+    ERROR_NO_FILM,
+    InstantLinkBackend,
+    InstantLinkBleError,
+)
 from instantlink_bridge.ble.instax import PrinterStatus
 from instantlink_bridge.ble.models import PrinterModel
 from instantlink_bridge.ble.session import (
@@ -31,9 +35,11 @@ from instantlink_bridge.ui.status import (
 
 
 class _FakeInstantLinkStatusLibrary:
-    def __init__(self, *, film_rc: int = 0) -> None:
+    def __init__(self, *, film_rc: int = 0, battery_rc: int = 35) -> None:
         self.film_rc = film_rc
+        self.battery_rc = battery_rc
         self.connect_calls = 0
+        self.disconnect_calls = 0
         self.status_calls = 0
 
     def instantlink_connect_named(self, _name: bytes, _duration: int) -> int:
@@ -41,7 +47,7 @@ class _FakeInstantLinkStatusLibrary:
         return 0
 
     def instantlink_battery(self) -> int:
-        return 35
+        return self.battery_rc
 
     def instantlink_film_and_charging(self, out_film: object, out_charging: object) -> int:
         if self.film_rc != 0:
@@ -71,6 +77,7 @@ class _FakeInstantLinkStatusLibrary:
         return len(buffer.value)
 
     def instantlink_disconnect(self) -> int:
+        self.disconnect_calls += 1
         return 0
 
 
@@ -113,6 +120,18 @@ async def test_instantlink_status_maps_no_film_to_zero_remaining() -> None:
 
     assert status.film_remaining == 0
     assert status.print_count is None
+
+
+@pytest.mark.asyncio
+async def test_instantlink_status_disconnects_stale_session_after_status_failure() -> None:
+    library = _FakeInstantLinkStatusLibrary(battery_rc=-3)
+    backend = InstantLinkBackend()
+    backend._lib = cast(Any, library)
+
+    with pytest.raises(InstantLinkBleError, match="status battery failed"):
+        await backend.status("INSTAX-1N034655")
+
+    assert library.disconnect_calls == 1
 
 
 def test_select_status_target_falls_back_to_selected_when_not_visible() -> None:

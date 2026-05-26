@@ -797,6 +797,9 @@ class BridgeUi:
             if self._snapshot.mode is UiMode.PAIR_FAILED:
                 await self._start_pairing()
                 return
+            if self._snapshot.paired_printer is not None:
+                self._show_settings("Wi-Fi + FTP credentials", page=SettingsPage.CAMERA)
+                return
             return
         if action is UiAction.BACK:
             if self._snapshot.mode is UiMode.PAIR_FAILED:
@@ -1143,13 +1146,15 @@ class BridgeUi:
     def _settings_default_message(self) -> str | None:
         if self._settings_page is SettingsPage.MAIN:
             return "Choose category"
+        if self._settings_page is SettingsPage.CAMERA:
+            return "Wi-Fi + FTP credentials"
         return None
 
     def _settings_row_for_key(self, key: SettingKey, printer_name: str) -> SettingsRow:
         if key is SettingKey.OPEN_PRINTER:
             return SettingsRow("Printer", "")
         if key is SettingKey.OPEN_CAMERA:
-            return SettingsRow("Camera FTP", "")
+            return SettingsRow("Upload FTP", "")
         if key is SettingKey.OPEN_NETWORK:
             return SettingsRow("Network", "")
         if key is SettingKey.OPEN_PRINT:
@@ -1181,7 +1186,7 @@ class BridgeUi:
         if key is SettingKey.FTP_PASSWORD_INFO:
             return SettingsRow("FTP pass", self._config.ftp.password)
         if key is SettingKey.CAMERA_SETUP_INFO:
-            return SettingsRow("Camera setup", self._camera_setup_value())
+            return SettingsRow("Upload note", self._camera_setup_value())
         if key is SettingKey.IMAGE_FIT:
             return SettingsRow("Image fit", fit_label(self._config.printer.fit))
         if key is SettingKey.JPEG_QUALITY:
@@ -1330,7 +1335,7 @@ class BridgeUi:
             return "Bridge Wi-Fi"
         if self._wifi_host is not None:
             return "Same Wi-Fi adv"
-        return "No camera Wi-Fi"
+        return "No FTP Wi-Fi"
 
     def _camera_setup_value(self) -> str:
         mode = self._config.ftp.mode
@@ -1442,6 +1447,7 @@ class BridgeUi:
             return
         self._cancel_image_reset()
         await self._cancel_status_refresh()
+        await self._close_cached_printer_session()
         previous_printer = self._snapshot.paired_printer
         self._pairing_generation += 1
         generation = self._pairing_generation
@@ -1506,6 +1512,7 @@ class BridgeUi:
                 return
             LOGGER.info("ui.printer_paired name=%s address=%s", printer.name, printer.address)
             self._pair_return_page = None
+            first_pairing = previous_printer is None
             self._snapshot = self._build_snapshot(
                 mode=UiMode.PRINTER_SEARCHING,
                 paired_printer=printer,
@@ -1513,6 +1520,8 @@ class BridgeUi:
                 printer_status_message="Looking for printer",
             )
             await self._schedule_printer_status_refresh()
+            if first_pairing:
+                self._show_settings("Enter these on sender", page=SettingsPage.CAMERA)
         finally:
             if self._pairing_task is asyncio.current_task():
                 self._pairing_task = None
@@ -2002,7 +2011,7 @@ def camera_status_message_for_health(
     health: ConnectionHealth,
     mode: FtpReceiveMode = FtpReceiveMode.AUTO,
 ) -> str:
-    """Return a concise user-facing camera receive-path status."""
+    """Return a concise user-facing FTP receive-path status."""
 
     if mode is FtpReceiveMode.WIRED:
         if health.wired_ftp_ready:
@@ -2018,7 +2027,7 @@ def camera_status_message_for_health(
         return "Bridge Wi-Fi off"
     if mode is FtpReceiveMode.PEER:
         if health.ftp_recently_active_for_mode(mode) and health.ftp_activity is not None:
-            return f"FTP active {health.ftp_activity.last_remote_ip or 'camera'}"
+            return f"FTP active {health.ftp_activity.last_remote_ip or 'client'}"
         if health.home_wifi_ftp_ready:
             return "Same Wi-Fi adv ready"
         if health.wifi_subnet_conflict:
@@ -2034,7 +2043,7 @@ def camera_status_message_for_health(
         return "Same Wi-Fi adv ready"
     if health.wifi_subnet_conflict:
         return "Same-Wi-Fi subnet conflict"
-    return "No camera Wi-Fi"
+    return "No FTP Wi-Fi"
 
 
 def camera_transport_message_for_health(
@@ -2070,13 +2079,13 @@ def camera_transport_message_for_health(
         return f"Same Wi-Fi adv {health.home_wifi_ipv4}"
     if health.wifi_subnet_conflict:
         return "Same-Wi-Fi subnet conflict"
-    return "No camera Wi-Fi"
+    return "No FTP Wi-Fi"
 
 
 def _ftp_active_message_for_health(health: ConnectionHealth) -> str:
     if health.ftp_activity is None:
-        return "FTP active camera"
-    return f"FTP active {health.ftp_activity.last_remote_ip or 'camera'}"
+        return "FTP active client"
+    return f"FTP active {health.ftp_activity.last_remote_ip or 'client'}"
 
 
 def _recent_ftp_source_ready_for_health(
@@ -2167,17 +2176,17 @@ def scanner_diagnostics_summary(error: PrinterStatusUnavailableError) -> str:
 
 def _info_message_for_setting(key: SettingKey) -> str:
     if key is SettingKey.CAMERA_SETUP_INFO:
-        return "Set FTP on camera"
+        return "Use these FTP settings"
     if key is SettingKey.FTP_RECEIVE_MODE:
         return "Choose Bridge or Same-Wi-Fi FTP"
     if key is SettingKey.FTP_MODE_INFO:
         return "Bridge Wi-Fi is primary"
     if key is SettingKey.FTP_HOST_INFO:
-        return "Camera FTP host"
+        return "FTP host"
     if key is SettingKey.FTP_USERNAME_INFO:
-        return "Camera FTP username"
+        return "FTP username"
     if key is SettingKey.FTP_PASSWORD_INFO:
-        return "Camera FTP password"
+        return "FTP password"
     if key is SettingKey.NETWORK_ETHERNET_INFO:
         return "USB debug SSH/update link"
     if key is SettingKey.NETWORK_WIFI_INFO:
@@ -2233,11 +2242,11 @@ def _ftp_mode_saved_message(mode: FtpReceiveMode, label: str) -> str:
 
 def _camera_setup_info_message(mode: FtpReceiveMode) -> str:
     if mode is FtpReceiveMode.HOTSPOT:
-        return "Camera joins Bridge Wi-Fi"
+        return "Sender joins Bridge Wi-Fi"
     if mode is FtpReceiveMode.WIRED:
         return "USB is debug/update only"
     if mode is FtpReceiveMode.PEER:
-        return "Camera uses saved Wi-Fi"
+        return "Sender uses saved Wi-Fi"
     return "Use a Wi-Fi FTP profile"
 
 

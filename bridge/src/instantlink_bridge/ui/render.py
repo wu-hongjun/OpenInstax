@@ -125,7 +125,7 @@ def _ready(
         _validation(draw, snapshot, font_large, font_body, font_small)
         return
     _center_lines(draw, ["Ready", "to print"], 64, font_large, TEXT)
-    _text(draw, 18, 128, "Waiting for camera upload", font_body, TEXT)
+    _text(draw, 18, 128, "Waiting for upload", font_body, TEXT)
     _text(draw, 18, 150, "Next photo prints in order", font_small, MUTED)
 
 
@@ -140,8 +140,8 @@ def _validation(
     _center_lines(draw, ["Ready to print" if accepting else "Setup needed"], 62, font_large, TEXT)
     causes = readiness_cause_texts(snapshot)
     if not causes:
-        _text(draw, 18, 112, "Camera and printer healthy", font_body, TEXT)
-        _text(draw, 18, 137, "Waiting for camera upload", font_small, MUTED)
+        _text(draw, 18, 112, "FTP and printer ready", font_body, TEXT)
+        _text(draw, 18, 137, "Waiting for upload", font_small, MUTED)
         return
     _text(draw, 18, 112, "Next action", font_body, TEXT)
     for index, cause in enumerate(causes[:3]):
@@ -223,7 +223,7 @@ def _image_received(
     _center_lines(draw, ["Image", "received"], 55, font_large, TEXT)
     if snapshot.last_image_name is not None:
         _text(draw, 18, 128, _ellipsize(snapshot.last_image_name, 25), font_body, TEXT)
-    _text(draw, 18, 151, "Received from camera", font_small, MUTED)
+    _text(draw, 18, 151, "Received over FTP", font_small, MUTED)
     _text(draw, 18, 168, film_status_text(snapshot), font_small, MUTED)
 
 
@@ -449,7 +449,11 @@ def _footer_label_lines(snapshot: UiSnapshot) -> tuple[tuple[str, str, str], ...
     if snapshot.mode is UiMode.PRINTING:
         return (("", "Printing", ""),)
     if snapshot.mode is UiMode.PRINT_COMPLETE:
+        if snapshot.paired_printer is not None:
+            return (("KEY1 Settings", "Done", "KEY3 FTP"),)
         return (("KEY1 Settings", "Done", "Hold KEY3"),)
+    if snapshot.paired_printer is not None:
+        return (("KEY1 Settings", "KEY2 Refresh", "KEY3 FTP"),)
     return (("KEY1 Settings", "KEY2 Refresh", "Hold KEY3"),)
 
 
@@ -721,7 +725,7 @@ def top_bar_status_text(snapshot: UiSnapshot) -> str | None:
 
 
 def camera_top_status_text(snapshot: UiSnapshot) -> str:
-    """Return a title-bar sized camera FTP status."""
+    """Return a title-bar sized FTP receive status."""
 
     if snapshot.camera_receive_ready:
         return ftp_mode_label(snapshot)
@@ -733,7 +737,7 @@ def camera_top_status_text(snapshot: UiSnapshot) -> str:
         return "Same Wi-Fi adv"
     if snapshot.usb_connected:
         return "USB debug"
-    return "No camera Wi-Fi"
+    return "No FTP Wi-Fi"
 
 
 def printer_top_status_text(snapshot: UiSnapshot) -> str:
@@ -796,7 +800,7 @@ def bridge_power_header_text(snapshot: UiSnapshot) -> str | None:
 
 
 def camera_link_ready(snapshot: UiSnapshot) -> bool:
-    """Return whether an FTP receive path from the camera is visible."""
+    """Return whether an FTP receive path is visible."""
 
     return snapshot.camera_receive_ready
 
@@ -823,13 +827,13 @@ def printer_ready(snapshot: UiSnapshot) -> bool:
 
 
 def can_accept_images(snapshot: UiSnapshot) -> bool:
-    """Return whether camera and printer are healthy enough to accept images."""
+    """Return whether FTP receive and printer are healthy enough to accept images."""
 
     return camera_link_ready(snapshot) and printer_ready(snapshot)
 
 
 def camera_link_text(snapshot: UiSnapshot) -> str:
-    """Return the validation line for camera receive state."""
+    """Return the validation line for FTP receive state."""
 
     if snapshot.camera_receive_ready and snapshot.camera_transport_message is not None:
         return f"FTP: {_ellipsize(snapshot.camera_transport_message, 26)}"
@@ -843,7 +847,7 @@ def camera_link_text(snapshot: UiSnapshot) -> str:
         return f"FTP: Same Wi-Fi adv {snapshot.wifi_host}"
     if snapshot.camera_connected:
         return "FTP: link not ready"
-    return "FTP: no camera Wi-Fi"
+    return "FTP: no FTP Wi-Fi"
 
 
 def printer_readiness_text(snapshot: UiSnapshot) -> str:
@@ -869,7 +873,7 @@ def readiness_cause_texts(snapshot: UiSnapshot) -> list[str]:
 
     causes: list[str] = []
     if not camera_link_ready(snapshot):
-        causes.append(_cause_text(snapshot.camera_status_message or "Choose camera Wi-Fi"))
+        causes.append(_cause_text(snapshot.camera_status_message or "Choose FTP Wi-Fi"))
     if snapshot.paired_printer is None:
         causes.append("Find printer")
     elif snapshot.mode is UiMode.PRINTER_OFFLINE:
@@ -931,11 +935,11 @@ def error_copy_for_message(message: str | None) -> tuple[str, str, str | None]:
     if "no film" in normalized:
         return "No film left", "Replace film pack", "No-film test in Settings"
     if "image too large" in normalized:
-        return "Image too large", "Use camera preview JPEG/HIF", "Try lower quality"
+        return "Image too large", "Use smaller JPEG/HIF", "Try lower quality"
     if "image timed out" in normalized:
         return "Image timed out", "RAW/HIF conversion took too long", "Try JPEG"
     if "image unsupported" in normalized:
-        return "Image unsupported", "Use JPG, HIF, or ARW", "Check camera file type"
+        return "Image unsupported", "Use JPG, HIF, or ARW", "Check file type"
     if "preview failed" in normalized:
         return "Preview failed", "Image could not be prepared", "Cancel and retry"
     return "Bridge error", message, "KEY2 refreshes status"
@@ -955,7 +959,7 @@ def ftp_mode_label(snapshot: UiSnapshot) -> str:
         return "Bridge Wi-Fi"
     if snapshot.wifi_host is not None:
         return "Same Wi-Fi adv"
-    return "No camera Wi-Fi"
+    return "No FTP Wi-Fi"
 
 
 def active_ftp_status_text(snapshot: UiSnapshot) -> str:
@@ -971,7 +975,7 @@ def active_ftp_status_text(snapshot: UiSnapshot) -> str:
         return f"Same Wi-Fi adv prefer {snapshot.preferred_wifi_host}"
     if snapshot.usb_connected:
         return "USB debug connected"
-    return "No camera Wi-Fi"
+    return "No FTP Wi-Fi"
 
 
 def ftp_mode_hint_text(snapshot: UiSnapshot) -> str:
@@ -983,7 +987,7 @@ def ftp_mode_hint_text(snapshot: UiSnapshot) -> str:
         return "Bridge Wi-Fi in Settings"
     if snapshot.usb_connected:
         return "USB debug in Network"
-    return "Open Camera FTP setup"
+    return "Open Upload FTP setup"
 
 
 def usb_ftp_status_text(snapshot: UiSnapshot) -> str:
@@ -1042,8 +1046,8 @@ def _ellipsize(text: str, max_chars: int) -> str:
 
 
 def _cause_text(text: str) -> str:
-    if text.lower() in {"no receive mode", "no camera wi-fi"}:
-        return "Choose camera Wi-Fi"
+    if text.lower() in {"no receive mode", "no camera wi-fi", "no ftp wi-fi"}:
+        return "Choose FTP Wi-Fi"
     if text.lower() in {"peer subnet conflict", "same-wifi subnet conflict"}:
         return "Wi-Fi subnet conflicts"
     return _ellipsize(text, 31)
