@@ -187,6 +187,213 @@ final class BridgeHTTPTransportTests {
         }
     }
 
+    func testUploadUpdateSignsAndPostsArchiveBytes() async throws {
+        let keyStore = FakeBridgeClientKeyStore(identity: try makeIdentity())
+        let archiveURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("InstantLinkBridgeFirmware-v0.2.0-linux-aarch64.tar.gz")
+        let archiveBytes = Data("firmware-archive-bytes".utf8)
+        try archiveBytes.write(to: archiveURL)
+        defer { try? FileManager.default.removeItem(at: archiveURL) }
+
+        let session = makeSession { request in
+            try expectEqual(request.url?.path, "/v1/update/upload")
+            try expectEqual(request.httpMethod, "POST")
+            try expectEqual(
+                request.value(forHTTPHeaderField: BridgeHTTPTransport.uploadFilenameHeader),
+                "InstantLinkBridgeFirmware-v0.2.0-linux-aarch64.tar.gz"
+            )
+            try expectEqual(requestBody(from: request), archiveBytes)
+            try expectTrue(
+                request.value(forHTTPHeaderField: BridgeManagementAuth.signatureHeader)?.isEmpty == false
+            )
+            return .json(200, Self.uploadEnvelope)
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://bridge.local:8742")!,
+            session: session,
+            keyStore: keyStore,
+            now: { Date(timeIntervalSince1970: 1000) },
+            nonce: { "nonce-0001" }
+        )
+
+        var package = makePackage(version: "0.2.0")
+        package.archiveURL = archiveURL
+        let result = try await transport.uploadUpdate(device: makeDevice(), package: package)
+        try expectEqual(result.filename, "InstantLinkBridgeFirmware-v0.2.0-linux-aarch64.tar.gz")
+        try expectEqual(result.sizeBytes, 22)
+        try expectEqual(result.sha256, "upload-sha")
+    }
+
+    func testCreateBackupSignsRequestAndDecodesResult() async throws {
+        let keyStore = FakeBridgeClientKeyStore(identity: try makeIdentity())
+        let session = makeSession { request in
+            try expectEqual(request.url?.path, "/v1/backup/create")
+            try expectEqual(request.httpMethod, "POST")
+            try expectEqual(request.value(forHTTPHeaderField: BridgeManagementAuth.clientIDHeader), "macbook")
+            try expectTrue(
+                request.value(forHTTPHeaderField: BridgeManagementAuth.signatureHeader)?.isEmpty == false
+            )
+            return .json(200, Self.backupEnvelope)
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://bridge.local:8742")!,
+            session: session,
+            keyStore: keyStore,
+            now: { Date(timeIntervalSince1970: 1000) },
+            nonce: { "nonce-0001" }
+        )
+
+        let result = try await transport.createBackup(device: makeDevice())
+        try expectEqual(result.backupID, "update-20260526-153000-v0.1.0")
+        try expectTrue(result.verified)
+        try expectEqual(result.archiveSHA256, "backup-archive-sha")
+    }
+
+    func testRestoreBackupPostsBackupID() async throws {
+        let keyStore = FakeBridgeClientKeyStore(identity: try makeIdentity())
+        let session = makeSession { request in
+            try expectEqual(request.url?.path, "/v1/backup/restore")
+            let body = try JSONDecoder().decode([String: String].self, from: requestBody(from: request))
+            try expectEqual(body["backup_id"], "update-20260526-153000-v0.1.0")
+            return .json(200, Self.restoreEnvelope)
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://bridge.local:8742")!,
+            session: session,
+            keyStore: keyStore,
+            now: { Date(timeIntervalSince1970: 1000) },
+            nonce: { "nonce-0001" }
+        )
+
+        let result = try await transport.restoreBackup(
+            device: makeDevice(),
+            backupID: "update-20260526-153000-v0.1.0"
+        )
+        try expectEqual(result.backupID, "update-20260526-153000-v0.1.0")
+        try expectEqual(result.restoredCount, 2)
+    }
+
+    func testMarkUpdateGoodDecodesDoneState() async throws {
+        let keyStore = FakeBridgeClientKeyStore(identity: try makeIdentity())
+        let session = makeSession { request in
+            try expectEqual(request.url?.path, "/v1/update/mark-good")
+            try expectEqual(request.httpMethod, "POST")
+            try expectTrue(
+                request.value(forHTTPHeaderField: BridgeManagementAuth.signatureHeader)?.isEmpty == false
+            )
+            return .json(200, Self.markGoodEnvelope)
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://bridge.local:8742")!,
+            session: session,
+            keyStore: keyStore,
+            now: { Date(timeIntervalSince1970: 1000) },
+            nonce: { "nonce-0001" }
+        )
+
+        let state = try await transport.markUpdateGood(device: makeDevice())
+        try expectEqual(state.phase, .done)
+        try expectEqual(state.safeState, .installed)
+        try expectEqual(state.installedVersion, "0.2.0")
+        try expectTrue(state.isTerminal)
+    }
+
+    func testRollbackUpdatePostsReasonAndDecodesState() async throws {
+        let keyStore = FakeBridgeClientKeyStore(identity: try makeIdentity())
+        let session = makeSession { request in
+            try expectEqual(request.url?.path, "/v1/update/rollback")
+            let body = try JSONDecoder().decode([String: String].self, from: requestBody(from: request))
+            try expectEqual(body["reason"], "health_check_failed")
+            return .json(200, Self.rollbackEnvelope)
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://bridge.local:8742")!,
+            session: session,
+            keyStore: keyStore,
+            now: { Date(timeIntervalSince1970: 1000) },
+            nonce: { "nonce-0001" }
+        )
+
+        let state = try await transport.rollbackUpdate(device: makeDevice(), reason: "health_check_failed")
+        try expectEqual(state.phase, .rolledBack)
+        try expectEqual(state.safeState, .previousVersionRestored)
+        try expectTrue(state.isTerminal)
+    }
+
+    private static let uploadEnvelope = """
+    {
+      "schema_version": 1,
+      "request_id": "req-upload",
+      "ok": true,
+      "upload": {
+        "filename": "InstantLinkBridgeFirmware-v0.2.0-linux-aarch64.tar.gz",
+        "stored_path": "/var/lib/InstantLinkBridge/shared/uploads/InstantLinkBridgeFirmware-v0.2.0-linux-aarch64.tar.gz",
+        "size_bytes": 22,
+        "sha256": "upload-sha"
+      }
+    }
+    """
+
+    private static let backupEnvelope = """
+    {
+      "schema_version": 1,
+      "request_id": "req-backup",
+      "ok": true,
+      "backup": {
+        "backup_id": "update-20260526-153000-v0.1.0",
+        "manifest_path": "/var/lib/InstantLinkBridge/backups/update-20260526-153000-v0.1.0.manifest.json",
+        "archive_path": "/var/lib/InstantLinkBridge/backups/update-20260526-153000-v0.1.0.tar.gz",
+        "archive_sha256": "backup-archive-sha",
+        "verified": true
+      }
+    }
+    """
+
+    private static let restoreEnvelope = """
+    {
+      "schema_version": 1,
+      "request_id": "req-restore",
+      "ok": true,
+      "restore": {
+        "backup_id": "update-20260526-153000-v0.1.0",
+        "restored_paths": ["/etc/InstantLinkBridge/config.toml", "/etc/InstantLinkBridge/printer.json"],
+        "restored_count": 2
+      }
+    }
+    """
+
+    private static let markGoodEnvelope = """
+    {
+      "schema_version": 1,
+      "request_id": "req-mark-good",
+      "ok": true,
+      "update": {
+        "operation_id": "0.2.0",
+        "phase": "done",
+        "progress": 1.0,
+        "message": "Done",
+        "safe_state": "installed",
+        "installed_version": "0.2.0"
+      }
+    }
+    """
+
+    private static let rollbackEnvelope = """
+    {
+      "schema_version": 1,
+      "request_id": "req-rollback",
+      "ok": true,
+      "update": {
+        "operation_id": "0.2.0",
+        "phase": "rolled_back",
+        "progress": 1.0,
+        "message": "Update failed; restored previous version",
+        "safe_state": "previous_version_restored",
+        "installed_version": "0.1.0"
+      }
+    }
+    """
+
     private static let helloEnvelope = """
     {
       "schema_version": 1,

@@ -11,9 +11,14 @@ protocol BridgeTransport {
     func forgetLocalAuth(device: BridgeDevice) async throws
     func status(device: BridgeDevice) async throws -> BridgeStatus
     func preflightUpdate(device: BridgeDevice, package: BridgeUpdatePackage) async throws -> BridgeUpdatePreflight
+    func uploadUpdate(device: BridgeDevice, package: BridgeUpdatePackage) async throws -> BridgeUploadResult
     func startUpdate(device: BridgeDevice, package: BridgeUpdatePackage) async throws -> BridgeUpdateState
     func updateStatus(device: BridgeDevice, operationID: String) async throws -> BridgeUpdateState
     func updateEvents(device: BridgeDevice, operationID: String) async throws -> AsyncThrowingStream<BridgeUpdateEvent, Error>
+    func markUpdateGood(device: BridgeDevice) async throws -> BridgeUpdateState
+    func rollbackUpdate(device: BridgeDevice, reason: String) async throws -> BridgeUpdateState
+    func createBackup(device: BridgeDevice) async throws -> BridgeBackupResult
+    func restoreBackup(device: BridgeDevice, backupID: String) async throws -> BridgeBackupRestoreResult
 }
 
 enum BridgeTransportError: Error, Equatable {
@@ -241,6 +246,72 @@ actor InMemoryBridgeTransport: BridgeTransport {
             }
             continuation.finish()
         }
+    }
+
+    func uploadUpdate(device: BridgeDevice, package: BridgeUpdatePackage) async throws -> BridgeUploadResult {
+        try requireAuthorized(device)
+        let filename = package.archiveURL.lastPathComponent
+        return BridgeUploadResult(
+            filename: filename,
+            storedPath: "/var/lib/InstantLinkBridge/shared/uploads/\(filename)",
+            sizeBytes: 0,
+            sha256: package.archiveSHA256
+        )
+    }
+
+    func markUpdateGood(device: BridgeDevice) async throws -> BridgeUpdateState {
+        try requireAuthorized(device)
+        let summary = statuses[device.deviceID]?.update
+        let installedVersion = summary?.availableVersion ?? statuses[device.deviceID]?.bridgeVersion
+        let state = BridgeUpdateState(
+            operationID: summary?.operationID ?? "update-good",
+            phase: .done,
+            progress: 1.0,
+            message: "Done",
+            safeState: .installed,
+            installedVersion: installedVersion,
+            error: nil
+        )
+        applyUpdateState(state, to: device.deviceID)
+        return state
+    }
+
+    func rollbackUpdate(device: BridgeDevice, reason: String) async throws -> BridgeUpdateState {
+        try requireAuthorized(device)
+        let summary = statuses[device.deviceID]?.update
+        let state = BridgeUpdateState(
+            operationID: summary?.operationID ?? "update-rollback",
+            phase: .rolledBack,
+            progress: 1.0,
+            message: reason.isEmpty ? "Update restored" : reason,
+            safeState: .previousVersionRestored,
+            installedVersion: statuses[device.deviceID]?.bridgeVersion,
+            error: nil
+        )
+        applyUpdateState(state, to: device.deviceID)
+        return state
+    }
+
+    func createBackup(device: BridgeDevice) async throws -> BridgeBackupResult {
+        try requireAuthorized(device)
+        let backupID = "update-inmemory-\(nextOperationNumber)"
+        nextOperationNumber += 1
+        return BridgeBackupResult(
+            backupID: backupID,
+            manifestPath: "/var/lib/InstantLinkBridge/backups/\(backupID).manifest.json",
+            archivePath: "/var/lib/InstantLinkBridge/backups/\(backupID).tar.gz",
+            archiveSHA256: String(repeating: "0", count: 64),
+            verified: true
+        )
+    }
+
+    func restoreBackup(device: BridgeDevice, backupID: String) async throws -> BridgeBackupRestoreResult {
+        try requireAuthorized(device)
+        return BridgeBackupRestoreResult(
+            backupID: backupID,
+            restoredPaths: ["/etc/InstantLinkBridge/config.toml"],
+            restoredCount: 1
+        )
     }
 
     private func requireAuthorized(_ device: BridgeDevice) throws {

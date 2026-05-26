@@ -65,11 +65,32 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeHTTPTransportTests.testStartUpdateRequiresAllowedPreflightBeforeInstall", {
                 try await BridgeHTTPTransportTests().testStartUpdateRequiresAllowedPreflightBeforeInstall()
             }),
+            ("BridgeHTTPTransportTests.testUploadUpdateSignsAndPostsArchiveBytes", {
+                try await BridgeHTTPTransportTests().testUploadUpdateSignsAndPostsArchiveBytes()
+            }),
+            ("BridgeHTTPTransportTests.testCreateBackupSignsRequestAndDecodesResult", {
+                try await BridgeHTTPTransportTests().testCreateBackupSignsRequestAndDecodesResult()
+            }),
+            ("BridgeHTTPTransportTests.testRestoreBackupPostsBackupID", {
+                try await BridgeHTTPTransportTests().testRestoreBackupPostsBackupID()
+            }),
+            ("BridgeHTTPTransportTests.testMarkUpdateGoodDecodesDoneState", {
+                try await BridgeHTTPTransportTests().testMarkUpdateGoodDecodesDoneState()
+            }),
+            ("BridgeHTTPTransportTests.testRollbackUpdatePostsReasonAndDecodesState", {
+                try await BridgeHTTPTransportTests().testRollbackUpdatePostsReasonAndDecodesState()
+            }),
             ("BridgeTransportTests.testInMemoryTransportThrowsAuthRequiredForManagedEndpoints", {
                 try await BridgeTransportTests().testInMemoryTransportThrowsAuthRequiredForManagedEndpoints()
             }),
             ("BridgeTransportTests.testInMemoryTransportUpdateFlowAdvancesToDone", {
                 try await BridgeTransportTests().testInMemoryTransportUpdateFlowAdvancesToDone()
+            }),
+            ("BridgeTransportTests.testInMemoryTransportSupportsBackupUploadMarkGoodAndRollback", {
+                try await BridgeTransportTests().testInMemoryTransportSupportsBackupUploadMarkGoodAndRollback()
+            }),
+            ("BridgeTransportTests.testInMemoryTransportManagedBackupRequiresAuth", {
+                try await BridgeTransportTests().testInMemoryTransportManagedBackupRequiresAuth()
             }),
             ("QueueEditCoordinatorTests.testAddItemsEnforcesQueueLimitAndReportsDroppedItems", {
                 let suite = QueueEditCoordinatorTests()

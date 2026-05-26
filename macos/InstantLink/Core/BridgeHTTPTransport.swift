@@ -7,8 +7,22 @@ enum BridgeHTTPTransportError: Error, Equatable {
 }
 
 final class BridgeHTTPTransport: BridgeTransport {
+    static let uploadFilenameHeader = "X-Upload-Filename"
+
     private struct PackageRequest: Encodable {
         var package: BridgeUpdatePackage
+    }
+
+    private struct RollbackRequest: Encodable {
+        var reason: String
+    }
+
+    private struct BackupRestoreRequest: Encodable {
+        var backupID: String
+
+        enum CodingKeys: String, CodingKey {
+            case backupID = "backup_id"
+        }
     }
 
     private let baseURL: URL
@@ -157,11 +171,67 @@ final class BridgeHTTPTransport: BridgeTransport {
         }
     }
 
+    func uploadUpdate(device: BridgeDevice, package: BridgeUpdatePackage) async throws -> BridgeUploadResult {
+        let data = try Data(contentsOf: package.archiveURL)
+        let filename = package.archiveURL.lastPathComponent
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/update/upload",
+                body: data,
+                contentType: "application/octet-stream",
+                extraHeaders: [BridgeHTTPTransport.uploadFilenameHeader: filename],
+                signedFor: device
+            )
+        )
+        return try envelope.requireUpload()
+    }
+
+    func markUpdateGood(device: BridgeDevice) async throws -> BridgeUpdateState {
+        let envelope = try await send(
+            try makeRequest(method: "POST", path: "/v1/update/mark-good", signedFor: device)
+        )
+        return try envelope.requireUpdateState()
+    }
+
+    func rollbackUpdate(device: BridgeDevice, reason: String) async throws -> BridgeUpdateState {
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/update/rollback",
+                body: encoder.encode(RollbackRequest(reason: reason)),
+                signedFor: device
+            )
+        )
+        return try envelope.requireUpdateState()
+    }
+
+    func createBackup(device: BridgeDevice) async throws -> BridgeBackupResult {
+        let envelope = try await send(
+            try makeRequest(method: "POST", path: "/v1/backup/create", signedFor: device)
+        )
+        return try envelope.requireBackup()
+    }
+
+    func restoreBackup(device: BridgeDevice, backupID: String) async throws -> BridgeBackupRestoreResult {
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/backup/restore",
+                body: encoder.encode(BackupRestoreRequest(backupID: backupID)),
+                signedFor: device
+            )
+        )
+        return try envelope.requireBackupRestore()
+    }
+
     private func makeRequest(
         method: String,
         path: String,
         queryItems: [URLQueryItem] = [],
         body: Data = Data(),
+        contentType: String = "application/json",
+        extraHeaders: [String: String] = [:],
         device: BridgeDevice? = nil,
         signedFor signedDevice: BridgeDevice? = nil
     ) throws -> URLRequest {
@@ -171,9 +241,12 @@ final class BridgeHTTPTransport: BridgeTransport {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(UUID().uuidString, forHTTPHeaderField: BridgeManagementAuth.requestIDHeader)
+        for (name, value) in extraHeaders {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
         if !body.isEmpty {
             request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
 
         if let signedDevice {

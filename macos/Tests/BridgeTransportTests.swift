@@ -58,6 +58,56 @@ final class BridgeTransportTests {
         try expectEqual(updatedStatus.update?.canUpdate, false)
     }
 
+    func testInMemoryTransportSupportsBackupUploadMarkGoodAndRollback() async throws {
+        let device = makeDevice()
+        let package = makePackage(version: "0.2.0")
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: makeStatus()]
+        )
+
+        let backup = try await transport.createBackup(device: device)
+        try expectTrue(backup.verified)
+
+        let upload = try await transport.uploadUpdate(device: device, package: package)
+        try expectEqual(upload.sha256, package.archiveSHA256)
+        try expectTrue(upload.filename.hasSuffix(".tar.gz"))
+
+        let restore = try await transport.restoreBackup(device: device, backupID: backup.backupID)
+        try expectEqual(restore.backupID, backup.backupID)
+        try expectEqual(restore.restoredCount, 1)
+
+        let good = try await transport.markUpdateGood(device: device)
+        try expectEqual(good.phase, .done)
+        try expectTrue(good.isTerminal)
+
+        let rolledBack = try await transport.rollbackUpdate(device: device, reason: "manual")
+        try expectEqual(rolledBack.phase, .rolledBack)
+
+        let status = try await transport.status(device: device)
+        try expectEqual(status.readiness, .needsAttention)
+    }
+
+    func testInMemoryTransportManagedBackupRequiresAuth() async throws {
+        let device = makeDevice()
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: makeStatus()],
+            authRequiredDeviceIDs: [device.deviceID]
+        )
+
+        do {
+            _ = try await transport.createBackup(device: device)
+            throw MacTestFailure(
+                file: #filePath,
+                line: #line,
+                message: "Expected createBackup to require auth"
+            )
+        } catch let error as BridgeAPIError {
+            try expectEqual(error.code, .authRequired)
+        }
+    }
+
     private func makeDevice() -> BridgeDevice {
         BridgeDevice(
             deviceID: "IB-12345678",
