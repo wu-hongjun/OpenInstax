@@ -19,6 +19,9 @@ struct BridgeAPIEnvelope: Codable, Equatable {
     var preflight: BridgeUpdatePreflight?
     var update: BridgeUpdateState?
     var event: BridgeUpdateEvent?
+    var backup: BridgeBackupResult?
+    var restore: BridgeBackupRestoreResult?
+    var upload: BridgeUploadResult?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -36,6 +39,9 @@ struct BridgeAPIEnvelope: Codable, Equatable {
         case preflight
         case update
         case event
+        case backup
+        case restore
+        case upload
     }
 
     func requireOK() throws {
@@ -110,6 +116,30 @@ struct BridgeAPIEnvelope: Codable, Equatable {
             throw BridgeAPIError.missingPayload(requestID: requestID, payloadName: "event")
         }
         return event
+    }
+
+    func requireBackup() throws -> BridgeBackupResult {
+        try requireOK()
+        guard let backup else {
+            throw BridgeAPIError.missingPayload(requestID: requestID, payloadName: "backup")
+        }
+        return backup
+    }
+
+    func requireBackupRestore() throws -> BridgeBackupRestoreResult {
+        try requireOK()
+        guard let restore else {
+            throw BridgeAPIError.missingPayload(requestID: requestID, payloadName: "restore")
+        }
+        return restore
+    }
+
+    func requireUpload() throws -> BridgeUploadResult {
+        try requireOK()
+        guard let upload else {
+            throw BridgeAPIError.missingPayload(requestID: requestID, payloadName: "upload")
+        }
+        return upload
     }
 }
 
@@ -562,6 +592,50 @@ struct BridgeUpdateEvent: Codable, Equatable, Identifiable {
         case progress
         case message
         case state
+    }
+}
+
+// MARK: - Backup And Upload
+
+struct BridgeBackupResult: Codable, Equatable {
+    var backupID: String
+    var manifestPath: String
+    var archivePath: String
+    var archiveSHA256: String
+    var verified: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case backupID = "backup_id"
+        case manifestPath = "manifest_path"
+        case archivePath = "archive_path"
+        case archiveSHA256 = "archive_sha256"
+        case verified
+    }
+}
+
+struct BridgeBackupRestoreResult: Codable, Equatable {
+    var backupID: String
+    var restoredPaths: [String]
+    var restoredCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case backupID = "backup_id"
+        case restoredPaths = "restored_paths"
+        case restoredCount = "restored_count"
+    }
+}
+
+struct BridgeUploadResult: Codable, Equatable {
+    var filename: String
+    var storedPath: String
+    var sizeBytes: Int
+    var sha256: String
+
+    enum CodingKeys: String, CodingKey {
+        case filename
+        case storedPath = "stored_path"
+        case sizeBytes = "size_bytes"
+        case sha256
     }
 }
 
