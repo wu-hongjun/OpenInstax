@@ -19,6 +19,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 TARGET_PYTHON_BIN="${TARGET_PYTHON_BIN:-python3}"
 OFFLINE_DEPS="${INSTANTLINK_BRIDGE_OFFLINE_DEPS:-0}"
 SEED_VENV="${INSTANTLINK_BRIDGE_SEED_VENV:-}"
+SYNC_CLOCK="${INSTANTLINK_BRIDGE_SYNC_CLOCK:-1}"
 SSH_BIN="${SSH_BIN:-ssh}"
 SCP_BIN="${SCP_BIN:-scp}"
 RESTART=0
@@ -61,6 +62,10 @@ Environment overrides:
   INSTANTLINK_BRIDGE_SEED_VENV
                        Existing Pi virtualenv to copy if TARGET/.venv is absent; useful for
                        hotspot-only devices with no outbound internet.
+  INSTANTLINK_BRIDGE_SYNC_CLOCK
+                       Set to 0/false/no/off to skip syncing the Pi clock from this deploy host.
+                       Default is 1 so hotspot-only devices without NTP keep sane logs and tar
+                       extraction timestamps.
 
 By default this refuses dirty working trees and deploys a git archive of the committed bridge
 source without .git metadata. With --allow-dirty it copies the current working tree and records
@@ -99,6 +104,28 @@ require_deploy_target() {
     echo "ERROR: set INSTANTLINK_BRIDGE_HOST and INSTANTLINK_BRIDGE_USER before deploying" >&2
     exit 2
   fi
+}
+
+is_truthy() {
+  case "${1,,}" in
+    0 | false | no | off)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+sync_remote_clock_from_host() {
+  if ! is_truthy "${SYNC_CLOCK}"; then
+    return
+  fi
+
+  local timestamp
+  timestamp="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  "${SSH_CMD[@]}" "${USER}@${HOST}" "sudo date -u -s '${timestamp}' >/dev/null"
+  echo "Synced ${HOST} clock to ${timestamp}"
 }
 
 bootstrap_remote_runtime_identity() {
@@ -718,6 +745,7 @@ main() {
   fi
 
   require_deploy_target
+  sync_remote_clock_from_host
   if [[ "${SYSTEM}" -eq 1 ]]; then
     bootstrap_remote_runtime_identity
   fi

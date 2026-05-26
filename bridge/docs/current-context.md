@@ -68,6 +68,10 @@ The deploy script records:
 - `/opt/InstantLinkBridge/.deployment/runtime-installed-packages.txt`
 - `/opt/InstantLinkBridge/.deployment/runtime-apt-packages.txt`
 
+The Pi may have no outbound NTP route while it is serving Bridge Wi-Fi. `scripts/deploy-to-pi.sh`
+therefore syncs the Pi clock from the deploy host before copying files. Leave this enabled for
+normal maintenance; set `INSTANTLINK_BRIDGE_SYNC_CLOCK=0` only if the deploy host clock is wrong.
+
 ## Verification Checklist
 
 Run these after every device deploy:

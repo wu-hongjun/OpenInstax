@@ -61,6 +61,9 @@ old device that has no outbound internet and no `/opt/InstantLinkBridge/.venv` y
 
 This still records deployment metadata, installed Python packages, apt package state, and native
 InstantLink artifact hashes under `/opt/InstantLinkBridge/.deployment/`.
+The deploy script also syncs the Pi clock from the deploy host by default, which keeps hotspot-only
+devices without NTP from generating misleading logs or tar timestamp warnings. Set
+`INSTANTLINK_BRIDGE_SYNC_CLOCK=0` only when the deploy host clock is not trustworthy.
 
 ## Target Device
 
