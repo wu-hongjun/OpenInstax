@@ -677,6 +677,8 @@
       
         
       
+        
+      
     
     
     
@@ -735,6 +737,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/bridge-firmware-release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bridge Firmware Release
   
 
     
@@ -2172,7 +2202,9 @@
 </ul>
 <h3 id="phase-4-updates-and-backup">Phase 4: updates and backup<a class="headerlink" href="#phase-4-updates-and-backup" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Build signed bridge update package.</li>
+<li>Build signed bridge update package. The unsigned package/bundling substrate now exists in
+  <code>bridge/scripts/build-firmware-bundle.sh</code>, <code>.github/workflows/bridge-firmware.yml</code>, and the app
+  resource staging path documented in <code>docs/development/bridge-firmware-release.md</code>.</li>
 <li>Implement preflight/install/reconnect/verify.</li>
 <li>Implement backup/restore.</li>
 </ul>

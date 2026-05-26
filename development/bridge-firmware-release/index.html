@@ -10,9 +10,13 @@
       
       
       
-        <link rel="canonical" href="https://instantlink.hongjunwu.com/plans/021-print-flow-deduplication/">
+        <link rel="canonical" href="https://instantlink.hongjunwu.com/development/bridge-firmware-release/">
       
       
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../contributing/">
       
       
         
@@ -23,7 +27,7 @@
     
     
       
-        <title>Plan 021: Deduplicate Print and Image-Prepare Code Paths - InstantLink</title>
+        <title>Bridge Firmware Release - InstantLink</title>
       
     
     
@@ -74,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#plan-021-deduplicate-print-and-image-prepare-code-paths" class="md-skip">
+        <a href="#bridge-firmware-release-pipeline" class="md-skip">
           Skip to content
         </a>
       
@@ -108,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Plan 021: Deduplicate Print and Image-Prepare Code Paths
+              Bridge Firmware Release
             
           </span>
         </div>
@@ -282,11 +286,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../development/architecture/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../architecture/" class="md-tabs__link">
           
   
   
@@ -308,7 +314,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="../001-full-stack-scaffold/" class="md-tabs__link">
+        <a href="../../plans/001-full-stack-scaffold/" class="md-tabs__link">
           
   
   
@@ -666,8 +672,10 @@
       
   
   
+    
   
   
+  
     
     
       
@@ -683,17 +691,20 @@
     
     
       
+        
+        
+      
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -711,7 +722,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -729,7 +740,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../development/architecture/" class="md-nav__link">
+      <a href="../architecture/" class="md-nav__link">
         
   
   
@@ -754,10 +765,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../development/bridge-firmware-release/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bridge Firmware Release
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -773,6 +811,81 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#version-tags" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version Tags
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bundle-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bundle Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI Workflows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#local-build" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local Build
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#installation-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation Contract
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -785,7 +898,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../development/contributing/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         
   
   
@@ -813,7 +926,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../development/reverse-engineering/" class="md-nav__link">
+      <a href="../reverse-engineering/" class="md-nav__link">
         
   
   
@@ -934,7 +1047,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../001-full-stack-scaffold/" class="md-nav__link">
+      <a href="../../plans/001-full-stack-scaffold/" class="md-nav__link">
         
   
   
@@ -962,7 +1075,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../002-ci-cd-setup/" class="md-nav__link">
+      <a href="../../plans/002-ci-cd-setup/" class="md-nav__link">
         
   
   
@@ -990,7 +1103,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../003-github-pages/" class="md-nav__link">
+      <a href="../../plans/003-github-pages/" class="md-nav__link">
         
   
   
@@ -1018,7 +1131,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../004-app-bundle-and-release/" class="md-nav__link">
+      <a href="../../plans/004-app-bundle-and-release/" class="md-nav__link">
         
   
   
@@ -1046,7 +1159,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../005-mock-transport-device-tests/" class="md-nav__link">
+      <a href="../../plans/005-mock-transport-device-tests/" class="md-nav__link">
         
   
   
@@ -1074,7 +1187,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../006-overlay-system/" class="md-nav__link">
+      <a href="../../plans/006-overlay-system/" class="md-nav__link">
         
   
   
@@ -1102,7 +1215,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../007-ui-ux-pass-1/" class="md-nav__link">
+      <a href="../../plans/007-ui-ux-pass-1/" class="md-nav__link">
         
   
   
@@ -1130,7 +1243,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../008-ui-ux-pass-2/" class="md-nav__link">
+      <a href="../../plans/008-ui-ux-pass-2/" class="md-nav__link">
         
   
   
@@ -1158,7 +1271,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../009-repo-simplification-audit/" class="md-nav__link">
+      <a href="../../plans/009-repo-simplification-audit/" class="md-nav__link">
         
   
   
@@ -1186,7 +1299,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../010-ui-ux-pass-3/" class="md-nav__link">
+      <a href="../../plans/010-ui-ux-pass-3/" class="md-nav__link">
         
   
   
@@ -1214,7 +1327,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../011-macos-coordinator-extraction/" class="md-nav__link">
+      <a href="../../plans/011-macos-coordinator-extraction/" class="md-nav__link">
         
   
   
@@ -1242,7 +1355,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../012-macos-15-liquid-glass-adoption/" class="md-nav__link">
+      <a href="../../plans/012-macos-15-liquid-glass-adoption/" class="md-nav__link">
         
   
   
@@ -1270,7 +1383,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../013-ffi-connection-stage-callbacks/" class="md-nav__link">
+      <a href="../../plans/013-ffi-connection-stage-callbacks/" class="md-nav__link">
         
   
   
@@ -1298,7 +1411,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../014-printer-led-print-feedback/" class="md-nav__link">
+      <a href="../../plans/014-printer-led-print-feedback/" class="md-nav__link">
         
   
   
@@ -1326,7 +1439,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../015-ffi-callback-safety/" class="md-nav__link">
+      <a href="../../plans/015-ffi-callback-safety/" class="md-nav__link">
         
   
   
@@ -1354,7 +1467,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../016-transport-command-serialization/" class="md-nav__link">
+      <a href="../../plans/016-transport-command-serialization/" class="md-nav__link">
         
   
   
@@ -1382,7 +1495,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../017-reconnect-fallback-behavior/" class="md-nav__link">
+      <a href="../../plans/017-reconnect-fallback-behavior/" class="md-nav__link">
         
   
   
@@ -1437,10 +1550,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#goal" class="md-nav__link">
+  <a href="#version-tags" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Goal
+        Version Tags
       
     </span>
   </a>
@@ -1448,10 +1561,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#current-state" class="md-nav__link">
+  <a href="#bundle-contents" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Current State
+        Bundle Contents
       
     </span>
   </a>
@@ -1459,49 +1572,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#proposed-refactor" class="md-nav__link">
+  <a href="#ci-workflows" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Proposed Refactor
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Proposed Refactor">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#image-layer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Image layer
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#device-layer" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Device layer
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#implementation-scope" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Implementation Scope
+        CI Workflows
       
     </span>
   </a>
@@ -1509,10 +1583,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#testing" class="md-nav__link">
+  <a href="#local-build" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Testing
+        Local Build
       
     </span>
   </a>
@@ -1520,32 +1594,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#risks" class="md-nav__link">
+  <a href="#installation-contract" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Risks
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#rollout-order" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Rollout Order
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#exit-criteria" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Exit Criteria
+        Installation Contract
       
     </span>
   </a>
@@ -1572,75 +1624,68 @@
   
 
 
-<h1 id="plan-021-deduplicate-print-and-image-prepare-code-paths">Plan 021: Deduplicate Print and Image-Prepare Code Paths<a class="headerlink" href="#plan-021-deduplicate-print-and-image-prepare-code-paths" title="Permanent link">&para;</a></h1>
-<h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
-<p>Collapse the two print entry points (<code>print_file</code>, <code>print_bytes</code>) and the two image-prepare entry points (<code>prepare_image</code>, <code>prepare_image_from_bytes</code>) so the post-decode protocol flow only lives in one place. Right now every change to the BLE flow has to be made twice, and they have already drifted in subtle ways.</p>
-<h2 id="current-state">Current State<a class="headerlink" href="#current-state" title="Permanent link">&para;</a></h2>
-<p><code>crates/instantlink-core/src/device.rs:384-445</code></p>
+<h1 id="bridge-firmware-release-pipeline">Bridge Firmware Release Pipeline<a class="headerlink" href="#bridge-firmware-release-pipeline" title="Permanent link">&para;</a></h1>
+<p>InstantLink Bridge firmware is packaged as a versioned update bundle for Raspberry Pi OS arm64.
+The bundle is designed to be published by GitHub Actions, embedded in the macOS app, and installed
+by the future Bridge control panel after management auth, preflight, backup, and rollback are wired.</p>
+<h2 id="version-tags">Version Tags<a class="headerlink" href="#version-tags" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>print_file</code> and <code>print_bytes</code> are nearly identical. The only divergence is the call to <code>image::prepare_image</code> vs <code>image::prepare_image_from_bytes</code>.</li>
-<li>Everything after image preparation — LED handoff, the pre-execute delay, <code>PrintImage</code>, response matching — is duplicated.</li>
+<li>App releases use <code>vMAJOR.MINOR.PATCH</code> and build a same-version Bridge firmware bundle into
+  <code>InstantLink.app/Contents/Resources/BridgeFirmware</code>.</li>
+<li>Bridge-only releases use <code>bridge-vMAJOR.MINOR.PATCH</code> and publish only the Bridge firmware assets.</li>
+<li>Workflow dispatch also accepts <code>0.1.0</code>, <code>v0.1.0</code>, or <code>bridge-v0.1.0</code>; the package normalizes all
+  three to Bridge version <code>0.1.0</code>.</li>
 </ul>
-<p><code>crates/instantlink-core/src/image.rs:153-192</code></p>
-<ul>
-<li><code>prepare_image</code> and <code>prepare_image_from_bytes</code> mirror each other; the only meaningful difference is <code>image::open(path)?</code> vs <code>image::load_from_memory(bytes)?</code>.</li>
-</ul>
-<h2 id="proposed-refactor">Proposed Refactor<a class="headerlink" href="#proposed-refactor" title="Permanent link">&para;</a></h2>
-<h3 id="image-layer">Image layer<a class="headerlink" href="#image-layer" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">fn</span><span class="w"> </span><span class="nf">prepare_image_inner</span><span class="p">(</span><span class="n">img</span><span class="p">:</span><span class="w"> </span><span class="nc">DynamicImage</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="p">:</span><span class="w"> </span><span class="nc">PrinterModel</span><span class="p">,</span><span class="w"> </span><span class="n">fit</span><span class="p">:</span><span class="w"> </span><span class="nc">Fit</span><span class="p">,</span><span class="w"> </span><span class="n">quality</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;..</span><span class="p">.</span><span class="o">&gt;</span><span class="p">;</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">prepare_image</span><span class="p">(</span><span class="n">path</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Path</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="p">:</span><span class="w"> </span><span class="nc">PrinterModel</span><span class="p">,</span><span class="w"> </span><span class="n">fit</span><span class="p">:</span><span class="w"> </span><span class="nc">Fit</span><span class="p">,</span><span class="w"> </span><span class="n">quality</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;..</span><span class="p">.</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="n">prepare_image_inner</span><span class="p">(</span><span class="n">image</span><span class="p">::</span><span class="n">open</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="p">,</span><span class="w"> </span><span class="n">fit</span><span class="p">,</span><span class="w"> </span><span class="n">quality</span><span class="p">)</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="p">}</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">prepare_image_from_bytes</span><span class="p">(</span><span class="n">bytes</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="kt">u8</span><span class="p">],</span><span class="w"> </span><span class="n">model</span><span class="p">:</span><span class="w"> </span><span class="nc">PrinterModel</span><span class="p">,</span><span class="w"> </span><span class="n">fit</span><span class="p">:</span><span class="w"> </span><span class="nc">Fit</span><span class="p">,</span><span class="w"> </span><span class="n">quality</span><span class="p">:</span><span class="w"> </span><span class="kt">u8</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;..</span><span class="p">.</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="n">prepare_image_inner</span><span class="p">(</span><span class="n">image</span><span class="p">::</span><span class="n">load_from_memory</span><span class="p">(</span><span class="n">bytes</span><span class="p">)</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="n">model</span><span class="p">,</span><span class="w"> </span><span class="n">fit</span><span class="p">,</span><span class="w"> </span><span class="n">quality</span><span class="p">)</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">}</span>
+<h2 id="bundle-contents">Bundle Contents<a class="headerlink" href="#bundle-contents" title="Permanent link">&para;</a></h2>
+<p><code>bridge/scripts/build-firmware-bundle.sh &lt;version&gt;</code> creates:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>target/bridge-firmware/dist/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.tar.gz
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.tar.gz.sha256
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>|-- InstantLinkBridgeFirmware-vX.Y.Z-linux-aarch64.manifest.json
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>`-- latest.json
 </code></pre></div>
-<h3 id="device-layer">Device layer<a class="headerlink" href="#device-layer" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">async</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">print_prepared</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">jpeg</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">chunks</span><span class="p">:</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="kt">u8</span><span class="o">&gt;&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">opts</span><span class="p">:</span><span class="w"> </span><span class="nc">PrintOption</span><span class="p">,</span><span class="w"> </span><span class="n">progress</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Progress</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="p">;</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">pub</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">print_file</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">prepared</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">image</span><span class="p">::</span><span class="n">prepare_image</span><span class="p">(</span><span class="o">..</span><span class="p">.)</span><span class="o">?</span><span class="p">;</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">print_prepared</span><span class="p">(</span><span class="n">prepared</span><span class="p">.</span><span class="n">jpeg</span><span class="p">,</span><span class="w"> </span><span class="n">prepared</span><span class="p">.</span><span class="n">chunks</span><span class="p">,</span><span class="w"> </span><span class="n">opts</span><span class="p">,</span><span class="w"> </span><span class="n">progress</span><span class="p">).</span><span class="k">await</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="p">}</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">pub</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">print_bytes</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">prepared</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">image</span><span class="p">::</span><span class="n">prepare_image_from_bytes</span><span class="p">(</span><span class="o">..</span><span class="p">.)</span><span class="o">?</span><span class="p">;</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">print_prepared</span><span class="p">(</span><span class="n">prepared</span><span class="p">.</span><span class="n">jpeg</span><span class="p">,</span><span class="w"> </span><span class="n">prepared</span><span class="p">.</span><span class="n">chunks</span><span class="p">,</span><span class="w"> </span><span class="n">opts</span><span class="p">,</span><span class="w"> </span><span class="n">progress</span><span class="p">).</span><span class="k">await</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="p">}</span>
+<p>Inside the tarball:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>bridge/                         # Python runtime, configs, systemd, udev, scripts, docs
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>native/bin/instantlink           # Linux arm64 InstantLink CLI
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>native/lib/libinstantlink_ffi.so # Linux arm64 FFI backend
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>native/instantlink-artifacts-manifest.json
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>install-firmware-bundle.sh       # Pi-side installer
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>manifest.json                    # Package manifest
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>SHA256SUMS                       # In-bundle file checksums
 </code></pre></div>
-<h2 id="implementation-scope">Implementation Scope<a class="headerlink" href="#implementation-scope" title="Permanent link">&para;</a></h2>
-<p>Primary:</p>
+<p>The macOS app build copies the staged <code>BridgeFirmware</code> directory into app resources. App code can
+read <code>latest.json</code> through <code>BridgeFirmwareBundleService</code>.</p>
+<h2 id="ci-workflows">CI Workflows<a class="headerlink" href="#ci-workflows" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>crates/instantlink-core/src/device.rs</code></li>
-<li><code>crates/instantlink-core/src/image.rs</code></li>
+<li><code>.github/workflows/bridge-firmware.yml</code> runs on <code>bridge-v*</code> tags and manual dispatch. It builds
+  Linux arm64 native artifacts with <code>cargo zigbuild</code>, creates the firmware bundle, uploads it as a
+  workflow artifact, and publishes it on the tag release.</li>
+<li><code>.github/workflows/release.yml</code> runs on app <code>v*</code> tags. It builds the same-version Bridge firmware
+  bundle before <code>scripts/build-app.sh</code>, embeds it in the app resources, and uploads the firmware
+  assets beside the DMG, CLI zip, and FFI zip.</li>
 </ul>
-<p>No FFI signature changes — both wrappers remain.</p>
-<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Existing unit tests should keep passing without modification.</li>
-<li>Add one test that exercises the shared <code>print_prepared</code> path to confirm the refactor did not regress LED handoff or response matching.</li>
-</ul>
-<h2 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Moving the post-prepare flow into a private method changes the borrowing pattern; double-check that progress callbacks still receive ownership in the same way.</li>
-<li>Watch for any subtle ordering differences — the audit noted these were "nearly identical" but did not exhaustively diff every line. Capture a snapshot of <code>cargo expand</code> output (or a manual line-by-line review) before/after.</li>
-</ul>
-<h2 id="rollout-order">Rollout Order<a class="headerlink" href="#rollout-order" title="Permanent link">&para;</a></h2>
+<h2 id="local-build">Local Build<a class="headerlink" href="#local-build" title="Permanent link">&para;</a></h2>
+<p>Install <code>zig</code> and <code>cargo-zigbuild</code>, then run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>cargo<span class="w"> </span>install<span class="w"> </span>cargo-zigbuild<span class="w"> </span>--locked
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>bridge/scripts/build-firmware-bundle.sh<span class="w"> </span><span class="m">0</span>.1.0
+</code></pre></div>
+<p>To reuse already-built Linux arm64 artifacts:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">INSTANTLINK_BRIDGE_BUILD_NATIVE</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">INSTANTLINK_BRIDGE_INSTANTLINK_ARTIFACT_DIR</span><span class="o">=</span>target/aarch64-unknown-linux-gnu/release<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bridge/scripts/build-firmware-bundle.sh<span class="w"> </span><span class="m">0</span>.1.0
+</code></pre></div>
+<h2 id="installation-contract">Installation Contract<a class="headerlink" href="#installation-contract" title="Permanent link">&para;</a></h2>
+<p>The package contains <code>install-firmware-bundle.sh</code> for the Pi. The future app updater should:</p>
 <ol>
-<li>Refactor <code>image.rs</code> first — it's the cleaner of the two.</li>
-<li>Refactor <code>device.rs</code> next.</li>
-<li>Run the full workspace test suite.</li>
-<li>Hardware smoke test on at least one Mini Link, one Square Link, and one Wide Link.</li>
+<li>Verify the archive SHA-256 from <code>latest.json</code>.</li>
+<li>Upload and extract the bundle into a staging directory on the Bridge.</li>
+<li>Run <code>install-firmware-bundle.sh &lt;bundle-dir&gt;</code> as the Bridge update helper.</li>
+<li>Restart and verify <code>instantlink-bridge.service</code>.</li>
+<li>Mark the update good only after service, FTP, LCD, network, and printer-status checks pass.</li>
 </ol>
-<h2 id="exit-criteria">Exit Criteria<a class="headerlink" href="#exit-criteria" title="Permanent link">&para;</a></h2>
-<ul>
-<li>One copy of the post-decode print sequence.</li>
-<li>One copy of the image-prepare pipeline.</li>
-<li>All tests still pass.</li>
-<li>Hardware print succeeds on every supported model.</li>
-</ul>
+<p>This is not yet a complete product updater. One-click updates must remain hidden until the Bridge
+management API, local authorization, signed package trust chain, automatic backup, and rollback gate
+from <code>docs/plans/029-bridge-control-panel.md</code> are implemented.</p>
 
 
 

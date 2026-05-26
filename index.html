@@ -772,6 +772,8 @@
       
         
       
+        
+      
     
     
     
@@ -830,6 +832,34 @@
     
   
     Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="development/bridge-firmware-release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bridge Firmware Release
   
 
     
@@ -1637,6 +1667,7 @@
 <li>LED color control with solid, blink, and breathe patterns</li>
 <li>Native macOS app with camera capture, queue-based editing, film simulation, overlays for text/QR/timestamp/image/location, stage-aware reconnect UI, and experimental LED diagnostics in Settings</li>
 <li>C FFI with 20 exported functions for native app integrations, including connect-stage progress callbacks</li>
+<li>Bridge firmware bundles for Raspberry Pi appliances, published by CI and staged into the macOS app for the future Bridge control panel updater</li>
 </ul>
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
 <p>InstantLink mirrors the structure of <a href="https://github.com/wu-hongjun/StatusLight">StatusLight</a>: a reusable async Rust core, a thin CLI, and an FFI layer loaded by the SwiftUI macOS app via <code>dlopen</code>/<code>dlsym</code>.</p>
