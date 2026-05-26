@@ -204,6 +204,76 @@ async def test_pairer_forget_selected_removes_matching_bluez_cache(
 
 
 @pytest.mark.asyncio
+async def test_pairer_list_paired_trusts_saved_bluez_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SelectedPrinterStore(tmp_path / "printer.json")
+    store.save(PairedPrinter(address="88:B4:36:51:CC:E2", name="INSTAX-1N034655"))
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_bluetoothctl(
+        *args: str,
+        check: bool = True,
+        timeout_seconds: int = 10,
+    ) -> pairing._CommandResult:
+        _ = check, timeout_seconds
+        calls.append(args)
+        if args == ("devices",):
+            return pairing._CommandResult(
+                returncode=0,
+                output="\n".join(
+                    [
+                        "Device 88:B4:36:51:CC:E2 INSTAX-1N034655(ANDROID)",
+                        "Device FA:AB:BC:51:CC:E2 INSTAX-1N034655(IOS)",
+                    ]
+                ),
+            )
+        return pairing._CommandResult(returncode=0, output="")
+
+    monkeypatch.setattr(pairing, "_run_bluetoothctl", fake_run_bluetoothctl)
+
+    selected = await BluetoothctlPrinterPairer(store=store).list_paired()
+
+    assert selected == [PairedPrinter(address="88:B4:36:51:CC:E2", name="INSTAX-1N034655")]
+    assert ("trust", "88:B4:36:51:CC:E2") in calls
+    assert ("trust", "FA:AB:BC:51:CC:E2") in calls
+
+
+@pytest.mark.asyncio
+async def test_pairer_pair_first_available_trusts_selected_printer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SelectedPrinterStore(tmp_path / "printer.json")
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_bluetoothctl(
+        *args: str,
+        check: bool = True,
+        timeout_seconds: int = 10,
+    ) -> pairing._CommandResult:
+        _ = check, timeout_seconds
+        calls.append(args)
+        if args == ("devices",):
+            return pairing._CommandResult(returncode=0, output="")
+        if args == ("--timeout", "1", "scan", "on"):
+            return pairing._CommandResult(
+                returncode=0,
+                output="[NEW] Device FA:AB:BC:51:CC:E2 INSTAX-1N034655(IOS)",
+            )
+        return pairing._CommandResult(returncode=0, output="")
+
+    monkeypatch.setattr(pairing, "_run_bluetoothctl", fake_run_bluetoothctl)
+
+    selected = await BluetoothctlPrinterPairer(store=store).pair_first_available()
+
+    assert selected == PairedPrinter(address="FA:AB:BC:51:CC:E2", name="INSTAX-1N034655")
+    assert ("trust", "FA:AB:BC:51:CC:E2") in calls
+    assert store.load() == selected
+
+
+@pytest.mark.asyncio
 async def test_pairer_scan_returns_after_first_visible_instax(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

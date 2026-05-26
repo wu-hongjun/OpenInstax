@@ -24,6 +24,7 @@ LOGGER = logging.getLogger(__name__)
 
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DEVICE_LINE_RE = re.compile(r"^Device\s+(?P<address>[0-9A-Fa-f:]{17})\s+(?P<name>.+)$")
+DEVICE_ADDRESS_RE = re.compile(r"^[0-9A-Fa-f:]{17}$")
 
 
 class PrinterPairingError(RuntimeError):
@@ -144,9 +145,13 @@ class BluetoothctlPrinterPairer:
     async def list_paired(self) -> list[PairedPrinter]:
         selected = self._store.load()
         if selected is not None:
+            await self._trust_selected_bluez_devices(selected)
             return [selected]
         result = await _run_bluetoothctl("devices", "Paired", check=False)
-        return parse_instax_devices(result.output)
+        paired = parse_instax_devices(result.output)
+        for printer in paired:
+            await self._trust_selected_bluez_devices(printer)
+        return paired
 
     async def pair_first_available(self) -> PairedPrinter:
         await _run_bluetoothctl("power", "on", check=False)
@@ -164,6 +169,7 @@ class BluetoothctlPrinterPairer:
             address=printer.address,
             name=normalize_instax_name(printer.name),
         )
+        await self._trust_selected_bluez_devices(selected)
         self._store.save(selected)
         LOGGER.info(
             "bluetooth.instax_selected address=%s name=%s",
@@ -257,6 +263,24 @@ class BluetoothctlPrinterPairer:
                 selected.name,
             )
             await _run_bluetoothctl("remove", address, check=False)
+
+    async def _trust_selected_bluez_devices(self, selected: PairedPrinter) -> None:
+        devices_result = await _run_bluetoothctl("devices", check=False)
+        addresses = {selected.address.upper()}
+        for printer in parse_instax_devices(devices_result.output):
+            if _matches_selected_identity(selected, printer):
+                addresses.add(printer.address.upper())
+
+        for address in sorted(addresses):
+            if not _looks_like_bluez_address(address):
+                continue
+            LOGGER.info(
+                "bluetooth.trust_selected_cache address=%s selected_address=%s selected_name=%s",
+                address,
+                selected.address,
+                selected.name,
+            )
+            await _run_bluetoothctl("trust", address, check=False)
 
 
 class InstantLinkPrinterSelector:
@@ -373,6 +397,10 @@ def _matches_selected_identity(selected: PairedPrinter, candidate: PairedPrinter
     selected_name = normalize_instax_name(selected.name).casefold()
     candidate_name = normalize_instax_name(candidate.name).casefold()
     return bool(selected_name and candidate_name and selected_name == candidate_name)
+
+
+def _looks_like_bluez_address(value: str) -> bool:
+    return DEVICE_ADDRESS_RE.fullmatch(value) is not None
 
 
 def parse_device_info(output: str) -> dict[str, str]:
