@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -30,17 +31,31 @@ from instantlink_bridge.manager.contract import (
     new_request_id,
     success_response,
 )
+from instantlink_bridge.manager.update_flow import (
+    ManagerEnvironment,
+    UpdateFlowError,
+    read_update_status,
+    run_backup_create,
+    run_backup_restore,
+    run_install,
+    run_mark_good,
+    run_preflight,
+    run_rollback,
+    store_upload,
+)
 
 LOGGER = logging.getLogger(__name__)
 REQUEST_ID_HEADER = "X-Request-Id"
 
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
+AdminHandler = Callable[[web.Request], Awaitable[web.Response]]
 RequestIdFactory = Callable[[], str]
 CONFIG_PATH_KEY = web.AppKey("instantlink_bridge.manager.config_path", Path)
 REQUEST_ID_FACTORY_KEY = web.AppKey("instantlink_bridge.manager.request_id_factory", object)
 AUTH_VERIFIER_KEY = web.AppKey("instantlink_bridge.manager.auth_verifier", SignedRequestVerifier)
 CLIENT_STORE_KEY = web.AppKey("instantlink_bridge.manager.client_store", ClientStore)
 PAIRING_STORE_KEY = web.AppKey("instantlink_bridge.manager.pairing_store", PairingWindowStore)
+ENVIRONMENT_KEY = web.AppKey("instantlink_bridge.manager.environment", ManagerEnvironment)
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +83,7 @@ def create_app(
     auth_verifier: SignedRequestVerifier | None = None,
     client_store: ClientStore | None = None,
     pairing_store: PairingWindowStore | None = None,
+    environment: ManagerEnvironment | None = None,
 ) -> web.Application:
     """Create the Phase 1 Bridge management API application."""
 
@@ -84,6 +100,7 @@ def create_app(
     app[CLIENT_STORE_KEY] = actual_client_store
     app[PAIRING_STORE_KEY] = pairing_store or PairingWindowStore()
     app[AUTH_VERIFIER_KEY] = actual_auth_verifier
+    app[ENVIRONMENT_KEY] = environment or ManagerEnvironment.production()
     app.router.add_get("/v1/hello", handle_hello)
     app.router.add_get("/v1/pairing/status", handle_pairing_status)
     app.router.add_post("/v1/pairing/complete", handle_pairing_complete)
@@ -305,15 +322,198 @@ def auth_required_handler(route: ManagementRoute) -> Handler:
                 manager_status.collect_http_status_payload(config_path_for(request)),
             )
 
-        return json_failure(
-            request,
-            status=501,
-            error_code="not_implemented",
-            message="This management endpoint is not implemented yet.",
-            recommended_action="Install a Bridge firmware that supports this operation.",
-        )
+        admin_handler = ADMIN_OPERATION_HANDLERS.get(route.operation_id)
+        if admin_handler is None:
+            return json_failure(
+                request,
+                status=501,
+                error_code="not_implemented",
+                message="This management endpoint is not implemented yet.",
+                recommended_action="Install a Bridge firmware that supports this operation.",
+            )
+
+        try:
+            return await admin_handler(request)
+        except UpdateFlowError as exc:
+            return update_flow_failure(request, exc)
 
     return handler
+
+
+async def handle_update_preflight(request: web.Request) -> web.Response:
+    """Validate a firmware package without changing the install."""
+
+    package = await read_package_body(request)
+    payload = await asyncio.to_thread(run_preflight, environment_for(request), package)
+    return json_success(request, payload)
+
+
+async def handle_update_upload(request: web.Request) -> web.Response:
+    """Store an uploaded firmware payload for a later install."""
+
+    data = await request.read()
+    filename = request.headers.get("X-Upload-Filename") or request.query.get("filename") or ""
+    payload = await asyncio.to_thread(
+        store_upload,
+        environment_for(request),
+        filename=filename,
+        data=data,
+    )
+    return json_success(request, payload)
+
+
+async def handle_update_install(request: web.Request) -> web.Response:
+    """Back up and install a staged, verified firmware bundle."""
+
+    package = await read_package_body(request)
+    payload = await asyncio.to_thread(run_install, environment_for(request), package)
+    return json_success(request, payload)
+
+
+async def handle_update_status(request: web.Request) -> web.Response:
+    """Return the persisted release-slot update state."""
+
+    operation_id = request.query.get("operation_id")
+    payload = await asyncio.to_thread(
+        read_update_status,
+        environment_for(request),
+        operation_id,
+    )
+    return json_success(request, payload)
+
+
+async def handle_update_mark_good(request: web.Request) -> web.Response:
+    """Mark a pending release good after health gates pass."""
+
+    payload = await asyncio.to_thread(run_mark_good, environment_for(request))
+    return json_success(request, payload)
+
+
+async def handle_update_rollback(request: web.Request) -> web.Response:
+    """Roll back the current release to the previous one."""
+
+    reason = await read_rollback_reason(request)
+    payload = await asyncio.to_thread(run_rollback, environment_for(request), reason)
+    return json_success(request, payload)
+
+
+async def handle_backup_create(request: web.Request) -> web.Response:
+    """Create and verify a configuration backup archive."""
+
+    payload = await asyncio.to_thread(run_backup_create, environment_for(request))
+    return json_success(request, payload)
+
+
+async def handle_backup_restore(request: web.Request) -> web.Response:
+    """Restore a previously created backup archive."""
+
+    backup_id = await read_backup_id_body(request)
+    payload = await asyncio.to_thread(
+        run_backup_restore,
+        environment_for(request),
+        backup_id=backup_id,
+    )
+    return json_success(request, payload)
+
+
+ADMIN_OPERATION_HANDLERS: dict[str, AdminHandler] = {
+    "update_preflight": handle_update_preflight,
+    "update_upload": handle_update_upload,
+    "update_install": handle_update_install,
+    "update_status": handle_update_status,
+    "update_mark_good": handle_update_mark_good,
+    "update_rollback": handle_update_rollback,
+    "backup_create": handle_backup_create,
+    "backup_restore": handle_backup_restore,
+}
+
+
+async def read_package_body(request: web.Request) -> dict[str, Any]:
+    """Read the firmware ``package`` object from a POST JSON body."""
+
+    payload = await read_json_object(request)
+    package = payload.get("package")
+    if not isinstance(package, dict):
+        raise UpdateFlowError(
+            "invalid_request",
+            "Request body must include a package object.",
+            http_status=400,
+            recommended_action="Send a JSON body with a package object.",
+        )
+    return cast("dict[str, Any]", package)
+
+
+async def read_backup_id_body(request: web.Request) -> str:
+    """Read the ``backup_id`` field from a POST JSON body."""
+
+    payload = await read_json_object(request)
+    backup_id = payload.get("backup_id")
+    if not isinstance(backup_id, str) or not backup_id.strip():
+        raise UpdateFlowError(
+            "invalid_request",
+            "Request body must include a backup_id.",
+            http_status=400,
+            recommended_action="Send a JSON body with a backup_id string.",
+        )
+    return backup_id
+
+
+async def read_rollback_reason(request: web.Request) -> str:
+    """Read the rollback ``reason`` from a POST JSON body, defaulting if absent."""
+
+    body = await request.read()
+    if not body:
+        return "operator_requested"
+    payload = await read_json_object(request)
+    reason = payload.get("reason")
+    if reason is None:
+        return "operator_requested"
+    if not isinstance(reason, str) or not reason.strip():
+        raise UpdateFlowError(
+            "invalid_request",
+            "Rollback reason must be a non-empty string when provided.",
+            http_status=400,
+            recommended_action="Send a JSON body with a reason string or omit it.",
+        )
+    return reason
+
+
+async def read_json_object(request: web.Request) -> dict[str, Any]:
+    """Parse a JSON object body, raising a contract error on malformed input."""
+
+    try:
+        value = await request.json()
+    except ValueError as exc:
+        raise UpdateFlowError(
+            "invalid_request",
+            "Request body must be valid JSON.",
+            http_status=400,
+            recommended_action="Send a valid JSON object body.",
+        ) from exc
+    if not isinstance(value, dict):
+        raise UpdateFlowError(
+            "invalid_request",
+            "Request body must be a JSON object.",
+            http_status=400,
+            recommended_action="Send a JSON object body.",
+        )
+    return cast("dict[str, Any]", value)
+
+
+def update_flow_failure(request: web.Request, exc: UpdateFlowError) -> web.Response:
+    """Translate an UpdateFlowError into the management error envelope."""
+
+    return web.json_response(
+        error_response(
+            exc.error_code,
+            exc.message,
+            request_id=request_id_for(request),
+            recommended_action=exc.recommended_action,
+            details=exc.details,
+            retry_after_seconds=exc.retry_after_seconds,
+        ),
+        status=exc.http_status,
+    )
 
 
 async def verify_signed_request(
@@ -374,6 +574,12 @@ def pairing_store_for(request: web.Request) -> PairingWindowStore:
     """Return the app's management pairing window store."""
 
     return request.app[PAIRING_STORE_KEY]
+
+
+def environment_for(request: web.Request) -> ManagerEnvironment:
+    """Return the app's update-orchestration environment."""
+
+    return request.app[ENVIRONMENT_KEY]
 
 
 def request_id_for(request: web.Request) -> str:
