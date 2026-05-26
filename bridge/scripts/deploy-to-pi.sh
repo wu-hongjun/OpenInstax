@@ -107,7 +107,9 @@ require_deploy_target() {
 }
 
 is_truthy() {
-  case "${1,,}" in
+  local normalized
+  normalized="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "${normalized}" in
     0 | false | no | off)
       return 1
       ;;
