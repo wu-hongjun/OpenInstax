@@ -9,6 +9,8 @@ import pytest
 
 from instantlink_bridge.ble.client import DiscoveredPrinter
 from instantlink_bridge.ble.instantlink import (
+    CONNECT_STAGE_NOTIFICATION_SUBSCRIBE,
+    ERROR_BLE,
     ERROR_NO_FILM,
     ERROR_PRINT_REJECTED,
     ERROR_PRINTER_NOT_FOUND,
@@ -217,6 +219,82 @@ async def test_instantlink_status_disconnects_when_printer_is_gone() -> None:
         await backend.status("INSTAX-1N034655")
 
     assert library.disconnect_calls == 1
+
+
+class _FakeInstantLinkConnectLibrary:
+    """Fake library whose connect runs the progress callback then fails with a chosen rc."""
+
+    def __init__(self, *, stages: list[int], connect_rc: int) -> None:
+        self._stages = stages
+        self._connect_rc = connect_rc
+        self.disconnect_calls = 0
+
+    def instantlink_connect_named_with_progress(
+        self,
+        _name: bytes,
+        _duration: int,
+        callback: object,
+    ) -> int:
+        emit = cast(Any, callback)
+        for stage in self._stages:
+            emit(stage, None)
+        return self._connect_rc
+
+    def instantlink_device_name(self, _out: object, _out_len: int) -> int:
+        # Report "not connected" so _ensure_connected_blocking attempts a fresh connect.
+        return ERROR_PRINTER_NOT_FOUND
+
+    def instantlink_disconnect(self) -> int:
+        self.disconnect_calls += 1
+        return 0
+
+
+@pytest.mark.asyncio
+async def test_connect_failure_carries_highest_observed_stage() -> None:
+    library = _FakeInstantLinkConnectLibrary(
+        stages=[0, 3, 4, 5, CONNECT_STAGE_NOTIFICATION_SUBSCRIBE, 7, 10],
+        connect_rc=ERROR_BLE,
+    )
+    backend = InstantLinkBackend()
+    backend._lib = cast(Any, library)
+
+    with pytest.raises(InstantLinkBleError) as excinfo:
+        await backend.status("INSTAX-1N034655")
+
+    # The terminal "failed" (10) sentinel is ignored; the recorded max is the real milestone.
+    assert excinfo.value.connect_failure_stage == 7
+
+
+@pytest.mark.asyncio
+async def test_status_provider_flags_late_stage_write_failure_as_stale_bond() -> None:
+    library = _FakeInstantLinkConnectLibrary(
+        stages=[0, 3, 4, 5, CONNECT_STAGE_NOTIFICATION_SUBSCRIBE],
+        connect_rc=ERROR_BLE,
+    )
+    backend = InstantLinkBackend()
+    backend._lib = cast(Any, library)
+    provider = InstantLinkPrinterStatusProvider(backend=backend)
+
+    with pytest.raises(PrinterStatusUnavailableError) as excinfo:
+        await provider.fetch(PairedPrinter(address="INSTANTLINK:X", name="INSTAX-1N034655"))
+
+    assert excinfo.value.stale_bond_suspected is True
+
+
+@pytest.mark.asyncio
+async def test_status_provider_does_not_flag_early_stage_failure_as_stale_bond() -> None:
+    library = _FakeInstantLinkConnectLibrary(
+        stages=[0, 1, 2, 3, 4],
+        connect_rc=ERROR_BLE,
+    )
+    backend = InstantLinkBackend()
+    backend._lib = cast(Any, library)
+    provider = InstantLinkPrinterStatusProvider(backend=backend)
+
+    with pytest.raises(PrinterStatusUnavailableError) as excinfo:
+        await provider.fetch(PairedPrinter(address="INSTANTLINK:X", name="INSTAX-1N034655"))
+
+    assert excinfo.value.stale_bond_suspected is False
 
 
 @pytest.mark.asyncio

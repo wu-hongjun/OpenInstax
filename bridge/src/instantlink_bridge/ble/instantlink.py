@@ -76,6 +76,10 @@ CONNECT_STAGE_NAMES = {
     9: "connected",
     10: "failed",
 }
+# Lowest connect stage that proves GATT came up far enough that an encrypted write should
+# succeed. A connect that reaches this stage (or later) and then fails with a BLE/write error is
+# the stale-bond signature: the link is up but the printer cleared its pairing after a power cycle.
+CONNECT_STAGE_NOTIFICATION_SUBSCRIBE = 6
 _T = TypeVar("_T")
 
 
@@ -97,6 +101,10 @@ class InstantLinkError(RuntimeError):
     def __init__(self, message: str, *, code: int) -> None:
         super().__init__(message)
         self.code = code
+        # Highest connect-progress stage observed during the in-flight connect attempt that
+        # produced this error, when known. ``None`` means the error did not originate from a
+        # connect attempt (e.g. a status read on an already-established link).
+        self.connect_failure_stage: int | None = None
 
 
 class InstantLinkLibraryUnavailableError(InstantLinkError):
@@ -516,15 +524,27 @@ class InstantLinkBackend:
         connected_name = self._device_name_blocking()
         if connected_name is not None and _printer_names_match(connected_name, target_name):
             return
-        rc = self._connect_named_blocking(target_name, scan_duration_s)
+        stage_tracker = _ConnectStageTracker()
+        rc = self._connect_named_blocking(target_name, scan_duration_s, stage_tracker)
         if rc < 0:
-            _raise_for_code(rc, "connect failed")
+            try:
+                _raise_for_code(rc, "connect failed")
+            except InstantLinkError as exc:
+                # Carry the highest connect stage observed so the status/UI layer can classify a
+                # late-stage write/comms failure as the stale-bond signature.
+                exc.connect_failure_stage = stage_tracker.max_stage
+                raise
 
-    def _connect_named_blocking(self, target_name: str, scan_duration_s: int) -> int:
+    def _connect_named_blocking(
+        self,
+        target_name: str,
+        scan_duration_s: int,
+        stage_tracker: _ConnectStageTracker | None = None,
+    ) -> int:
         library = self._library()
         duration = max(1, scan_duration_s)
         if hasattr(library, "instantlink_connect_named_with_progress"):
-            callback = _connect_progress_logger(target_name)
+            callback = _connect_progress_logger(target_name, stage_tracker)
             return int(
                 library.instantlink_connect_named_with_progress(
                     target_name.encode("utf-8"),
@@ -802,8 +822,31 @@ def _has_platform_suffix(name: str) -> bool:
     return upper.endswith("(IOS)") or upper.endswith("(ANDROID)")
 
 
-def _connect_progress_logger(target_name: str) -> Callable[[int, bytes | None], None]:
+class _ConnectStageTracker:
+    """Capture the highest connect-progress stage seen during one connect attempt."""
+
+    def __init__(self) -> None:
+        self.max_stage: int | None = None
+
+    def observe(self, stage: int) -> None:
+        if stage == _CONNECT_STAGE_FAILED:
+            # The terminal "failed" sentinel is not a real progress milestone; ignore it so the
+            # recorded max reflects how far the connection actually advanced.
+            return
+        if self.max_stage is None or stage > self.max_stage:
+            self.max_stage = stage
+
+
+_CONNECT_STAGE_FAILED = 10
+
+
+def _connect_progress_logger(
+    target_name: str,
+    stage_tracker: _ConnectStageTracker | None = None,
+) -> Callable[[int, bytes | None], None]:
     def emit(stage: int, detail: bytes | None) -> None:
+        if stage_tracker is not None:
+            stage_tracker.observe(stage)
         stage_name = CONNECT_STAGE_NAMES.get(stage, "unknown")
         detail_text = detail.decode("utf-8", errors="replace") if detail else ""
         LOGGER.info(

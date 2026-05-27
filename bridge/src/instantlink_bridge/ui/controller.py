@@ -90,6 +90,16 @@ OFFLINE_BACKOFF_BASE_S = 2.0
 OFFLINE_BACKOFF_CAP_S = 30.0
 PRINTER_STATUS_WARNING_INTERVAL_S = 30.0
 OFFLINE_MESSAGE_AFTER_MISSES = 3
+# Auto-rebond recovery: when a printer is power-cycled it clears its BLE pairing while the Pi
+# keeps the stale bond key. The connection comes up (late GATT stage) but the first encrypted
+# write fails. We detect that signature and automatically remove the BlueZ bond so the
+# NoInputNoOutput agent re-bonds on reconnect. Guards keep this from thrashing:
+#   * Require the signature on this many consecutive attempts before acting (a single transient
+#     write hiccup must not trigger a bond removal).
+#   * Allow at most one rebond per device per cooldown window; if re-pairing does not fix it the
+#     signature will recur but we fall back to normal backoff instead of looping.
+AUTO_REBOND_SIGNATURE_THRESHOLD = 2
+AUTO_REBOND_COOLDOWN_S = 120.0
 # Interchangeable generic "searching" placeholders that the live retry tick may overwrite. Specific
 # diagnostics (e.g. "No printer signal", "Restart printer") are not listed here so they survive.
 _GENERIC_SEARCHING_MESSAGES = frozenset({"Looking for printer", "Searching for printer"})
@@ -190,6 +200,9 @@ class BridgeUi:
         self._idle_stage = IdleStage.ACTIVE
         self._printer_keepalive_interval_s = config.printer.keepalive_interval_s
         self._printer_status_misses = 0
+        self._auto_rebond_signature_streak = 0
+        self._last_auto_rebond_at: dict[str, float] = {}
+        self._auto_rebond_task: asyncio.Task[None] | None = None
         self._last_printer_status_warning_at = -math.inf
         self._last_printer_status_warning_signature: tuple[str, ...] | None = None
         self._actions: asyncio.Queue[UiAction] = asyncio.Queue(maxsize=20)
@@ -258,6 +271,7 @@ class BridgeUi:
             self._network_task,
             self._ftp_mode_task,
             self._image_reset_task,
+            self._auto_rebond_task,
         ):
             if task is not None:
                 task.cancel()
@@ -1725,6 +1739,7 @@ class BridgeUi:
                     diagnostics,
                 )
             self._printer_status_misses += 1
+            self._maybe_auto_rebond(printer, exc)
             self._apply_status_failure(printer, self._unavailable_message(exc), generation)
             return False
         except TimeoutError as exc:
@@ -1766,6 +1781,8 @@ class BridgeUi:
         if generation is not None and generation != self._status_generation:
             return True
         self._printer_status_misses = 0
+        self._auto_rebond_signature_streak = 0
+        self._last_auto_rebond_at.pop(_auto_rebond_key(printer), None)
         self._clear_printer_status_warning_state()
         LOGGER.info(
             "ui.printer_status film_remaining=%s battery=%s charging=%s model=%s "
@@ -1787,6 +1804,73 @@ class BridgeUi:
         if self._printer_status_misses >= OFFLINE_MESSAGE_AFTER_MISSES:
             return self._offline_backoff_delay()
         return OFFLINE_STATUS_RETRY_S
+
+    def _maybe_auto_rebond(
+        self,
+        printer: PairedPrinter,
+        exc: PrinterStatusUnavailableError,
+    ) -> None:
+        """Trigger a background auto-rebond when the stale-bond signature is confirmed.
+
+        The signature must repeat on ``AUTO_REBOND_SIGNATURE_THRESHOLD`` consecutive attempts (a
+        single transient write hiccup resets the streak). At most one rebond runs per device per
+        ``AUTO_REBOND_COOLDOWN_S``; if a recent rebond did not fix it the signature recurs but we
+        fall back to normal searching/backoff instead of removing the bond again. The actual
+        bond removal + reconnect runs fire-and-forget so the poll/action loops never block.
+        """
+
+        if not exc.stale_bond_suspected:
+            # Any non-signature failure breaks the "consecutive" requirement.
+            self._auto_rebond_signature_streak = 0
+            return
+
+        self._auto_rebond_signature_streak += 1
+        if self._auto_rebond_signature_streak < AUTO_REBOND_SIGNATURE_THRESHOLD:
+            return
+        if self._auto_rebond_task is not None and not self._auto_rebond_task.done():
+            return
+
+        key = _auto_rebond_key(printer)
+        now = self._monotonic()
+        last_at = self._last_auto_rebond_at.get(key)
+        if last_at is not None and now - last_at < AUTO_REBOND_COOLDOWN_S:
+            LOGGER.info(
+                "instantlink.auto_rebond skipped=cooldown address=%s since_last_s=%.1f",
+                printer.address,
+                now - last_at,
+            )
+            return
+
+        self._last_auto_rebond_at[key] = now
+        self._auto_rebond_signature_streak = 0
+        LOGGER.warning(
+            "instantlink.auto_rebond action=remove_bond address=%s reason=stale_bond_write_failed",
+            printer.address,
+        )
+        self._auto_rebond_task = asyncio.create_task(self._run_auto_rebond(printer))
+
+    async def _run_auto_rebond(self, printer: PairedPrinter) -> None:
+        """Remove the BlueZ bond for ``printer`` (keeping selection) and force a fresh reconnect."""
+
+        remove_bond = getattr(self._pairer, "remove_bluez_bond", None)
+        if remove_bond is None:
+            LOGGER.info("instantlink.auto_rebond unsupported_pairer")
+            return
+        try:
+            await self._close_cached_printer_session()
+            await remove_bond(printer)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("instantlink.auto_rebond_failed address=%s", printer.address)
+            return
+        LOGGER.info("instantlink.auto_rebond done=remove_bond address=%s", printer.address)
+        # Force a fresh status cycle so the next connect re-bonds via the pairing agent. The poll
+        # loop is left running; bumping the generation just resets pacing/backoff state.
+        await self._schedule_printer_status_refresh()
+
+    def _monotonic(self) -> float:
+        return asyncio.get_running_loop().time()
 
     def _offline_backoff_delay(self) -> float:
         """Return an exponentially backed-off retry delay for an offline printer.
@@ -2395,6 +2479,12 @@ def _camera_setup_info_message(mode: FtpReceiveMode) -> str:
     if mode is FtpReceiveMode.PEER:
         return "Sender uses saved Wi-Fi"
     return "Use a Wi-Fi FTP profile"
+
+
+def _auto_rebond_key(printer: PairedPrinter) -> str:
+    """Return a stable per-device key for auto-rebond cooldown tracking."""
+
+    return normalize_instax_name(printer.name).casefold() or printer.address.upper()
 
 
 def _same_paired_printer(left: PairedPrinter, right: PairedPrinter) -> bool:

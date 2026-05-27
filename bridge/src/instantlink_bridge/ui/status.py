@@ -20,6 +20,7 @@ from instantlink_bridge.ble.client import (
     scan_instax_printers,
 )
 from instantlink_bridge.ble.instantlink import (
+    CONNECT_STAGE_NOTIFICATION_SUBSCRIBE,
     InstantLinkBackend,
     InstantLinkBleError,
     InstantLinkLibraryUnavailableError,
@@ -149,6 +150,7 @@ class PrinterStatusUnavailableError(RuntimeError):
         consecutive_misses: int = 1,
         retry_after_s: float | None = None,
         status_message: str | None = None,
+        stale_bond_suspected: bool = False,
     ) -> None:
         super().__init__(message)
         self.diagnostics = diagnostics
@@ -156,6 +158,10 @@ class PrinterStatusUnavailableError(RuntimeError):
         self.consecutive_misses = consecutive_misses
         self.retry_after_s = retry_after_s
         self.status_message = status_message
+        # True when the failure matches the stale-bond signature: the connect reached a late
+        # GATT stage but the first encrypted write failed. The UI controller uses this to drive
+        # the auto-rebond recovery (remove BlueZ bond, keep selection, reconnect).
+        self.stale_bond_suspected = stale_bond_suspected
 
     @property
     def stale_selected(self) -> bool:
@@ -514,6 +520,7 @@ class InstantLinkPrinterStatusProvider:
                 diagnostics=scanner_diagnostics(printer, ()),
                 reason=PrinterStatusUnavailableReason.NOT_ADVERTISING,
                 status_message="Retrying printer",
+                stale_bond_suspected=_is_stale_bond_signature(exc),
             ) from exc
 
         return PrinterStatusSnapshot(
@@ -570,6 +577,20 @@ async def scan_bluez_instax_printers(timeout_s: float = 8.0) -> list[PairedPrint
         finally:
             await _run_bluetoothctl("scan", "off", timeout_seconds=5)
         return _dedupe_candidates(parse_instax_devices(scan_output))
+
+
+def _is_stale_bond_signature(exc: InstantLinkBleError | TimeoutError) -> bool:
+    """Return true when a status BLE error matches the stale-bond write-failure signature.
+
+    The signature is: a connect attempt that advanced to at least the notification-subscribe
+    stage (GATT was up) but then failed with a BLE/write-initiation error. A timeout, or a
+    BLE error from an early connect stage, is treated as an ordinary transient miss.
+    """
+
+    if not isinstance(exc, InstantLinkBleError):
+        return False
+    stage = exc.connect_failure_stage
+    return stage is not None and stage >= CONNECT_STAGE_NOTIFICATION_SUBSCRIBE
 
 
 def _endpoint_from_paired(printer: PairedPrinter) -> PrinterEndpoint:

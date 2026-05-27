@@ -46,6 +46,9 @@ class PrinterPairer(Protocol):
     async def forget_selected(self) -> None:
         """Forget the selected printer and matching BlueZ cache entries."""
 
+    async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
+        """Remove only the BlueZ bond/cache for a printer, keeping it selected."""
+
 
 class InstantLinkSelectionBackend(Protocol):
     """Subset of the InstantLink backend needed by the printer-selection UI."""
@@ -200,6 +203,21 @@ class BluetoothctlPrinterPairer:
         )
         await self._remove_selected_bluez_devices(selected)
 
+    async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
+        """Remove only the BlueZ bond/cache for a printer, keeping it selected.
+
+        This mirrors the cache-removal half of ``forget_selected`` but never touches the
+        persisted selection. It is used by the auto-rebond recovery path so the existing
+        ``NoInputNoOutput`` agent re-bonds with a fresh key on the next connect.
+        """
+
+        LOGGER.info(
+            "bluetooth.remove_bond address=%s name=%s",
+            printer.address,
+            printer.name,
+        )
+        await self._remove_selected_bluez_devices(printer)
+
     async def _scan_for_instax_devices(self) -> list[PairedPrinter]:
         """Scan in short passes and return as soon as an Instax printer is visible."""
 
@@ -249,13 +267,8 @@ class BluetoothctlPrinterPairer:
             await _run_bluetoothctl("remove", printer.address, check=False)
 
     async def _remove_selected_bluez_devices(self, selected: PairedPrinter) -> None:
-        devices_result = await _run_bluetoothctl("devices", check=False)
-        addresses = {selected.address.upper()}
-        for printer in parse_instax_devices(devices_result.output):
-            if _matches_selected_identity(selected, printer):
-                addresses.add(printer.address.upper())
-
-        for address in sorted(addresses):
+        addresses = await _bluez_addresses_for_identity(selected, include_selected_address=True)
+        for address in addresses:
             LOGGER.info(
                 "bluetooth.remove_selected_cache address=%s selected_address=%s selected_name=%s",
                 address,
@@ -358,6 +371,23 @@ class InstantLinkPrinterSelector:
             removed,
         )
 
+    async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
+        """Remove only the BlueZ bond/cache for a printer, keeping it selected.
+
+        InstantLink selects printers by normalized name and stores a pseudo-address, so the
+        matching BlueZ device(s) are located by Instax-name match against ``bluetoothctl
+        devices``. The persisted selection is intentionally left untouched; the cached
+        InstantLink session is dropped so the next connect re-bonds with a fresh key.
+        """
+
+        LOGGER.info(
+            "instantlink.remove_bond address=%s name=%s",
+            printer.address,
+            printer.name,
+        )
+        await _remove_bluez_devices_for_identity(printer)
+        await self._backend.disconnect()
+
 
 def parse_instax_devices(output: str) -> list[PairedPrinter]:
     """Parse bluetoothctl device output and keep Instax Link devices."""
@@ -389,6 +419,36 @@ def normalize_instax_name(name: str) -> str:
     """Strip platform suffixes from Instax advertising names."""
 
     return re.sub(r"\s*\((IOS|ANDROID)\)$", "", name.strip(), flags=re.IGNORECASE).strip()
+
+
+async def _bluez_addresses_for_identity(
+    selected: PairedPrinter,
+    *,
+    include_selected_address: bool,
+) -> list[str]:
+    """Return BlueZ device addresses matching a printer identity, sorted ascending."""
+
+    addresses: set[str] = set()
+    if include_selected_address and _looks_like_bluez_address(selected.address.upper()):
+        addresses.add(selected.address.upper())
+    devices_result = await _run_bluetoothctl("devices", check=False)
+    for printer in parse_instax_devices(devices_result.output):
+        if _matches_selected_identity(selected, printer):
+            addresses.add(printer.address.upper())
+    return sorted(addresses)
+
+
+async def _remove_bluez_devices_for_identity(selected: PairedPrinter) -> None:
+    """Remove every BlueZ device whose name/address matches the selected printer identity."""
+
+    addresses = await _bluez_addresses_for_identity(selected, include_selected_address=False)
+    for address in addresses:
+        LOGGER.info(
+            "bluetooth.remove_bond_cache address=%s selected_name=%s",
+            address,
+            selected.name,
+        )
+        await _run_bluetoothctl("remove", address, check=False)
 
 
 def _matches_selected_identity(selected: PairedPrinter, candidate: PairedPrinter) -> bool:

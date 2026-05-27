@@ -44,6 +44,7 @@ from instantlink_bridge.ui.controller import (
     RENDER_TICK_S,
     RESTART_PRINTER_RETRY_S,
     BridgeUi,
+    _auto_rebond_key,
     _wifi_mode_for_ftp_receive_mode,
     bridge_power_status_text,
     camera_status_message_for_health,
@@ -2113,6 +2114,172 @@ def test_empty_film_test_mode_keeps_ready_status() -> None:
     assert display.snapshots[-1].allow_print_without_film
 
 
+def _stale_bond_error(printer: PairedPrinter) -> PrinterStatusUnavailableError:
+    return PrinterStatusUnavailableError(
+        "printer status unavailable",
+        diagnostics=scanner_diagnostics(printer, []),
+        reason=PrinterStatusUnavailableReason.NOT_ADVERTISING,
+        status_message="Retrying printer",
+        stale_bond_suspected=True,
+    )
+
+
+def _not_found_error(printer: PairedPrinter) -> PrinterStatusUnavailableError:
+    return PrinterStatusUnavailableError(
+        "printer is not advertising",
+        diagnostics=scanner_diagnostics(printer, []),
+        reason=PrinterStatusUnavailableReason.NOT_ADVERTISING,
+        status_message="Turn printer on",
+        stale_bond_suspected=False,
+    )
+
+
+def _make_auto_rebond_ui(
+    printer: PairedPrinter,
+    pairer: _FakePairer,
+    status_provider: _FakeStatusProvider,
+) -> BridgeUi:
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=_FakeDisplay(),
+        input_device=NullInput(),
+        pairer=pairer,
+        status_provider=status_provider,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_SEARCHING, paired_printer=printer)
+    return ui
+
+
+async def _drain_auto_rebond(ui: BridgeUi) -> None:
+    task = ui._auto_rebond_task
+    if task is not None:
+        await task
+    # The rebond schedules a fresh status poll; stop it so the test does not leak a task.
+    await ui._cancel_status_refresh()
+
+
+@pytest.mark.asyncio
+async def test_auto_rebond_triggers_on_repeated_late_stage_write_failures() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_stale_bond_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    # One signature is below the consecutive threshold: no bond removal yet.
+    assert ui._auto_rebond_task is None
+    assert pairer.removed_bonds == []
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_auto_rebond(ui)
+
+    assert pairer.removed_bonds == [printer]
+    assert status_provider.close_cached_calls >= 1
+
+
+@pytest.mark.asyncio
+async def test_auto_rebond_streak_resets_on_non_signature_failure() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_stale_bond_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+
+    # A plain not-found failure interrupts the consecutive streak.
+    status_provider._error = _not_found_error(printer)
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert ui._auto_rebond_task is None
+
+    # The next signature is only the first of a fresh streak, so still no rebond.
+    status_provider._error = _stale_bond_error(printer)
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert ui._auto_rebond_task is None
+    assert pairer.removed_bonds == []
+
+
+@pytest.mark.asyncio
+async def test_auto_rebond_does_not_trigger_for_not_found_failures() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_not_found_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    for _ in range(4):
+        assert not await ui._refresh_printer_status_in_background(printer)
+
+    assert ui._auto_rebond_task is None
+    assert pairer.removed_bonds == []
+
+
+@pytest.mark.asyncio
+async def test_auto_rebond_cooldown_prevents_second_removal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_stale_bond_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(ui, "_monotonic", lambda: clock["now"])
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_auto_rebond(ui)
+    assert pairer.removed_bonds == [printer]
+
+    # Signature recurs within the cooldown window: must not remove the bond again.
+    clock["now"] = 1000.0 + 30.0
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_auto_rebond(ui)
+    assert pairer.removed_bonds == [printer]
+
+
+@pytest.mark.asyncio
+async def test_auto_rebond_keeps_printer_selected() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_stale_bond_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_auto_rebond(ui)
+
+    # Only the BlueZ bond is removed; the user's selection is preserved.
+    assert pairer.removed_bonds == [printer]
+    assert not pairer.forgot
+    assert await pairer.list_paired() == [printer]
+    assert ui._snapshot.paired_printer == printer
+
+
+@pytest.mark.asyncio
+async def test_successful_status_resets_auto_rebond_counters() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_stale_bond_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert ui._auto_rebond_signature_streak == 1
+
+    # A successful status clears the streak and per-device cooldown.
+    status_provider._error = None
+    status_provider._snapshot = PrinterStatusSnapshot(
+        film_remaining=5,
+        battery=80,
+        is_charging=False,
+        model=PrinterModel.SQUARE,
+        message="Ready",
+    )
+    assert await ui._refresh_printer_status_in_background(printer)
+    assert ui._auto_rebond_signature_streak == 0
+    assert _auto_rebond_key(printer) not in ui._last_auto_rebond_at
+
+
 class _FakeDisplay:
     def __init__(self) -> None:
         self.snapshots: list[UiSnapshot] = []
@@ -2178,6 +2345,7 @@ class _FakePairer:
         self.forgot = False
         self.list_calls = 0
         self.saved_selected: PairedPrinter | None = None
+        self.removed_bonds: list[PairedPrinter] = []
 
     async def list_paired(self) -> list[PairedPrinter]:
         self.list_calls += 1
@@ -2197,6 +2365,9 @@ class _FakePairer:
 
     async def forget_selected(self) -> None:
         self.forgot = True
+
+    async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
+        self.removed_bonds.append(printer)
 
 
 class _FakeStatusProvider:
