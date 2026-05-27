@@ -316,8 +316,10 @@ async def test_instantlink_status_failure_logs_are_rate_limited(
         if record.getMessage().startswith("instantlink.status_failed_keep_connection")
     ]
     assert len(warning_messages) == 1
-    # Transient failures never disconnect, even when repeated.
-    assert library.disconnect_calls == 0
+    # A single transient failure keeps the connection, but a link that keeps failing is dead:
+    # the 2nd consecutive failure hits STALE_LINK_STATUS_FAILURE_THRESHOLD and tears it down so
+    # the next poll reconnects (rather than retrying status on a dead handle forever).
+    assert library.disconnect_calls == 1
 
 
 def test_select_status_target_falls_back_to_selected_when_not_visible() -> None:

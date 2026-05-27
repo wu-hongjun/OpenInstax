@@ -80,6 +80,11 @@ CONNECT_STAGE_NAMES = {
 # succeed. A connect that reaches this stage (or later) and then fails with a BLE/write error is
 # the stale-bond signature: the link is up but the printer cleared its pairing after a power cycle.
 CONNECT_STAGE_NOTIFICATION_SUBSCRIBE = 6
+# Consecutive status failures that mean the cached BLE link is dead (not a one-off hiccup),
+# after which the connection is torn down so the next poll does a fresh connect (which can
+# re-establish the link and trigger auto-rebond). Tolerates a single transient failure to
+# avoid needless reconnect churn; the persistent btleplug Manager means reconnects don't leak.
+STALE_LINK_STATUS_FAILURE_THRESHOLD = 2
 _T = TypeVar("_T")
 
 
@@ -213,6 +218,7 @@ class InstantLinkBackend:
         self._lock = asyncio.Lock()
         self._last_status_failure_log_at = -float("inf")
         self._last_status_failure_signature: tuple[str, str, str] | None = None
+        self._consecutive_status_failures = 0
 
     async def scan(self, timeout_s: float = DEFAULT_SCAN_DURATION_S) -> list[str]:
         """Return normalized visible Instax printer names."""
@@ -326,30 +332,39 @@ class InstantLinkBackend:
         try:
             status = self._status_blocking_connected(name, scan_duration_s)
             self._clear_status_failure_log_state()
+            self._consecutive_status_failures = 0
             return status
         except (InstantLinkBleError, InstantLinkPrinterNotFoundError, TimeoutError) as exc:
-            # Persistent-connection policy: only tear down the cached BLE link when the
-            # printer is genuinely gone/unrecoverable. A transient BLE read or timeout on
-            # an already-established connection is left in place so the next poll can retry
-            # over the live link instead of paying a full scan + reconnect every tick. If
-            # the device really vanished, ``_ensure_connected_blocking`` will re-establish
-            # it on the next status call.
-            disconnect = self._should_disconnect_on_status_error(exc)
+            # Persistent-connection policy: keep the cached link across a single transient
+            # read/timeout so we don't pay a full scan + reconnect every tick. But a link
+            # that keeps failing is dead (e.g. the printer slept and dropped BLE), so after
+            # a few consecutive failures we MUST tear it down — otherwise we'd retry status
+            # on a dead handle forever and never reconnect (or trigger auto-rebond).
+            self._consecutive_status_failures += 1
+            disconnect = self._should_disconnect_on_status_error(
+                exc, self._consecutive_status_failures
+            )
             self._log_status_failure(name, exc, disconnected=disconnect)
             if disconnect:
                 self._disconnect_blocking()
+                self._consecutive_status_failures = 0
             raise
 
-    def _should_disconnect_on_status_error(self, exc: BaseException) -> bool:
-        """Decide whether a status error means the printer is genuinely gone.
+    def _should_disconnect_on_status_error(
+        self, exc: BaseException, consecutive_failures: int
+    ) -> bool:
+        """Decide whether to drop the cached connection after a status error.
 
-        Only ``InstantLinkPrinterNotFoundError`` indicates the device is no longer
-        present, so it is the single case that justifies dropping the cached connection.
-        Transient ``InstantLinkBleError`` / ``TimeoutError`` failures are treated as
-        recoverable: keep the connection so the next poll reuses the live link.
+        Tear down when the printer is genuinely gone (``InstantLinkPrinterNotFoundError``),
+        OR when the link has failed on ``STALE_LINK_STATUS_FAILURE_THRESHOLD`` consecutive
+        attempts (a dead link, not a one-off hiccup). A single transient
+        ``InstantLinkBleError`` / ``TimeoutError`` keeps the connection so the next poll
+        reuses the live link; persistent failures force a fresh reconnect.
         """
 
-        return isinstance(exc, InstantLinkPrinterNotFoundError)
+        if isinstance(exc, InstantLinkPrinterNotFoundError):
+            return True
+        return consecutive_failures >= STALE_LINK_STATUS_FAILURE_THRESHOLD
 
     def _log_status_failure(self, name: str, exc: BaseException, *, disconnected: bool) -> None:
         normalized_name = normalize_printer_name(name)
