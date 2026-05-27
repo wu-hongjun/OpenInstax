@@ -826,7 +826,13 @@ main() {
   fi
 
   if [[ "${RESTART}" -eq 1 ]]; then
-    "${SSH_CMD[@]}" -T "${USER}@${HOST}" "sudo systemctl restart instantlink-bridge.service"
+    # Stopgap (docs/plans/031 Phase 2): the bridge can wedge BlueZ when it is killed mid-connect
+    # (printer offline), leaving a stuck "connection in progress" that a fresh bridge inherits and
+    # cannot connect through. Restart bluetoothd first so each deploy starts from a clean BLE stack.
+    # The runtime self-heal in instantlink-core handles crash/watchdog restarts; this just keeps
+    # deploys clean.
+    "${SSH_CMD[@]}" -T "${USER}@${HOST}" \
+      "sudo systemctl restart bluetooth.service && sleep 3 && sudo systemctl restart instantlink-bridge.service"
   fi
 }
 

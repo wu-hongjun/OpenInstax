@@ -255,11 +255,21 @@ impl BleTransport {
             emit_connect_progress(progress, ConnectStage::BleConnecting, None::<String>);
             if let Err(error) = peripheral.connect().await {
                 if !peripheral.is_connected().await.unwrap_or(false) {
-                    let _ = connect_with_bluez_cli(&peripheral).await;
+                    // The connect may have failed because BlueZ has a pending connection wedged
+                    // "in progress" (D-Bus "Timeout waiting for reply"), e.g. inherited from a
+                    // prior process killed mid-connect. Cancel it and retry once; the caller keeps
+                    // an active scan running so the retry can complete. Fall back to bluetoothctl
+                    // if btleplug still can't establish the link.
+                    Self::cancel_pending_connection(&peripheral).await;
+                    if peripheral.connect().await.is_err()
+                        && !peripheral.is_connected().await.unwrap_or(false)
+                    {
+                        let _ = connect_with_bluez_cli(&peripheral).await;
+                    }
                 }
                 if peripheral.is_connected().await.unwrap_or(false) {
                     log::debug!(
-                        "BLE connect returned an error after BlueZ marked the device connected: {}",
+                        "BLE connect succeeded after wedge recovery; initial error: {}",
                         error
                     );
                 } else {
@@ -471,6 +481,20 @@ impl BleTransport {
             let _ = tokio::time::timeout(DEFAULT_DISCONNECT_TIMEOUT, peripheral.disconnect()).await;
             tokio::time::sleep(Duration::from_millis(250)).await;
         }
+    }
+
+    /// Cancel any pending/wedged BlueZ connection for `peripheral`.
+    ///
+    /// A connect that fails without establishing the link can leave BlueZ with a connection stuck
+    /// "in progress" — most often inherited from a prior process that was killed mid-connect while
+    /// the printer was offline. Subsequent `Connect()` calls then fail with a D-Bus
+    /// "Timeout waiting for reply" until the pending connection is cancelled. Unlike
+    /// [`disconnect_quietly`], this issues `Disconnect` unconditionally (a pending connect is not
+    /// reported as `is_connected`), bounded by a timeout so it can't itself hang. See
+    /// `docs/plans/031` Phase 2.
+    async fn cancel_pending_connection(peripheral: &Peripheral) {
+        let _ = tokio::time::timeout(DEFAULT_DISCONNECT_TIMEOUT, peripheral.disconnect()).await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
     }
 
     async fn subscribe_with_retry(
