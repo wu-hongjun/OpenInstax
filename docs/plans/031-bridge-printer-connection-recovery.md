@@ -234,3 +234,42 @@ connection gets far enough to fail at GATT/write, which this failure does not.
 3. Re-scope §6: the recovery machine must first handle "connection never completes / BlueZ stuck
    In Progress" (cancel pending + bounded retry + honest UI), which is more common than the
    rebond-wedge it was originally drawn around.
+
+### Phase 0 CONCLUSION (after the clean printer power-cycle test)
+
+A clean printer power-cycle did **not** fix it (still cycled through `printer not found` /
+`In Progress`). What **did** recover it — twice today, reproducibly — was a **sustained active
+`bluetoothctl scan on`**: within seconds of active scanning, BlueZ completed the connection
+(`Connected: yes`) and the bridge immediately adopted it and resumed `film_remaining=4` status
+every 10 s. The phone app was confirmed **not** connected, ruling out single-slot contention.
+
+This favours **P2 over P1**: the printer is fine once a connection is actually initiated; the
+failure is that **BlueZ's background/passive auto-connect (allowlist) for the bonded printer does
+not fire reliably on the Pi Zero 2 W controller** — consistent with btmon showing *zero*
+`LE Create Connection` over 170 s (background mode armed but never firing). An **active scan forces
+discovery and lets the connection complete** (an active scan elicits the advertisement that triggers
+the controller's connect, and/or btleplug then issues a direct connect).
+
+**Confirmed root cause (Phase 0):** the bridge relies, via BlueZ, on background auto-connect to the
+bonded printer; on this controller that path stalls (`In Progress` / `printer not found` / D-Bus
+`Connect()` timeout), and only sustained **active scanning / a forced direct connect** reliably
+establishes the link. Once connected, everything downstream (status, keepalive, freshness gate)
+works. The freshness gate (0.1.4) behaved correctly throughout — never showed "Ready" while
+disconnected. The shipped bond-removal auto-rebond (0.1.5) and silent-link-disconnect (0.1.6)
+address adjacent symptoms but **not** this connect-initiation stall.
+
+**Fix direction for implementation (supersedes §6's framing):**
+1. **Drive a continuous/active scan while disconnected** (not 5 s bursts with idle gaps) so the
+   controller keeps seeing the advertisement and the connection can complete — mirror what the
+   manual `scan on` does. Re-check `transport::scan` duty cycle and whether `peripheral.connect()`
+   on BlueZ defers to background mode vs. issuing a direct `LE Create Connection`.
+2. **Bound every failure with honest UX:** never loop silent "Finding Printer"; after N failed
+   connects surface a specific, actionable state.
+3. **De-prioritise bond removal** as a recovery (it targets the wrong layer and previously wedged
+   the printer); keep it only as a last resort behind reconnect-first.
+4. Validate any change by the §8 acceptance bar: 5 consecutive printer power-cycles auto-recovering
+   with **zero** manual `bluetoothctl` intervention.
+
+State note: live probing (manual scans, disconnects, adapter/bluetoothd restarts) contaminated the
+observed state during Phase 0; the *reproducible* signal — "active scan completes the connection" —
+is the reliable takeaway. The system is currently healthy (`Connected: yes`, film 4/10).
