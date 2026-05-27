@@ -15,6 +15,10 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectHome=yes
 ProtectSystem=strict
+# strict mounts the filesystem read-only; the manager must persist client and
+# pairing records under /var/lib/InstantLinkBridge and may update config under
+# /etc/InstantLinkBridge (config PUT), so both must be writable.
+ReadWritePaths=/var/lib/InstantLinkBridge /etc/InstantLinkBridge
 
 [Install]
 WantedBy=multi-user.target
