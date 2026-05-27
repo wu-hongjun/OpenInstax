@@ -2019,6 +2019,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#13-phase-1-implementation-outcome-2026-05-27-bridge-so-0111-0112" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        13. Phase 1 implementation + outcome (2026-05-27, bridge .so 0.1.11 → 0.1.12)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="13. Phase 1 implementation + outcome (2026-05-27, bridge .so 0.1.11 → 0.1.12)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-scope-the-bridge-restart-wedge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 scope (the bridge-restart wedge)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#acceptance-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Acceptance status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2360,6 +2399,50 @@ address adjacent symptoms but <strong>not</strong> this connect-initiation stall
 <p>State note: live probing (manual scans, disconnects, adapter/bluetoothd restarts) contaminated the
 observed state during Phase 0; the <em>reproducible</em> signal — "active scan completes the connection" —
 is the reliable takeaway. The system is currently healthy (<code>Connected: yes</code>, film 4/10).</p>
+<hr />
+<h2 id="13-phase-1-implementation-outcome-2026-05-27-bridge-so-0111-0112">13. Phase 1 implementation + outcome (2026-05-27, bridge .so 0.1.11 → 0.1.12)<a class="headerlink" href="#13-phase-1-implementation-outcome-2026-05-27-bridge-so-0111-0112" title="Permanent link">&para;</a></h2>
+<p><strong>Change (commits <code>4f57404</code>, <code>68892c8</code>):</strong>
+- <code>transport::scan()</code> split into <code>start_scan</code> / <code>collect_instax_peripherals</code> / <code>stop_scan</code>
+  (<code>scan()</code> still composes them for the standalone scan + <code>connect_any</code> callers).
+- <code>connect_internal</code> now keeps an <strong>active scan running across discovery AND the connect/status
+  handshake</strong> (was: <code>stop_scan</code> before connecting, which dropped onto BlueZ's stalling
+  background-connect path), and <strong>polls the candidate list to connect the moment the target is
+  uniquely matched</strong> (<code>DISCOVERY_POLL_INTERVAL</code> 400 ms) instead of sleeping the full 5 s window.</p>
+<p><strong>Result — partial pass:</strong>
+- ✅ <strong>From a clean BlueZ state it works.</strong> After a <code>bluetoothd</code> restart, 0.1.11 connected
+  autonomously in ~10 s (first time all day without a manual <code>scan on</code>), and a <strong>printer
+  power-cycle recovered on its own (1 cycle): write-fail → auto_rebond → reconnect → status, no
+  wedge, ~58 s</strong> (3 attempts incl. the stale-bond rebond; ~11 s <code>ble_connecting</code> per attempt is the
+  dominant cost). The poll-during-scan trims the per-attempt scan wait.
+- ❌ <strong>New, distinct failure isolated: a <em>bridge restart</em> wedges BlueZ.</strong> The 0.1.12 deploy restarts
+  the bridge but not <code>bluetoothd</code>; the old process, killed while a connect was pending (printer
+  asleep), left BlueZ stuck. The fresh 0.1.12 then failed <strong>7/7</strong> connects with
+  <code>connect failed: Timeout waiting for reply</code> over 6 min even though the printer was matched 6× —
+  cleared only by a <code>bluetoothd</code> restart. This is the same "stuck In Progress" wedge from Phase 0,
+  but its <strong>trigger is a bridge restart</strong> (deploy / crash / systemd <code>WatchdogSec</code> restart), which
+  the active-scan fix does not address (it helps <em>initiate</em> from a clean state; it can't clear a
+  pre-existing stuck pending connect).</p>
+<p><strong>So Phase 1 fixes the clean-state connect stall and the printer-power-cycle recovery, but does NOT
+satisfy the §8 acceptance bar yet</strong> because a bridge restart can leave BlueZ wedged with no
+self-heal.</p>
+<h3 id="phase-2-scope-the-bridge-restart-wedge">Phase 2 scope (the bridge-restart wedge)<a class="headerlink" href="#phase-2-scope-the-bridge-restart-wedge" title="Permanent link">&para;</a></h3>
+<p>The bridge must self-heal from a <code>Timeout waiting for reply</code> / <code>org.bluez.Error.InProgress</code> wedge
+rather than depending on a manual <code>bluetoothd</code> restart:
+- <strong>Runtime self-heal (preferred):</strong> on a connect that fails with the wedge signature, cancel the
+  stuck pending connection (<code>peripheral.disconnect()</code> / BlueZ <code>Device.Disconnect</code>) before retrying;
+  the active-scan retry should then complete. Phase 0 saw a one-shot cancel re-wedge <em>without</em> the
+  active-scan fix — re-test now that the active scan is in place.
+- <strong>Startup hygiene:</strong> on bridge start, cancel/clear any stale pending connection for the selected
+  printer before the first connect, so a restart never inherits a wedged Device1.
+- <strong>Operational stopgap:</strong> have <code>deploy-to-pi.sh</code> (and/or the systemd unit ordering) restart
+  <code>bluetooth.service</code> alongside the bridge so deploys don't leave a wedge. Cheap; does not fix
+  watchdog-triggered restarts, so it is a stopgap, not the fix.
+- Investigate the <strong>shutdown path</strong>: the old bridge wedging BlueZ when killed mid-connect (printer
+  offline) is the trigger; a clean cancel-on-shutdown would prevent creating the wedge at all
+  (relates to the existing <code>TimeoutStopSec=12</code> note).</p>
+<h3 id="acceptance-status">Acceptance status<a class="headerlink" href="#acceptance-status" title="Permanent link">&para;</a></h3>
+<p>§8 bar (5 consecutive printer power-cycles, zero manual intervention): <strong>not yet met</strong> — blocked by
+the bridge-restart wedge. Clean-state printer power-cycle recovery: <strong>1/5 observed, passing.</strong></p>
 
 
 
