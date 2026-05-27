@@ -75,12 +75,12 @@ async fn connect_internal(
         }
     };
 
-    // Keep an ACTIVE scan running across both discovery and the connect/status handshake. On
-    // BlueZ + the Pi Zero 2 W controller, background auto-connect to a bonded peripheral stalls
-    // ("connection In Progress" that never issues an HCI connect and never completes); a live
-    // active scan lets the controller complete the connection. Stopping the scan before connecting
-    // (the previous behaviour) drops the bridge onto that stalling background path. See
-    // `docs/plans/031` Phase 0.
+    // Use an active scan ONLY to confirm the printer is present/advertising, then stop it before
+    // connecting. On the Pi Zero 2 W controller an active scan running *during* the connect makes
+    // the radio time-slice between scanning and connecting, stretching connection establishment to
+    // ~11 s; with the scan stopped a direct connect to the matched peripheral completes in ~0.3 s
+    // (measured). The scan is still needed up front so we never try to connect to an absent printer
+    // (which wedges BlueZ). See `docs/plans/031` Phase 1.
     if let Err(err) = transport::start_scan(&adapter).await {
         emit_connect_progress(progress, ConnectStage::Failed, Some(err.to_string()));
         return Err(err);
@@ -107,6 +107,10 @@ async fn connect_internal(
         emit_connect_progress(progress, ConnectStage::ScanFinished, None::<String>);
 
         emit_connect_progress(progress, ConnectStage::DeviceMatched, Some(name.clone()));
+
+        // Stop scanning before connecting so the connect does not contend with the scan for the
+        // radio (~11 s with the scan running vs ~0.3 s without). The target is already matched.
+        let _ = transport::stop_scan(&adapter).await;
 
         let transport = BleTransport::connect_with_progress(peripheral, progress).await?;
         let device =
