@@ -2476,6 +2476,132 @@ async def test_successful_status_resets_auto_rebond_counters() -> None:
     assert _auto_rebond_key(printer) not in ui._last_auto_rebond_at
 
 
+@pytest.mark.asyncio
+async def test_proactive_bond_reset_on_drop_when_disconnected() -> None:
+    """A dropped link with Connected=no proactively resets the bond (docs/plans/031)."""
+
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    pairer.link_is_connected = False  # link is actually down
+    status_provider = _FakeStatusProvider()
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    await ui._maybe_reset_bond_on_drop(printer)
+
+    # It used the proactive primitive (not the reactive remove_bluez_bond directly) and removed.
+    assert pairer.reset_bond_calls == [printer]
+    assert pairer.removed_bonds == [printer]
+    # Selection is preserved; this is a fresh-pair reset, not a forget.
+    assert not pairer.forgot
+    assert await pairer.list_paired() == [printer]
+
+
+@pytest.mark.asyncio
+async def test_proactive_bond_reset_skips_when_still_connected() -> None:
+    """Never reset the bond mid-session: a live link must not be torn down (docs/plans/031)."""
+
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    pairer.link_is_connected = True  # link is still up
+    status_provider = _FakeStatusProvider()
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    await ui._maybe_reset_bond_on_drop(printer)
+
+    # The gate is consulted but no bond is removed while connected.
+    assert pairer.reset_bond_calls == [printer]
+    assert pairer.removed_bonds == []
+
+
+@pytest.mark.asyncio
+async def test_proactive_bond_reset_guard_prevents_overlap() -> None:
+    """A reset already in flight is not duplicated by a concurrent drop edge (docs/plans/031)."""
+
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    pairer.link_is_connected = False
+    status_provider = _FakeStatusProvider()
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    # Simulate an in-flight reset task; the guard must short-circuit a new attempt.
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _blocking_reset() -> None:
+        started.set()
+        await release.wait()
+
+    ui._proactive_bond_reset_task = asyncio.create_task(_blocking_reset())
+    await started.wait()
+
+    await ui._maybe_reset_bond_on_drop(printer)
+    assert pairer.reset_bond_calls == []
+
+    release.set()
+    await ui._proactive_bond_reset_task
+
+
+@pytest.mark.asyncio
+async def test_poll_loop_resets_bond_only_on_connected_to_failed_edge() -> None:
+    """The poll loop fires the reset on the online->offline edge, not on a steady-failed state."""
+
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    pairer.link_is_connected = False
+    status_provider = _FakeStatusProvider(error=_not_found_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    # Steady-failed (was offline -> still offline): no edge, no reset.
+    ui._printer_was_online = False
+    online = await ui._refresh_printer_status_in_background(printer)
+    if ui._printer_was_online and not online:
+        await ui._maybe_reset_bond_on_drop(printer)
+    ui._printer_was_online = online
+    assert pairer.reset_bond_calls == []
+
+    # Connected -> failed edge: the link just dropped, so the bond is reset.
+    ui._printer_was_online = True
+    online = await ui._refresh_printer_status_in_background(printer)
+    if ui._printer_was_online and not online:
+        await ui._maybe_reset_bond_on_drop(printer)
+    ui._printer_was_online = online
+    assert pairer.reset_bond_calls == [printer]
+    assert pairer.removed_bonds == [printer]
+
+
+@pytest.mark.asyncio
+async def test_proactive_bond_reset_unsupported_pairer_is_noop() -> None:
+    """A pairer without reset_bond_if_disconnected is a safe no-op (dormant auto_rebond stays)."""
+
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _LegacyPairer([printer])
+    status_provider = _FakeStatusProvider()
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    await ui._maybe_reset_bond_on_drop(printer)
+
+    assert ui._proactive_bond_reset_task is None
+
+
+class _LegacyPairer:
+    """A pairer predating the proactive reset primitive (docs/plans/031)."""
+
+    def __init__(self, printers: list[PairedPrinter]) -> None:
+        self._printers = printers
+
+    async def list_paired(self) -> list[PairedPrinter]:
+        return self._printers
+
+    async def pair_first_available(self) -> PairedPrinter:
+        return self._printers[0]
+
+    def save_selected(self, printer: PairedPrinter) -> None:
+        return
+
+    async def forget_selected(self) -> None:
+        return
+
+
 class _FakeDisplay:
     def __init__(self) -> None:
         self.snapshots: list[UiSnapshot] = []
@@ -2543,7 +2669,10 @@ class _FakePairer:
         self.saved_selected: PairedPrinter | None = None
         self.removed_bonds: list[PairedPrinter] = []
         self.disconnected_links: list[PairedPrinter] = []
-        # When True, disconnect_bluez_link reports it dropped a connected link (the deadlock case).
+        # Proactive bond reset attempts (docs/plans/031); the recorded bool is whether it removed.
+        self.reset_bond_calls: list[PairedPrinter] = []
+        # When True, disconnect_bluez_link reports it dropped a connected link (the deadlock case)
+        # and reset_bond_if_disconnected skips removal (a live link must never be reset).
         self.link_is_connected = True
 
     async def list_paired(self) -> list[PairedPrinter]:
@@ -2567,6 +2696,14 @@ class _FakePairer:
 
     async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
         self.removed_bonds.append(printer)
+
+    async def reset_bond_if_disconnected(self, printer: PairedPrinter) -> bool:
+        self.reset_bond_calls.append(printer)
+        # Mirror the real pairer: only remove the bond when the link is actually down.
+        if self.link_is_connected:
+            return False
+        self.removed_bonds.append(printer)
+        return True
 
     async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
         self.disconnected_links.append(printer)

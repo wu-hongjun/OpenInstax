@@ -226,6 +226,10 @@ class BridgeUi:
         self._auto_rebond_task: asyncio.Task[None] | None = None
         self._last_silent_link_recovery_at: dict[str, float] = {}
         self._silent_link_recovery_task: asyncio.Task[None] | None = None
+        # Proactive always-fresh-pair (docs/plans/031): when the link drops we remove the BlueZ
+        # bond (only while Connected=no) so the immediate reconnect pairs fresh. One task guard
+        # prevents overlapping removals.
+        self._proactive_bond_reset_task: asyncio.Task[None] | None = None
         self._last_printer_status_warning_at = -math.inf
         self._last_printer_status_warning_signature: tuple[str, ...] | None = None
         # Monotonic timestamp of the last successful printer status. Readiness ("Ready to print")
@@ -299,6 +303,7 @@ class BridgeUi:
             self._image_reset_task,
             self._auto_rebond_task,
             self._silent_link_recovery_task,
+            self._proactive_bond_reset_task,
         ):
             if task is not None:
                 task.cancel()
@@ -1745,7 +1750,20 @@ class BridgeUi:
                     return
                 self._show_printer_searching_if_retrying(printer, "Searching for printer")
                 attempt_start = self._monotonic()
+                was_online = self._printer_was_online
                 online = await self._refresh_printer_status_in_background(printer, generation)
+                # Proactive always-fresh-pair (docs/plans/031): the connected->failed edge is the
+                # moment the link is known down (the fetch above closed any cached FFI session on
+                # failure). The Instax wipes its own pairing on power-off, so the persisted BlueZ
+                # bond is guaranteed stale now; remove it BEFORE the imminent reconnect so that
+                # reconnect pairs fresh via the NoInputNoOutput agent instead of failing an
+                # encrypted write with a stale LTK. Awaited here (not fire-and-forget) so the bond
+                # is gone before this loop re-enters fetch — the just-dropped retry delay is 0.0.
+                # The reset itself is gated on Connected=no inside the pairer, so a still-live link
+                # is never torn down (that wedges the printer). dormant auto_rebond stays as a
+                # safety net for the rare stale bond that survives this path.
+                if was_online and not online:
+                    await self._maybe_reset_bond_on_drop(printer)
                 # The retry delay is the total cadence PERIOD (e.g. the configured search interval),
                 # measured from the start of each attempt. Subtract the time the attempt already
                 # consumed (its scan/connect) so the period holds whether the scan exited early on a
@@ -1946,6 +1964,60 @@ class BridgeUi:
         # Force a fresh status cycle so the next connect re-bonds via the pairing agent. The poll
         # loop is left running; bumping the generation just resets pacing/backoff state.
         await self._schedule_printer_status_refresh()
+
+    async def _maybe_reset_bond_on_drop(self, printer: PairedPrinter) -> None:
+        """Proactively remove the BlueZ bond when the link just dropped (docs/plans/031).
+
+        Called on the connected->failed edge from the poll loop, where the link is known down. The
+        pairer's ``reset_bond_if_disconnected`` re-checks ``Connected=no`` and only removes the bond
+        then, so a still-live link is never torn down (which would wedge the printer). A single task
+        guard prevents overlapping removals if the edge somehow recurs before the first completes.
+        Awaited by the caller so the bond is gone before the immediate reconnect attempt, making
+        that attempt pair fresh rather than re-using a stale LTK.
+        """
+
+        reset_bond = getattr(self._pairer, "reset_bond_if_disconnected", None)
+        if reset_bond is None:
+            return
+        task = self._proactive_bond_reset_task
+        if task is not None and not task.done():
+            return
+        self._proactive_bond_reset_task = asyncio.create_task(
+            self._run_proactive_bond_reset(printer)
+        )
+        with suppress(asyncio.CancelledError):
+            await self._proactive_bond_reset_task
+
+    async def _run_proactive_bond_reset(self, printer: PairedPrinter) -> None:
+        """Remove the bond for ``printer`` only while it is disconnected; keep the selection."""
+
+        reset_bond = getattr(self._pairer, "reset_bond_if_disconnected", None)
+        if reset_bond is None:
+            return
+        try:
+            removed = await reset_bond(printer)
+        except asyncio.CancelledError:
+            raise
+        except PrinterPairingError as exc:
+            # A bluetoothctl timeout/transient error: we couldn't confirm the link is down, so we
+            # conservatively skipped removal (the dormant auto_rebond remains the fallback). This is
+            # routine on a busy Pi, so log without a traceback to avoid alarming journal noise.
+            LOGGER.warning(
+                "instantlink.proactive_bond_reset_skipped address=%s reason=%s",
+                printer.address,
+                exc,
+            )
+            return
+        except Exception:
+            LOGGER.exception("instantlink.proactive_bond_reset_failed address=%s", printer.address)
+            return
+        if removed:
+            LOGGER.warning(
+                "instantlink.proactive_bond_reset done=remove_bond address=%s reason=link_dropped",
+                printer.address,
+            )
+        # Selection is preserved; the persisted bond reset clears any stale LTK so the next connect
+        # (the immediate re-search on a dropped printer) pairs fresh via the pairing agent.
 
     def _maybe_recover_silent_link(
         self,

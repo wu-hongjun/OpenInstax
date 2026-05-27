@@ -49,6 +49,14 @@ class PrinterPairer(Protocol):
     async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
         """Remove only the BlueZ bond/cache for a printer, keeping it selected."""
 
+    async def reset_bond_if_disconnected(self, printer: PairedPrinter) -> bool:
+        """Proactively remove the bond only when the printer is not connected.
+
+        Returns true when a bond was removed; false when the link is still up (so removal was
+        skipped to avoid wedging the printer). See docs/plans/031 for why removal is gated on
+        ``Connected=no``.
+        """
+
     async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
         """Drop any connected-but-silent BlueZ link for a printer so it re-advertises."""
 
@@ -220,6 +228,31 @@ class BluetoothctlPrinterPairer:
             printer.name,
         )
         await self._remove_selected_bluez_devices(printer)
+
+    async def reset_bond_if_disconnected(self, printer: PairedPrinter) -> bool:
+        """Remove the bond only when ``printer`` is not connected; keep it selected.
+
+        Proactive always-fresh-pair (docs/plans/031): the Instax wipes its own pairing on every
+        power-off, so the Pi's persisted bond is guaranteed stale after a power-cycle. Removing it
+        the moment the link drops means the next connect pairs fresh via the ``NoInputNoOutput``
+        agent instead of failing an encrypted write with a stale LTK and rebonding reactively. The
+        removal is gated on ``Connected=no`` because removing a live bond wedges the printer.
+        """
+
+        if await _identity_has_connected_link(printer):
+            LOGGER.info(
+                "bluetooth.reset_bond skipped=connected address=%s name=%s",
+                printer.address,
+                printer.name,
+            )
+            return False
+        LOGGER.info(
+            "bluetooth.reset_bond address=%s name=%s",
+            printer.address,
+            printer.name,
+        )
+        await self._remove_selected_bluez_devices(printer)
+        return True
 
     async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
         """Drop any connected-but-silent BlueZ link for ``printer`` so it re-advertises."""
@@ -396,6 +429,31 @@ class InstantLinkPrinterSelector:
         await _remove_bluez_devices_for_identity(printer)
         await self._backend.disconnect()
 
+    async def reset_bond_if_disconnected(self, printer: PairedPrinter) -> bool:
+        """Remove the bond only when ``printer`` is not connected; keep it selected.
+
+        Proactive always-fresh-pair (docs/plans/031): see ``BluetoothctlPrinterPairer`` for the
+        rationale. The removal is gated on ``Connected=no`` so a live link is never torn down from
+        under itself (that wedges the printer). The cached InstantLink session is dropped only when
+        a bond was actually removed so the next connect re-pairs fresh.
+        """
+
+        if await _identity_has_connected_link(printer):
+            LOGGER.info(
+                "instantlink.reset_bond skipped=connected address=%s name=%s",
+                printer.address,
+                printer.name,
+            )
+            return False
+        LOGGER.info(
+            "instantlink.reset_bond address=%s name=%s",
+            printer.address,
+            printer.name,
+        )
+        await _remove_bluez_devices_for_identity(printer)
+        await self._backend.disconnect()
+        return True
+
     async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
         """Drop any connected-but-silent BlueZ link for ``printer`` so it re-advertises.
 
@@ -496,6 +554,26 @@ async def _disconnect_bluez_link_for_identity(selected: PairedPrinter) -> bool:
         await _run_bluetoothctl("disconnect", address, check=False)
         disconnected = True
     return disconnected
+
+
+async def _identity_has_connected_link(selected: PairedPrinter) -> bool:
+    """Return true when any BlueZ device matching the identity reports ``Connected=yes``.
+
+    Used to gate the proactive bond reset (docs/plans/031): the bond must only be removed when the
+    link is down. Removing a bond while a link is live leaves the printer holding a half-open
+    "ghost" link and stops it advertising. Reuses the same ``Connected`` probe as
+    ``_disconnect_bluez_link_for_identity``.
+    """
+
+    addresses = await _bluez_addresses_for_identity(selected, include_selected_address=True)
+    for address in addresses:
+        # Short timeout: this gate runs on the drop edge, just before the immediate reconnect, so a
+        # momentarily-busy BlueZ must not stall it (a timeout raises and the caller skips removal,
+        # falling back to the dormant auto_rebond). bluetoothctl info normally returns sub-second.
+        info_result = await _run_bluetoothctl("info", address, check=False, timeout_seconds=4)
+        if _info_bool(parse_device_info(info_result.output), "Connected"):
+            return True
+    return False
 
 
 def _matches_selected_identity(selected: PairedPrinter, candidate: PairedPrinter) -> bool:
