@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "instantlink-bridge"
-version = "0.1.0"
+version = "0.1.1"
 description = "Camera FTP appliance for InstantLink printers"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
