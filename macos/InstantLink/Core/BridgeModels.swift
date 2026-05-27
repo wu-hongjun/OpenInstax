@@ -289,6 +289,9 @@ struct BridgePrinterStatus: Codable, Equatable {
     var model: String?
     var filmRemaining: Int?
     var batteryPercent: Int?
+    var charging: Bool?
+    var batteryMinutesRemaining: Int?
+    var printStatus: String?
     var connected: Bool
     var busy: Bool
     var lastError: BridgeErrorPayload?
@@ -298,9 +301,51 @@ struct BridgePrinterStatus: Codable, Equatable {
         case model
         case filmRemaining = "film_remaining"
         case batteryPercent = "battery_percent"
+        case charging
+        case batteryMinutesRemaining = "battery_minutes_remaining"
+        case printStatus = "print_status"
         case connected
         case busy
         case lastError = "last_error"
+    }
+
+    init(
+        displayName: String? = nil,
+        model: String? = nil,
+        filmRemaining: Int? = nil,
+        batteryPercent: Int? = nil,
+        charging: Bool? = nil,
+        batteryMinutesRemaining: Int? = nil,
+        printStatus: String? = nil,
+        connected: Bool = false,
+        busy: Bool = false,
+        lastError: BridgeErrorPayload? = nil
+    ) {
+        self.displayName = displayName
+        self.model = model
+        self.filmRemaining = filmRemaining
+        self.batteryPercent = batteryPercent
+        self.charging = charging
+        self.batteryMinutesRemaining = batteryMinutesRemaining
+        self.printStatus = printStatus
+        self.connected = connected
+        self.busy = busy
+        self.lastError = lastError
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.filmRemaining = try container.decodeIfPresent(Int.self, forKey: .filmRemaining)
+        self.batteryPercent = try container.decodeIfPresent(Int.self, forKey: .batteryPercent)
+        self.charging = try container.decodeIfPresent(Bool.self, forKey: .charging)
+        self.batteryMinutesRemaining = try container.decodeIfPresent(
+            Int.self, forKey: .batteryMinutesRemaining)
+        self.printStatus = try container.decodeIfPresent(String.self, forKey: .printStatus)
+        self.connected = try container.decodeIfPresent(Bool.self, forKey: .connected) ?? false
+        self.busy = try container.decodeIfPresent(Bool.self, forKey: .busy) ?? false
+        self.lastError = try container.decodeIfPresent(BridgeErrorPayload.self, forKey: .lastError)
     }
 }
 

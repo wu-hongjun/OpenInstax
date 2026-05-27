@@ -154,6 +154,12 @@ def collect_http_status_payload(
                 "model": config.printer.model.value if config.printer.model is not None else None,
                 "film_remaining": None,
                 "battery_percent": None,
+                # Charge state, print/connection status, and the smoothed battery-life estimate.
+                # The management API surfaces them from live status when available; defaults are
+                # None/False so older clients and the no-live-status path stay backward-compatible.
+                "charging": None,
+                "battery_minutes_remaining": None,
+                "print_status": None,
                 "connected": False,
                 "busy": False,
                 "last_error": None,

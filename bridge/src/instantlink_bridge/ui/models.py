@@ -84,6 +84,7 @@ class UiSnapshot:
     film_capacity: int = 10
     printer_battery: int | None = None
     printer_is_charging: bool | None = None
+    printer_battery_minutes_remaining: int | None = None
     printer_model: PrinterModel | None = None
     printer_status_message: str | None = None
     bridge_battery_percent: int | None = None

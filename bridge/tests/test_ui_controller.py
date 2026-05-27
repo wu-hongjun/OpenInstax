@@ -26,6 +26,7 @@ from instantlink_bridge.net.health import (
     FtpActivity,
     build_connection_health,
 )
+from instantlink_bridge.power.battery_estimator import BatteryLifeEstimator
 from instantlink_bridge.power.monitor import (
     BatteryAlert,
     IdleStage,
@@ -840,6 +841,92 @@ def test_printer_status_with_unknown_film_shows_validation_not_searching() -> No
 
     assert display.snapshots[-1].mode is UiMode.VALIDATION
     assert display.snapshots[-1].printer_status_message == "Checking film"
+
+
+@pytest.mark.asyncio
+async def test_status_poll_feeds_battery_estimator_and_publishes_estimate() -> None:
+    # A successful status sample must drive the battery estimator and surface a smoothed
+    # minutes-remaining value on the rendered snapshot once enough samples accumulate.
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    clock = {"now": 0.0}
+    snapshots = iter(
+        [
+            PrinterStatusSnapshot(
+                film_remaining=8,
+                battery=battery,
+                is_charging=False,
+                model=PrinterModel.SQUARE,
+            )
+            # 60% draining ~10%/hour over six 5-minute ticks.
+            for battery in (60, 59, 59, 58, 57, 57)
+        ]
+    )
+
+    class _DrainProvider:
+        def __init__(self) -> None:
+            self.fetch_calls = 0
+
+        async def fetch(self, _printer: PairedPrinter) -> PrinterStatusSnapshot:
+            self.fetch_calls += 1
+            return next(snapshots)
+
+        async def close(self) -> None:
+            return None
+
+    provider = _DrainProvider()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=_FakeDisplay(),
+        input_device=NullInput(),
+        pairer=_FakePairer([printer]),
+        status_provider=provider,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._battery_estimator = BatteryLifeEstimator(
+        clock=lambda: clock["now"],
+        min_samples=3,
+        min_window_s=120.0,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_SEARCHING, paired_printer=printer)
+
+    for _ in range(6):
+        assert await ui._refresh_printer_status_in_background(printer)
+        clock["now"] += 300.0
+
+    assert provider.fetch_calls == 6
+    assert ui._snapshot.printer_battery == 57
+    assert ui._snapshot.printer_is_charging is False
+    minutes = ui._snapshot.printer_battery_minutes_remaining
+    assert minutes is not None
+    # ~57% / ~10%/h ~= 5.7h ~= 340 min; allow wide slack for fit + smoothing.
+    assert 200 <= minutes <= 600
+
+
+@pytest.mark.asyncio
+async def test_status_poll_reports_no_estimate_while_charging() -> None:
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    status_provider = _FakeStatusProvider(
+        snapshot=PrinterStatusSnapshot(
+            film_remaining=8,
+            battery=40,
+            is_charging=True,
+            model=PrinterModel.SQUARE,
+        )
+    )
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=_FakeDisplay(),
+        input_device=NullInput(),
+        pairer=_FakePairer([printer]),
+        status_provider=status_provider,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_SEARCHING, paired_printer=printer)
+
+    assert await ui._refresh_printer_status_in_background(printer)
+
+    assert ui._snapshot.printer_is_charging is True
+    assert ui._snapshot.printer_battery_minutes_remaining is None
 
 
 @pytest.mark.asyncio

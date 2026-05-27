@@ -122,6 +122,38 @@ def test_manager_cli_status_json_omits_credentials(
     assert "password" not in output
 
 
+def test_http_status_payload_printer_carries_battery_charge_and_estimate_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The macOS management contract expects the printer object to expose battery percent, charge
+    # state, the battery-life estimate, and a print status field. They default to None/False but
+    # must always be present so the Swift BridgePrinterStatus decoder finds the keys.
+    monkeypatch.setattr(manager_status, "read_system_info", fake_system_info)
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        "\n".join(
+            (
+                "[printer]",
+                'device_name = "INSTAX-1N034655"',
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    payload = manager_status.collect_http_status_payload(config_path)
+    printer = payload["status"]["printer"]
+
+    assert printer["battery_percent"] is None
+    assert printer["film_remaining"] is None
+    assert printer["charging"] is None
+    assert printer["battery_minutes_remaining"] is None
+    assert printer["print_status"] is None
+    assert printer["connected"] is False
+    assert printer["busy"] is False
+
+
 def test_manager_cli_api_routes_describes_auth_boundaries(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

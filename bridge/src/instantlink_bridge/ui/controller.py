@@ -36,6 +36,11 @@ from instantlink_bridge.net.health import (
     FtpActivityTracker,
     detect_camera_link_health,
 )
+from instantlink_bridge.power.battery_estimator import (
+    BatteryEstimate,
+    BatteryEstimateState,
+    BatteryLifeEstimator,
+)
 from instantlink_bridge.power.monitor import BatteryAlert, IdleStage, PowerEvent, PowerEventKind
 from instantlink_bridge.power.pisugar import BatteryState
 from instantlink_bridge.printing import PrintProgress
@@ -201,6 +206,8 @@ class BridgeUi:
         self._bridge_external_power: bool | None = None
         self._idle_stage = IdleStage.ACTIVE
         self._printer_keepalive_interval_s = config.printer.keepalive_interval_s
+        self._battery_estimator = BatteryLifeEstimator()
+        self._battery_minutes_remaining: int | None = None
         self._printer_status_misses = 0
         self._auto_rebond_signature_streak = 0
         self._last_auto_rebond_at: dict[str, float] = {}
@@ -1677,6 +1684,7 @@ class BridgeUi:
             film_capacity=film_capacity,
             printer_battery=printer_battery,
             printer_is_charging=printer_is_charging,
+            printer_battery_minutes_remaining=self._battery_minutes_remaining,
             printer_model=printer_model,
             printer_status_message=printer_status_message,
             bridge_battery_percent=self._bridge_battery_percent,
@@ -1786,17 +1794,42 @@ class BridgeUi:
         self._auto_rebond_signature_streak = 0
         self._last_auto_rebond_at.pop(_auto_rebond_key(printer), None)
         self._clear_printer_status_warning_state()
+        estimate = self._feed_battery_estimator(status)
         LOGGER.info(
             "ui.printer_status film_remaining=%s battery=%s charging=%s model=%s "
-            "keepalive_interval_s=%s",
+            "battery_minutes_remaining=%s keepalive_interval_s=%s",
             status.film_remaining,
             status.battery,
             status.is_charging,
             status.model.value if status.model is not None else "unknown",
+            estimate.minutes_remaining if estimate is not None else None,
             self._printer_keepalive_interval_s,
         )
         self._apply_printer_status(printer, status)
         return True
+
+    def _feed_battery_estimator(
+        self,
+        status: PrinterStatusSnapshot,
+    ) -> BatteryEstimate | None:
+        """Sample the battery estimator from a successful status and cache the estimate.
+
+        Returns ``None`` when the status carries no battery reading (nothing to sample); otherwise
+        updates ``self._battery_minutes_remaining`` for the next snapshot. While charging the
+        estimator reports no drain estimate and resets its discharge history internally.
+        """
+
+        if status.battery is None or status.is_charging is None:
+            return None
+        estimate = self._battery_estimator.add_sample(
+            status.battery,
+            is_charging=status.is_charging,
+        )
+        if estimate.state is BatteryEstimateState.DISCHARGING:
+            self._battery_minutes_remaining = estimate.minutes_remaining
+        else:
+            self._battery_minutes_remaining = None
+        return estimate
 
     def _printer_status_retry_delay(self, online: bool) -> float:
         if online:
@@ -1927,6 +1960,7 @@ class BridgeUi:
             film_remaining=status.film_remaining,
             printer_battery=status.battery,
             printer_is_charging=status.is_charging,
+            printer_battery_minutes_remaining=self._battery_minutes_remaining,
             printer_model=printer_model,
             printer_status_message=status.message,
             allow_print_without_film=self._config.workflow.allow_print_without_film,
@@ -2089,6 +2123,10 @@ class BridgeUi:
             task.cancel()
 
     async def _close_cached_printer_session(self) -> None:
+        # A dropped/closed BLE session means the next status is a fresh connect; discard the drain
+        # history so a stale pre-disconnect trend cannot pollute the next estimate.
+        self._battery_estimator.reset()
+        self._battery_minutes_remaining = None
         close_cached_session = getattr(self._status_provider, "close_cached_session", None)
         if close_cached_session is None:
             return

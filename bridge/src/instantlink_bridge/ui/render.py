@@ -686,9 +686,35 @@ def printer_detail_text(snapshot: UiSnapshot) -> str | None:
     """Return a compact second printer status line."""
 
     if snapshot.printer_battery is not None:
-        suffix = " charging" if snapshot.printer_is_charging else ""
-        return f"Printer battery: {snapshot.printer_battery}%{suffix}"
+        return f"Printer battery: {snapshot.printer_battery}%{battery_life_suffix(snapshot)}"
     return snapshot.printer_status_message
+
+
+def battery_life_suffix(snapshot: UiSnapshot) -> str:
+    """Return the charge-state / battery-life clause appended after a battery percentage.
+
+    Shows ``charging`` while on charge, the smoothed time-remaining estimate while discharging,
+    or an empty string when no estimate is available yet.
+    """
+
+    if snapshot.printer_is_charging:
+        return " charging"
+    minutes = snapshot.printer_battery_minutes_remaining
+    if minutes is None:
+        return ""
+    return f"  {format_battery_life(minutes)} left"
+
+
+def format_battery_life(minutes: int) -> str:
+    """Format a minutes-remaining estimate as a compact ``Hh Mm`` / ``Mm`` string."""
+
+    minutes = max(0, minutes)
+    hours, mins = divmod(minutes, 60)
+    if hours and mins:
+        return f"{hours}h {mins}m"
+    if hours:
+        return f"{hours}h"
+    return f"{mins}m"
 
 
 def printer_compact_status_text(snapshot: UiSnapshot) -> str:
@@ -696,7 +722,10 @@ def printer_compact_status_text(snapshot: UiSnapshot) -> str:
 
     if snapshot.printer_battery is None:
         return film_status_text(snapshot)
-    return f"{film_status_text(snapshot)}  Printer battery: {snapshot.printer_battery}%"
+    return (
+        f"{film_status_text(snapshot)}  Printer battery: "
+        f"{snapshot.printer_battery}%{battery_life_suffix(snapshot)}"
+    )
 
 
 def top_bar_status_text(snapshot: UiSnapshot) -> str | None:
@@ -765,8 +794,23 @@ def printer_top_status_text(snapshot: UiSnapshot) -> str:
     if snapshot.film_remaining <= 0 and snapshot.allow_print_without_film:
         film = f"{film} test"
     if snapshot.printer_battery is not None:
-        return f"{film} {snapshot.printer_battery}%"
+        return f"{film} {snapshot.printer_battery}%{top_bar_battery_state_text(snapshot)}"
     return film
+
+
+def top_bar_battery_state_text(snapshot: UiSnapshot) -> str:
+    """Return a tiny charge-state marker for the top-bar battery percentage.
+
+    A ``+`` flags charging; a discharging estimate is shown compactly when known. Kept short so it
+    fits the title bar alongside the film/battery chip without crowding the 240x240 layout.
+    """
+
+    if snapshot.printer_is_charging:
+        return "+"
+    minutes = snapshot.printer_battery_minutes_remaining
+    if minutes is None:
+        return ""
+    return f" {format_battery_life(minutes)}"
 
 
 def _preview_top_status_text(snapshot: UiSnapshot) -> str:

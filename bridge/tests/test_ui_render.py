@@ -215,6 +215,71 @@ def test_printer_detail_text_prefers_battery_when_available() -> None:
     assert printer_detail_text(snapshot) == "Printer battery: 81% charging"
 
 
+def test_printer_detail_text_shows_battery_life_estimate_when_discharging() -> None:
+    snapshot = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+        printer_battery=60,
+        printer_is_charging=False,
+        printer_battery_minutes_remaining=125,
+    )
+
+    assert printer_detail_text(snapshot) == "Printer battery: 60%  2h 5m left"
+
+
+def test_printer_detail_text_omits_estimate_when_unknown() -> None:
+    snapshot = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+        printer_battery=60,
+        printer_is_charging=False,
+        printer_battery_minutes_remaining=None,
+    )
+
+    assert printer_detail_text(snapshot) == "Printer battery: 60%"
+
+
+def test_printer_detail_text_charging_takes_priority_over_estimate() -> None:
+    snapshot = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+        printer_battery=60,
+        printer_is_charging=True,
+        printer_battery_minutes_remaining=125,
+    )
+
+    assert printer_detail_text(snapshot) == "Printer battery: 60% charging"
+
+
+def test_top_bar_status_shows_charge_marker_and_estimate() -> None:
+    charging = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+        camera_receive_ready=True,
+        camera_transport_message="Bridge FTP 192.168.8.1",
+        paired_printer=PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678"),
+        printer_model=PrinterModel.SQUARE,
+        film_remaining=8,
+        printer_battery=50,
+        printer_is_charging=True,
+    )
+    discharging = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+        camera_receive_ready=True,
+        camera_transport_message="Bridge FTP 192.168.8.1",
+        paired_printer=PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678"),
+        printer_model=PrinterModel.SQUARE,
+        film_remaining=8,
+        printer_battery=50,
+        printer_is_charging=False,
+        printer_battery_minutes_remaining=90,
+    )
+
+    assert top_bar_status_text(charging) == "Bridge Wi-Fi | Sq 8/10 50%+"
+    assert top_bar_status_text(discharging) == "Bridge Wi-Fi | Sq 8/10 50% 1h 30m"
+
+
 def test_printer_compact_status_text_includes_battery_when_available() -> None:
     snapshot = UiSnapshot(
         mode=UiMode.READY,
