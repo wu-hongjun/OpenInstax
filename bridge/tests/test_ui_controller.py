@@ -44,6 +44,7 @@ from instantlink_bridge.ui.controller import (
     OFFLINE_STATUS_RETRY_S,
     RENDER_TICK_S,
     RESTART_PRINTER_RETRY_S,
+    SILENT_LINK_RECOVERY_COOLDOWN_S,
     BridgeUi,
     _auto_rebond_key,
     _wifi_mode_for_ftp_receive_mode,
@@ -2222,6 +2223,26 @@ def _not_found_error(printer: PairedPrinter) -> PrinterStatusUnavailableError:
     )
 
 
+def _silent_link_not_found_error(printer: PairedPrinter) -> PrinterStatusUnavailableError:
+    """A not-found failure from the FFI advertisement scan (the silent-link deadlock case)."""
+
+    return PrinterStatusUnavailableError(
+        "printer is not advertising",
+        diagnostics=scanner_diagnostics(printer, []),
+        reason=PrinterStatusUnavailableReason.NOT_ADVERTISING,
+        status_message="Turn printer on",
+        printer_not_found=True,
+    )
+
+
+async def _drain_silent_link_recovery(ui: BridgeUi) -> None:
+    task = ui._silent_link_recovery_task
+    if task is not None:
+        await task
+    # The recovery schedules a fresh status poll; stop it so the test does not leak a task.
+    await ui._cancel_status_refresh()
+
+
 def _make_auto_rebond_ui(
     printer: PairedPrinter,
     pairer: _FakePairer,
@@ -2294,6 +2315,84 @@ async def test_auto_rebond_does_not_trigger_for_not_found_failures() -> None:
 
     assert ui._auto_rebond_task is None
     assert pairer.removed_bonds == []
+
+
+@pytest.mark.asyncio
+async def test_silent_link_recovery_disconnects_on_not_found() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_silent_link_not_found_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    # An FFI not-found failure drops the silent BlueZ link so the printer re-advertises.
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_silent_link_recovery(ui)
+
+    assert pairer.disconnected_links == [printer]
+    # It must not remove the bond (that is the stale-bond path, not this one).
+    assert pairer.removed_bonds == []
+
+
+@pytest.mark.asyncio
+async def test_silent_link_recovery_skips_non_not_found_failures() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    # A stale-bond signature is not a not-found failure: silent-link recovery must stay out of it.
+    status_provider = _FakeStatusProvider(error=_stale_bond_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert ui._silent_link_recovery_task is None
+    assert pairer.disconnected_links == []
+    await _drain_auto_rebond(ui)
+
+
+@pytest.mark.asyncio
+async def test_silent_link_recovery_no_op_when_no_connected_link() -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    # Printer is genuinely off: no connected link, so disconnect reports it did nothing.
+    pairer.link_is_connected = False
+    status_provider = _FakeStatusProvider(error=_silent_link_not_found_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    task = ui._silent_link_recovery_task
+    assert task is not None
+    await task
+
+    # The disconnect was attempted but found nothing connected; no status refresh is scheduled.
+    assert pairer.disconnected_links == [printer]
+    assert ui._status_task is None
+
+
+@pytest.mark.asyncio
+async def test_silent_link_recovery_cooldown_prevents_second_disconnect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    printer = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    pairer = _FakePairer([printer])
+    status_provider = _FakeStatusProvider(error=_silent_link_not_found_error(printer))
+    ui = _make_auto_rebond_ui(printer, pairer, status_provider)
+
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(ui, "_monotonic", lambda: clock["now"])
+
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_silent_link_recovery(ui)
+    assert pairer.disconnected_links == [printer]
+
+    # Within the cooldown window: a recurring not-found must not disconnect again.
+    clock["now"] = 1000.0 + SILENT_LINK_RECOVERY_COOLDOWN_S - 1.0
+    assert not await ui._refresh_printer_status_in_background(printer)
+    assert ui._silent_link_recovery_task is None or ui._silent_link_recovery_task.done()
+    assert pairer.disconnected_links == [printer]
+
+    # After the cooldown elapses, recovery is allowed again.
+    clock["now"] = 1000.0 + SILENT_LINK_RECOVERY_COOLDOWN_S + 1.0
+    assert not await ui._refresh_printer_status_in_background(printer)
+    await _drain_silent_link_recovery(ui)
+    assert pairer.disconnected_links == [printer, printer]
 
 
 @pytest.mark.asyncio
@@ -2432,6 +2531,9 @@ class _FakePairer:
         self.list_calls = 0
         self.saved_selected: PairedPrinter | None = None
         self.removed_bonds: list[PairedPrinter] = []
+        self.disconnected_links: list[PairedPrinter] = []
+        # When True, disconnect_bluez_link reports it dropped a connected link (the deadlock case).
+        self.link_is_connected = True
 
     async def list_paired(self) -> list[PairedPrinter]:
         self.list_calls += 1
@@ -2454,6 +2556,10 @@ class _FakePairer:
 
     async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
         self.removed_bonds.append(printer)
+
+    async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
+        self.disconnected_links.append(printer)
+        return self.link_is_connected
 
 
 class _FakeStatusProvider:

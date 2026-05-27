@@ -151,6 +151,7 @@ class PrinterStatusUnavailableError(RuntimeError):
         retry_after_s: float | None = None,
         status_message: str | None = None,
         stale_bond_suspected: bool = False,
+        printer_not_found: bool = False,
     ) -> None:
         super().__init__(message)
         self.diagnostics = diagnostics
@@ -162,6 +163,11 @@ class PrinterStatusUnavailableError(RuntimeError):
         # GATT stage but the first encrypted write failed. The UI controller uses this to drive
         # the auto-rebond recovery (remove BlueZ bond, keep selection, reconnect).
         self.stale_bond_suspected = stale_bond_suspected
+        # True when the FFI advertisement scan could not find the printer at all
+        # (InstantLinkPrinterNotFoundError). The controller uses this to recover the "BlueZ is
+        # holding a silent auto-reconnected link, so the printer is not advertising and the scan
+        # can't see it" deadlock by dropping that BlueZ link so the printer re-advertises.
+        self.printer_not_found = printer_not_found
 
     @property
     def stale_selected(self) -> bool:
@@ -503,6 +509,7 @@ class InstantLinkPrinterStatusProvider:
                 diagnostics=scanner_diagnostics(printer, ()),
                 reason=PrinterStatusUnavailableReason.NOT_ADVERTISING,
                 status_message="Turn printer on",
+                printer_not_found=True,
             ) from exc
         except InstantLinkMultiplePrintersError as exc:
             raise PrinterStatusUnavailableError(

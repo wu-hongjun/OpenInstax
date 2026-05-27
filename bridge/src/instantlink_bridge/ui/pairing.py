@@ -49,6 +49,9 @@ class PrinterPairer(Protocol):
     async def remove_bluez_bond(self, printer: PairedPrinter) -> None:
         """Remove only the BlueZ bond/cache for a printer, keeping it selected."""
 
+    async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
+        """Drop any connected-but-silent BlueZ link for a printer so it re-advertises."""
+
 
 class InstantLinkSelectionBackend(Protocol):
     """Subset of the InstantLink backend needed by the printer-selection UI."""
@@ -217,6 +220,11 @@ class BluetoothctlPrinterPairer:
             printer.name,
         )
         await self._remove_selected_bluez_devices(printer)
+
+    async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
+        """Drop any connected-but-silent BlueZ link for ``printer`` so it re-advertises."""
+
+        return await _disconnect_bluez_link_for_identity(printer)
 
     async def _scan_for_instax_devices(self) -> list[PairedPrinter]:
         """Scan in short passes and return as soon as an Instax printer is visible."""
@@ -388,6 +396,18 @@ class InstantLinkPrinterSelector:
         await _remove_bluez_devices_for_identity(printer)
         await self._backend.disconnect()
 
+    async def disconnect_bluez_link(self, printer: PairedPrinter) -> bool:
+        """Drop any connected-but-silent BlueZ link for ``printer`` so it re-advertises.
+
+        The cached InstantLink session is dropped first so the bridge is not holding the link it
+        is about to disconnect; the BlueZ link itself is the one BlueZ auto-reconnected.
+        """
+
+        disconnected = await _disconnect_bluez_link_for_identity(printer)
+        if disconnected:
+            await self._backend.disconnect()
+        return disconnected
+
 
 def parse_instax_devices(output: str) -> list[PairedPrinter]:
     """Parse bluetoothctl device output and keep Instax Link devices."""
@@ -449,6 +469,33 @@ async def _remove_bluez_devices_for_identity(selected: PairedPrinter) -> None:
             selected.name,
         )
         await _run_bluetoothctl("remove", address, check=False)
+
+
+async def _disconnect_bluez_link_for_identity(selected: PairedPrinter) -> bool:
+    """Drop any *connected* BlueZ link for the selected printer; keep the bond.
+
+    A power-cycled bonded printer is frequently auto-reconnected by BlueZ, which holds a silent
+    link: a connected peripheral stops advertising, so InstantLink's advertisement-based scan can
+    never find it and status connects loop on ``PrinterNotFound``. Disconnecting that link makes
+    the printer resume advertising so the next scan can adopt it. Bond/selection are untouched, so
+    the reconnect does not need to re-pair. Returns true only when a connected link was dropped;
+    when the printer is genuinely off no device shows ``Connected`` and this is a safe no-op.
+    """
+
+    addresses = await _bluez_addresses_for_identity(selected, include_selected_address=True)
+    disconnected = False
+    for address in addresses:
+        info_result = await _run_bluetoothctl("info", address, check=False)
+        if not _info_bool(parse_device_info(info_result.output), "Connected"):
+            continue
+        LOGGER.info(
+            "bluetooth.disconnect_silent_link address=%s selected_name=%s",
+            address,
+            selected.name,
+        )
+        await _run_bluetoothctl("disconnect", address, check=False)
+        disconnected = True
+    return disconnected
 
 
 def _matches_selected_identity(selected: PairedPrinter, candidate: PairedPrinter) -> bool:

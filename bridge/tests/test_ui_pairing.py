@@ -251,6 +251,94 @@ async def test_instantlink_remove_bluez_bond_keeps_selection(
 
 
 @pytest.mark.asyncio
+async def test_disconnect_bluez_link_drops_only_connected_link(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SelectedPrinterStore(tmp_path / "printer.json")
+    selected = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    store.save(selected)
+    backend = FakeInstantLinkBackend([])
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_bluetoothctl(
+        *args: str,
+        check: bool = True,
+        timeout_seconds: int = 10,
+    ) -> pairing._CommandResult:
+        _ = check, timeout_seconds
+        calls.append(args)
+        if args == ("devices",):
+            return pairing._CommandResult(
+                returncode=0,
+                output="\n".join(
+                    [
+                        "Device FA:AB:BC:51:CC:E2 INSTAX-1N034655(IOS)",
+                        "Device 88:B4:36:51:CC:E2 INSTAX-1N034655(ANDROID)",
+                    ]
+                ),
+            )
+        if args == ("info", "FA:AB:BC:51:CC:E2"):
+            return pairing._CommandResult(returncode=0, output="\tConnected: yes\n")
+        if args == ("info", "88:B4:36:51:CC:E2"):
+            return pairing._CommandResult(returncode=0, output="\tConnected: no\n")
+        return pairing._CommandResult(returncode=0, output="")
+
+    monkeypatch.setattr(pairing, "_run_bluetoothctl", fake_run_bluetoothctl)
+
+    disconnected = await InstantLinkPrinterSelector(
+        store=store, backend=backend
+    ).disconnect_bluez_link(selected)
+
+    # Only the connected link is dropped; the not-connected device is left alone; bond untouched.
+    assert disconnected is True
+    assert ("disconnect", "FA:AB:BC:51:CC:E2") in calls
+    assert ("disconnect", "88:B4:36:51:CC:E2") not in calls
+    assert all(args[0] != "remove" for args in calls)
+    assert store.load() == selected
+    assert backend.disconnect_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_disconnect_bluez_link_no_op_when_nothing_connected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = SelectedPrinterStore(tmp_path / "printer.json")
+    selected = PairedPrinter(address="INSTANTLINK:1N034655", name="INSTAX-1N034655")
+    store.save(selected)
+    backend = FakeInstantLinkBackend([])
+    calls: list[tuple[str, ...]] = []
+
+    async def fake_run_bluetoothctl(
+        *args: str,
+        check: bool = True,
+        timeout_seconds: int = 10,
+    ) -> pairing._CommandResult:
+        _ = check, timeout_seconds
+        calls.append(args)
+        if args == ("devices",):
+            return pairing._CommandResult(
+                returncode=0,
+                output="Device FA:AB:BC:51:CC:E2 INSTAX-1N034655(IOS)",
+            )
+        if args[0] == "info":
+            return pairing._CommandResult(returncode=0, output="\tConnected: no\n")
+        return pairing._CommandResult(returncode=0, output="")
+
+    monkeypatch.setattr(pairing, "_run_bluetoothctl", fake_run_bluetoothctl)
+
+    disconnected = await InstantLinkPrinterSelector(
+        store=store, backend=backend
+    ).disconnect_bluez_link(selected)
+
+    # Printer genuinely off: no connected link, so nothing is disconnected and the session is kept.
+    assert disconnected is False
+    assert all(args[0] != "disconnect" for args in calls)
+    assert backend.disconnect_calls == 0
+
+
+@pytest.mark.asyncio
 async def test_pairer_forget_selected_removes_matching_bluez_cache(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

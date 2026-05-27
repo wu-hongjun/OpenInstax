@@ -319,6 +319,25 @@ async def test_status_provider_does_not_flag_early_stage_failure_as_stale_bond()
 
 
 @pytest.mark.asyncio
+async def test_status_provider_flags_printer_not_found() -> None:
+    # A connect that cannot find the printer in the advertisement scan must set printer_not_found
+    # so the controller can recover the BlueZ silent-link deadlock by dropping the stale link.
+    library = _FakeInstantLinkConnectLibrary(
+        stages=[0, 1],
+        connect_rc=ERROR_PRINTER_NOT_FOUND,
+    )
+    backend = InstantLinkBackend()
+    backend._lib = cast(Any, library)
+    provider = InstantLinkPrinterStatusProvider(backend=backend)
+
+    with pytest.raises(PrinterStatusUnavailableError) as excinfo:
+        await provider.fetch(PairedPrinter(address="INSTANTLINK:X", name="INSTAX-1N034655"))
+
+    assert excinfo.value.printer_not_found is True
+    assert excinfo.value.stale_bond_suspected is False
+
+
+@pytest.mark.asyncio
 async def test_instantlink_status_failure_logs_are_rate_limited(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

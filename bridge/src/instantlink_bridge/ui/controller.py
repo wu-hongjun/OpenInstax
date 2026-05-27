@@ -107,6 +107,13 @@ OFFLINE_MESSAGE_AFTER_MISSES = 3
 #     signature will recur but we fall back to normal backoff instead of looping.
 AUTO_REBOND_SIGNATURE_THRESHOLD = 1
 AUTO_REBOND_COOLDOWN_S = 120.0
+# Silent-link recovery: when a bonded printer is power-cycled, BlueZ frequently auto-reconnects it
+# and holds a silent link. A connected peripheral stops advertising, so InstantLink's
+# advertisement-based scan can never find it and status connects loop on PrinterNotFound forever
+# ("Finding Printer" that never resolves). When a not-found failure coincides with such a link we
+# drop the BlueZ connection so the printer re-advertises and the next scan adopts it. The cooldown
+# bounds churn; a genuinely off printer holds no connected link, so the recovery is a safe no-op.
+SILENT_LINK_RECOVERY_COOLDOWN_S = 30.0
 # Interchangeable generic "searching" placeholders that the live retry tick may overwrite. Specific
 # diagnostics (e.g. "No printer signal", "Restart printer") are not listed here so they survive.
 _GENERIC_SEARCHING_MESSAGES = frozenset({"Looking for printer", "Searching for printer"})
@@ -218,6 +225,8 @@ class BridgeUi:
         self._auto_rebond_signature_streak = 0
         self._last_auto_rebond_at: dict[str, float] = {}
         self._auto_rebond_task: asyncio.Task[None] | None = None
+        self._last_silent_link_recovery_at: dict[str, float] = {}
+        self._silent_link_recovery_task: asyncio.Task[None] | None = None
         self._last_printer_status_warning_at = -math.inf
         self._last_printer_status_warning_signature: tuple[str, ...] | None = None
         # Monotonic timestamp of the last successful printer status. Readiness ("Ready to print")
@@ -290,6 +299,7 @@ class BridgeUi:
             self._ftp_mode_task,
             self._image_reset_task,
             self._auto_rebond_task,
+            self._silent_link_recovery_task,
         ):
             if task is not None:
                 task.cancel()
@@ -1761,6 +1771,7 @@ class BridgeUi:
                 )
             self._printer_status_misses += 1
             self._maybe_auto_rebond(printer, exc)
+            self._maybe_recover_silent_link(printer, exc)
             self._apply_status_failure(printer, self._unavailable_message(exc), generation)
             return False
         except TimeoutError as exc:
@@ -1915,6 +1926,63 @@ class BridgeUi:
         LOGGER.info("instantlink.auto_rebond done=remove_bond address=%s", printer.address)
         # Force a fresh status cycle so the next connect re-bonds via the pairing agent. The poll
         # loop is left running; bumping the generation just resets pacing/backoff state.
+        await self._schedule_printer_status_refresh()
+
+    def _maybe_recover_silent_link(
+        self,
+        printer: PairedPrinter,
+        exc: PrinterStatusUnavailableError,
+    ) -> None:
+        """Recover the "BlueZ holds a silent auto-reconnected link" deadlock.
+
+        Only a not-found failure (the advertisement scan saw nothing) is eligible: that is exactly
+        the case where BlueZ may be holding a connected-but-silent link. The actual disconnect runs
+        fire-and-forget and is itself a no-op unless a connected link exists, so a genuinely off
+        printer is unaffected. At most one recovery per device per cooldown window bounds churn.
+        """
+
+        if not exc.printer_not_found:
+            return
+        task = self._silent_link_recovery_task
+        if task is not None and not task.done():
+            return
+        if getattr(self._pairer, "disconnect_bluez_link", None) is None:
+            return
+
+        key = _auto_rebond_key(printer)
+        now = self._monotonic()
+        last_at = self._last_silent_link_recovery_at.get(key)
+        if last_at is not None and now - last_at < SILENT_LINK_RECOVERY_COOLDOWN_S:
+            return
+
+        self._last_silent_link_recovery_at[key] = now
+        self._silent_link_recovery_task = asyncio.create_task(
+            self._run_silent_link_recovery(printer)
+        )
+
+    async def _run_silent_link_recovery(self, printer: PairedPrinter) -> None:
+        """Drop any connected-but-silent BlueZ link so the printer re-advertises."""
+
+        disconnect_link = getattr(self._pairer, "disconnect_bluez_link", None)
+        if disconnect_link is None:
+            return
+        try:
+            disconnected = await disconnect_link(printer)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            LOGGER.exception("instantlink.silent_link_recovery_failed address=%s", printer.address)
+            return
+        if not disconnected:
+            # No connected link: the printer is genuinely off/absent, not deadlocked. Nothing to do.
+            return
+        LOGGER.warning(
+            "instantlink.silent_link_recovery done=disconnect address=%s "
+            "reason=connected_but_not_advertising",
+            printer.address,
+        )
+        # Re-advertisement takes a moment; bump the generation so the next poll does a fresh scan
+        # that can now see (and adopt) the printer.
         await self._schedule_printer_status_refresh()
 
     def _monotonic(self) -> float:
