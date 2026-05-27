@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "instantlink-cli"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "clap",
@@ -916,7 +916,7 @@ dependencies = [
 
 [[package]]
 name = "instantlink-core"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "async-trait",
  "btleplug",
@@ -934,7 +934,7 @@ dependencies = [
 
 [[package]]
 name = "instantlink-ffi"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "cbindgen",
  "env_logger",

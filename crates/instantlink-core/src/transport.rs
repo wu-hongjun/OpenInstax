@@ -81,7 +81,10 @@ const LISTENER_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(250);
 /// Maximum time to wait for the Instax GATT characteristics to be exported by
 /// the OS BLE stack after service discovery. BlueZ exports characteristics
 /// incrementally, so they may not all be present immediately after connect.
-const CHARACTERISTIC_RESOLVE_TIMEOUT: Duration = Duration::from_secs(8);
+/// Kept short: this blocking connect holds the bridge's serialized BLE lock, so
+/// a long poll starves the single-threaded UI/render loop. The loop also breaks
+/// early when the link drops, so a missing characteristic resolves quickly.
+const CHARACTERISTIC_RESOLVE_TIMEOUT: Duration = Duration::from_secs(2);
 /// Interval between characteristic-resolution poll attempts.
 const CHARACTERISTIC_RESOLVE_POLL_INTERVAL: Duration = Duration::from_millis(300);
 /// Timeout for the Linux bluetoothctl fallback used when btleplug connect races BlueZ discovery.
