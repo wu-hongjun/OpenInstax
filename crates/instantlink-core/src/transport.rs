@@ -154,21 +154,41 @@ pub async fn get_adapter() -> Result<Adapter> {
 /// Uses name-based matching ("INSTAX") because some printers don't advertise
 /// the service UUID until after connection.
 pub async fn scan(adapter: &Adapter, duration: Duration) -> Result<Vec<(Peripheral, String)>> {
-    // Scan without service UUID filter — some Instax printers don't advertise
-    // the service UUID in their BLE advertisements, only exposing it after
-    // connection during service discovery.
+    start_scan(adapter).await?;
+    tokio::time::sleep(duration).await;
+    stop_scan(adapter).await?;
+    collect_instax_peripherals(adapter).await
+}
+
+/// Begin an active BLE scan.
+///
+/// Scans without a service UUID filter — some Instax printers don't advertise the service UUID in
+/// their advertisements, only exposing it after connection during service discovery.
+///
+/// Kept separate from [`stop_scan`] so callers can keep the scan running *across* a connect attempt.
+/// On BlueZ + the Pi Zero 2 W controller, background auto-connect to a bonded peripheral stalls
+/// ("connection In Progress" that never completes); a live active scan lets the controller complete
+/// the connection. See `docs/plans/031` Phase 0.
+pub async fn start_scan(adapter: &Adapter) -> Result<()> {
     adapter
         .start_scan(ScanFilter::default())
         .await
-        .map_err(|e| PrinterError::Ble(format!("scan failed: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("scan failed: {e}")))
+}
 
-    tokio::time::sleep(duration).await;
-
+/// Stop an active BLE scan started by [`start_scan`].
+pub async fn stop_scan(adapter: &Adapter) -> Result<()> {
     adapter
         .stop_scan()
         .await
-        .map_err(|e| PrinterError::Ble(format!("stop scan failed: {e}")))?;
+        .map_err(|e| PrinterError::Ble(format!("stop scan failed: {e}")))
+}
 
+/// Return `(peripheral, local_name)` pairs for the Instax devices the adapter currently knows about.
+///
+/// Reads the adapter's peripheral cache without controlling the scan, so it can be called while a
+/// scan started by [`start_scan`] is still running.
+pub async fn collect_instax_peripherals(adapter: &Adapter) -> Result<Vec<(Peripheral, String)>> {
     let peripherals = adapter
         .peripherals()
         .await

@@ -60,10 +60,30 @@ async fn connect_internal(
     progress: Option<&ConnectProgressCallback>,
     fetch_initial_status: bool,
 ) -> Result<Box<dyn PrinterDevice>> {
+    emit_connect_progress(progress, ConnectStage::ScanStarted, None::<String>);
+
+    let adapter = match transport::get_adapter().await {
+        Ok(adapter) => adapter,
+        Err(err) => {
+            emit_connect_progress(progress, ConnectStage::Failed, Some(err.to_string()));
+            return Err(err);
+        }
+    };
+
+    // Keep an ACTIVE scan running across both discovery and the connect/status handshake. On
+    // BlueZ + the Pi Zero 2 W controller, background auto-connect to a bonded peripheral stalls
+    // ("connection In Progress" that never issues an HCI connect and never completes); a live
+    // active scan lets the controller complete the connection. Stopping the scan before connecting
+    // (the previous behaviour) drops the bridge onto that stalling background path. See
+    // `docs/plans/031` Phase 0.
+    if let Err(err) = transport::start_scan(&adapter).await {
+        emit_connect_progress(progress, ConnectStage::Failed, Some(err.to_string()));
+        return Err(err);
+    }
+
     let result: Result<Box<dyn PrinterDevice>> = async {
-        emit_connect_progress(progress, ConnectStage::ScanStarted, None::<String>);
-        let adapter = transport::get_adapter().await?;
-        let results = transport::scan(&adapter, duration.unwrap_or(DEFAULT_SCAN_DURATION)).await?;
+        tokio::time::sleep(duration.unwrap_or(DEFAULT_SCAN_DURATION)).await;
+        let results = transport::collect_instax_peripherals(&adapter).await?;
         emit_connect_progress(progress, ConnectStage::ScanFinished, None::<String>);
 
         let (peripheral, name) = select_matching_result(results, device_name)?;
@@ -90,6 +110,9 @@ async fn connect_internal(
         Ok::<Box<dyn PrinterDevice>, PrinterError>(Box::new(device))
     }
     .await;
+
+    // Stop the active scan regardless of outcome so the adapter is not left scanning between polls.
+    let _ = transport::stop_scan(&adapter).await;
 
     if let Err(err) = &result {
         emit_connect_progress(
