@@ -45,9 +45,12 @@ pub trait PrinterDevice: Send + Sync {
     /// Get remaining film count and charging state.
     async fn film_and_charging(&self) -> Result<(u8, bool)>;
 
-    /// Keep the printer awake with a lightweight status request.
+    /// Keep the printer awake. Issues a status read (also used to sample battery/film) and then
+    /// a benign LED-off write. EXPERIMENT: a status read alone does not reset the Instax's
+    /// idle/auto-power-off timer (it sleeps after ~4.5 min); this probes whether a write does.
     async fn keep_alive(&self) -> Result<()> {
-        self.film_and_charging().await.map(|_| ())
+        self.film_and_charging().await?;
+        self.led_off().await
     }
 
     /// Get remaining film count.
@@ -826,14 +829,20 @@ mod tests {
 
     #[tokio::test]
     async fn keep_alive_uses_printer_function_info_query() {
-        let (device, state) =
-            make_device(PrinterModel::Mini, vec![printer_function_packet(7, false)]).await;
+        let (device, state) = make_device(
+            PrinterModel::Mini,
+            vec![printer_function_packet(7, false), led_ack_packet()],
+        )
+        .await;
 
         device.keep_alive().await.unwrap();
 
         let sent = &state.lock().unwrap().sent;
         let printer_function = protocol::parse_packet(&sent[1]).unwrap();
         assert_eq!(printer_function.payload, vec![INFO_PRINTER_FUNCTION]);
+        // EXPERIMENT: keep_alive also issues a benign LED-off write to probe the idle timer.
+        let led = protocol::parse_packet(&sent[2]).unwrap();
+        assert_eq!(led.opcode, OP_LED_PATTERN_SETTINGS);
     }
 
     #[tokio::test]
