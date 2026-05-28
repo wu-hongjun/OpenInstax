@@ -1925,6 +1925,100 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#10-sprint-outcome-2026-05-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Sprint outcome (2026-05-28)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. Sprint outcome (2026-05-28)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#whats-deployed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's deployed
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-got-reverted-and-why-read-before-retrying" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What got reverted and why (read before retrying)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-m3-saved-less-than-the-spec-predicted-honest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why M3 saved less than the spec predicted (honest)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measurement-evidence-cold-reboot-2026-05-28" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measurement evidence (cold reboot, 2026-05-28)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#remaining-levers-in-cost-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remaining levers (in cost order)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hard-floor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard floor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#open-items-lessons-for-the-next-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open items / lessons for the next session
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2257,6 +2351,85 @@ Hardware: Raspberry Pi Zero 2 W (BCM2710A1, 4× Cortex-A53 @ 1 GHz, 512 MB) / Ra
 <li><strong>Q4</strong> (disable tailscaled / GitHub runner / sshswitch / rpi-eeprom-update at boot) — declare appliance defaults; expect tiny crit-path win, but cleans up steady state.</li>
 <li>Re-measure; decide whether to chase <strong>M1–M3</strong>.</li>
 </ol>
+<hr />
+<h2 id="10-sprint-outcome-2026-05-28">10. Sprint outcome (2026-05-28)<a class="headerlink" href="#10-sprint-outcome-2026-05-28" title="Permanent link">&para;</a></h2>
+<p>Q1+Q3+Q5 shipped, Q2 attempted and reverted, splash slimmed, M3 implemented. Final
+measurement on hardware: <strong>~15.0 s power-on → bridge <code>Started</code> (scan_started ~20 ms before).</strong>
+<strong>Net save: ~3 s</strong> (18.1 s → 15.0 s).</p>
+<h3 id="whats-deployed">What's deployed<a class="headerlink" href="#whats-deployed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Bridge <code>0.1.16</code></strong> (commit <code>5cdf729</code>). FFI <code>libinstantlink_ffi.so</code> is crates <strong><code>0.1.17</code></strong> (commit
+  <code>66b95a0</code>, hybrid connect; unchanged this sprint).</li>
+<li><strong>Q1 boot-splash</strong> (<code>bridge/systemd/instantlink-bridge-boot-splash.service</code>): <code>Before=</code> dropped
+  from the bridge critical path; <code>WantedBy=sysinit.target</code> so it still activates early.</li>
+<li><strong>Q3 no serial console / Q5 quiet boot</strong> (<code>bridge/boot/firmware/{config.txt,cmdline.example.txt}</code>):
+  applied to the Pi's <code>/boot/firmware/cmdline.txt</code> and <code>config.txt</code> (backups at <code>*.bak.032</code>).
+  Kernel boot <strong>5.19 s → 2.62 s</strong>.</li>
+<li><strong>Splash slim</strong> (<code>bridge/src/instantlink_bridge/boot_splash.py</code>): rewritten to stdlib-only,
+  writes a solid RGB565 colour to <code>/dev/fb1</code>. Splash unit time <strong>3.7 s → ~1 s</strong>.</li>
+<li><strong>M3 parallel BLE/FTP setup</strong> (<code>bridge/src/instantlink_bridge/app.py</code>): <code>run_ftp_receive_slice</code>
+  uses <code>asyncio.gather(start_ftp_service, start_ble_stack)</code> and <code>asyncio.to_thread</code> for the entire
+  FTP setup including the pyftpdlib import. Codex-reviewed (HIGH + 2 MEDIUM fixes folded in).</li>
+</ul>
+<h3 id="what-got-reverted-and-why-read-before-retrying">What got reverted and why (read before retrying)<a class="headerlink" href="#what-got-reverted-and-why-read-before-retrying" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Q2 lazy-load</strong> (commit <code>92f93a6</code> reverted <code>0cec5a6</code>): deferring pyftpdlib / imaging.pipeline
+  out of <code>app.py</code> module-load <em>without</em> parallelising the consumer just moves the same cost into
+  the bridge's serial startup. Measured +1.7 s consistent across 3 boots — not cold cache.
+  Lesson: the lazy-load only helps when paired with parallelism (M3). M3 now keeps the deferred
+  import inside the to_thread call so its cost overlaps with BLE setup.</li>
+<li><strong><code>0.1.15</code> stop-scan-before-connect</strong> (Rust, reverted <code>d035bf6</code> ↦ restored <code>4f57404</code>-style
+  active-scan during connect): unrelated to this plan but documented in plan 031 §13 — the
+  hybrid <code>0.1.17</code> is what currently ships and it preserves both fast and recovery paths.</li>
+</ul>
+<h3 id="why-m3-saved-less-than-the-spec-predicted-honest">Why M3 saved less than the spec predicted (honest)<a class="headerlink" href="#why-m3-saved-less-than-the-spec-predicted-honest" title="Permanent link">&para;</a></h3>
+<p>The journal across cold reboots shows FTP and BLE branches finishing within ~100 ms of each other
+at ~3 s into the bridge process — so the gather IS parallel. But:
+- ~2 s of pre-gather work (Python imports, <code>BridgeUi</code> construction, <code>build_power_monitor</code>) is on
+  the critical path before <code>gather</code> starts.
+- ~1 s of post-gather work (FFI library load, ui startup tail) is between <code>gather</code> completing and
+  <code>READY=1</code> firing.
+- Both gather branches take ~3 s, so <code>max(branch_a, branch_b)</code> doesn't save much vs serial because
+  pre-/post-gather already dominate.</p>
+<p>Result: scan_started fires only <strong>~20 ms before READY=1</strong>, not the predicted 0.5–1 s. M3 is
+<em>structurally correct</em> (parallel setup) but speed-neutral on this architecture. Keeping it for the
+cleaner control flow.</p>
+<h3 id="measurement-evidence-cold-reboot-2026-05-28">Measurement evidence (cold reboot, 2026-05-28)<a class="headerlink" href="#measurement-evidence-cold-reboot-2026-05-28" title="Permanent link">&para;</a></h3>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>[10.10s] systemd: Starting instantlink-bridge.service
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>[13.19s] ftp.server_started        ← FTP branch finished
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>[13.29s] bluetooth.agent_registered ← BLE branch finished (100 ms later)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>[14.27s] instantlink.library_loaded ← FFI lib load (post-gather)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>[15.02s] bridge.ready
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>[15.04s] stage=scan_started
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>[15.08s] systemd: Started instantlink-bridge.service
+</code></pre></div>
+Kernel: 2.62 s. Userspace to bridge <code>Started</code>: 12.46 s. Power-on → scanning: ~15.0 s.</p>
+<h3 id="remaining-levers-in-cost-order">Remaining levers (in cost order)<a class="headerlink" href="#remaining-levers-in-cost-order" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong><code>dd</code>-splash</strong> (replace Python boot_splash with a pre-rendered framebuffer blob shipped in the
+   repo + <code>ExecStart=/usr/bin/dd if=… of=/dev/fb1</code>). Splash ~1 s → ~0.05 s. <strong>Expected: ~14.0 s.</strong></li>
+<li><strong>Lazy FFI library load</strong> (defer <code>libinstantlink_ffi.so</code> <code>dlopen</code> until first BLE poll instead
+   of during <code>BridgeUi</code> construction). Saves ~1 s. <strong>Expected: ~13.0 s.</strong> Risk: lifecycle.</li>
+<li><strong>Bytecode pre-compile + warm <code>__pycache__</code></strong> at provision time. ~0.5–1 s. <strong>Expected: ~12.5 s.</strong></li>
+<li><strong>§5 M1 — zram off the critical path</strong> (defer to post-<code>local-fs.target</code>). ~0.5–1 s.</li>
+<li>Custom init (Buildroot/Yocto), pre-linked native bridge — out of v1 scope.</li>
+</ol>
+<h3 id="hard-floor">Hard floor<a class="headerlink" href="#hard-floor" title="Permanent link">&para;</a></h3>
+<p>With current Python entry + RPi OS Lite + Pi Zero 2 W, <strong>~12 s is the practical floor</strong>. The
+kernel + sysinit chain alone is ~6 s. Anything below ~10 s on this hardware needs a non-Python
+bridge or a custom init.</p>
+<h3 id="open-items-lessons-for-the-next-session">Open items / lessons for the next session<a class="headerlink" href="#open-items-lessons-for-the-next-session" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The deploy script does <strong>not</strong> sync <code>bridge/systemd/*.service</code> — unit changes require manual
+  <code>scp</code> + <code>daemon-reload</code>. <strong>One-line fix in <code>bridge/scripts/deploy-to-pi.sh</code></strong> would prevent this
+  trap.</li>
+<li>Python interpreter cold start on the Pi Zero 2 W is ~0.7–1 s; this is the floor for any
+  Python-based splash or helper. Replacing with <code>dd</code> / shell / native binary is the only way to
+  beat it.</li>
+<li>"Q2 was a regression" diagnosis (in §13's earlier draft) was partially wrong — Q2 alone
+  regresses, Q2 <em>with</em> M3 doesn't. Future maintainers: don't try Q2 again without the M3 thread
+  parallelism in place.</li>
+</ul>
 
 
 
