@@ -2069,6 +2069,89 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#14-milestone-2026-05-27-end-of-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        14. Milestone — 2026-05-27 (end of day)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="14. Milestone — 2026-05-27 (end of day)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#final-state-on-hardware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Final state on hardware
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measured-trace-cycle-2-representative-031342-031402-utc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured trace (cycle 2, representative — 03:13:42 → 03:14:02 UTC)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#eliminated-costs-vs-the-25-s-starting-point" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Eliminated costs vs. the ~25 s starting point
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline used
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#still-open-worth-iterating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Still open / worth iterating
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#knobs-left-in-for-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Knobs left in for ops
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2472,6 +2555,102 @@ A future self-heal must (a) match that specific signature, (b) only act after se
 failures (not the first), and (c) never disconnect while a connection is <code>In Progress</code>. For now the
 deploy stopgap covers deploys; crash/watchdog-triggered wedges remain a known open item.</p>
 <p>Next: validate <code>0.1.14</code> (clean 0.1.12 connect behaviour + deploy stopgap) against the §8 5× bar.</p>
+<hr />
+<h2 id="14-milestone-2026-05-27-end-of-day">14. Milestone — 2026-05-27 (end of day)<a class="headerlink" href="#14-milestone-2026-05-27-end-of-day" title="Permanent link">&para;</a></h2>
+<p>Hardware-validated. The combination of two final changes, working together, brings the
+power-cycle reconnect from the ~25 s starting point to <strong>~4 s active</strong> (<code>scan_started → connected
+with status</code>), confirmed across two consecutive power-cycles with a clean trace (zero
+<code>write failed</code>, zero <code>auto_rebond</code>, zero wasted attempts).</p>
+<h3 id="final-state-on-hardware">Final state on hardware<a class="headerlink" href="#final-state-on-hardware" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Crates <code>0.1.17</code></strong> (<code>66b95a0</code> hybrid connect): the fast stop-scan path with a 5 s budget tries
+  first (~0.3–1.5 s on a healthy BlueZ); on a wedge-signature error (<code>In Progress</code> /
+  <code>Timeout waiting for reply</code>) <strong>or</strong> the timeout firing, it forces a bounded
+  <code>peripheral.disconnect()</code> to clear any half-set-up BlueZ link and falls back to the slow
+  (~11 s) but reliable active-scan retry. Restores the speed win from <code>0.1.15</code> <strong>and</strong> the
+  wedge-recovery from <code>0.1.12</code>/<code>0.1.16</code> — the previous two strategies each lost one of those.</li>
+<li><strong>Bridge <code>0.1.11</code></strong> (<code>179cf0f</code> always-fresh-pair): on the <code>_printer_was_online</code> True→False edge
+  the bridge proactively removes the BlueZ bond (gated <code>Connected=no</code>, double-checked at the
+  pairer), so the <em>next</em> reconnect after a power-cycle pairs fresh via the <code>NoInputNoOutput</code> agent
+  — no stale-LTK write-fail and no reactive <code>auto_rebond</code> detour. <code>auto_rebond</code> stays as a
+  dormant safety net.</li>
+</ul>
+<h3 id="measured-trace-cycle-2-representative-031342-031402-utc">Measured trace (cycle 2, representative — 03:13:42 → 03:14:02 UTC)<a class="headerlink" href="#measured-trace-cycle-2-representative-031342-031402-utc" title="Permanent link">&para;</a></h3>
+<p><div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>03:13:42  film_remaining=4                       last keepalive before drop
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>03:13:53  proactive_bond_reset done=remove_bond  ← always-fresh-pair fires on drop
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>03:13:58  scan_started                           ← printer back on, advertising
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>03:13:59  device_matched                          (~0.5 s into scan)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>03:13:59  ble_connecting
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>03:14:00  service_discovery                      ← FAST PATH: 1.5 s (was ~11 s)
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>03:14:02  connected
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>03:14:02  film_remaining=4
+</code></pre></div>
+Both cycles landed within ~100 ms of each other on the active reconnect interval.</p>
+<h3 id="eliminated-costs-vs-the-25-s-starting-point">Eliminated costs vs. the ~25 s starting point<a class="headerlink" href="#eliminated-costs-vs-the-25-s-starting-point" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Cost</th>
+<th>Before</th>
+<th>After</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>~10 s detect-drop gap</td>
+<td>yes</td>
+<td>gone</td>
+<td><code>_printer_was_online</code>-aware 0 s retry on connected→failed edge</td>
+</tr>
+<tr>
+<td>~5.6 s write-fail attempt (stale bond)</td>
+<td>yes</td>
+<td>gone</td>
+<td>proactive bond removal on drop edge</td>
+</tr>
+<tr>
+<td>~5.6 s wasted post-rebond <code>service_discovery</code> retry</td>
+<td>yes</td>
+<td>gone</td>
+<td>no rebond → no wasted retry; hybrid fallback only on wedge</td>
+</tr>
+<tr>
+<td>~11 s <code>ble_connecting → service_discovery</code></td>
+<td>yes</td>
+<td>~1.5 s</td>
+<td>hybrid fast path: stop scan before connect</td>
+</tr>
+<tr>
+<td><code>In Progress</code> wedge → stuck forever</td>
+<td>regression in <code>0.1.15</code></td>
+<td>recovers in ~11 s</td>
+<td>hybrid active-scan fallback + bounded disconnect</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pipeline-used">Pipeline used<a class="headerlink" href="#pipeline-used" title="Permanent link">&para;</a></h3>
+<p>Architect (read-only design) → executor (implementation) → codex (review) → I integrated
+findings and ran the hardware deploy/test loop. Architect's <strong>Rec 1 (always-fresh-pair)</strong> shipped
+in <code>0.1.11</code>; the <strong>hybrid</strong> answered the speed-vs-recovery tradeoff that surfaced after the <code>0.1.15</code>
+regression. Codex flagged one HIGH (cancellation-safety on timeout) + one LOW (5 s budget) on the
+hybrid; both fixed before deploy.</p>
+<h3 id="still-open-worth-iterating">Still open / worth iterating<a class="headerlink" href="#still-open-worth-iterating" title="Permanent link">&para;</a></h3>
+<ul>
+<li>§8 acceptance bar (5× consecutive auto-recovery): <strong>2/5 verified</strong> today; user is "iterating."</li>
+<li>The recurring BlueZ "In Progress" wedge root cause is still untraced at the controller layer; the
+  hybrid recovers from it (slow path), so the bar moved from "blocker" to "tolerated cost."</li>
+<li>The Instax's own ~2–3 s boot/settle before it advertises is inherent and not addressable here —
+  this sets the practical floor for an immediate-power-cycle reconnect at ~5–6 s end-to-end.</li>
+<li>Codex <code>is_wedge_signature</code> substring match (LOW): pragmatic, cost of a false-positive is ~11 s
+  spurious fallback — accepted.</li>
+</ul>
+<h3 id="knobs-left-in-for-ops">Knobs left in for ops<a class="headerlink" href="#knobs-left-in-for-ops" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Settings &gt; Printer &gt; <strong>Search rate</strong>: 5 s (continuous) / 15 s / 30 s / 60 s, no backoff.</li>
+<li>Settings &gt; Printer &gt; Keepalive: 5 s / 10 s / 15 s / 30 s (unchanged).</li>
+<li><code>deploy-to-pi.sh --restart</code> restarts <code>bluetoothd</code> first (deploy-time wedge stopgap).</li>
+</ul>
 
 
 
