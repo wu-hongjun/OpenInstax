@@ -1,8 +1,13 @@
 [Unit]
 Description=InstantLink Bridge early LCD boot splash
+# docs/plans/032: the splash is cosmetic. Previously it ordered
+# `Before=basic.target instantlink-bridge.service`, which placed its ~2.4 s
+# ExecStart on the bridge READY=1 critical path. With that ordering removed it
+# now runs in parallel with the bridge — kept WantedBy=sysinit.target so it
+# still activates as early as the rest of sysinit (visual feedback retained)
+# while no longer blocking the bridge.
 DefaultDependencies=no
 After=local-fs.target systemd-udev-settle.service
-Before=basic.target instantlink-bridge.service
 ConditionPathExists=/opt/InstantLinkBridge/.venv/bin/instantlink-bridge-splash
 
 [Service]

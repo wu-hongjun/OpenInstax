@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from concurrent.futures import Future as ThreadFuture
 from contextlib import suppress
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from instantlink_bridge.ble.client import (
     DiscoveredPrinter,
@@ -36,18 +36,12 @@ from instantlink_bridge.ble.instax import (
     PrinterBusyError,
     PrintRejectedError,
 )
-from instantlink_bridge.camera.ftp import FtpReceiveService, ReceivedImage
 from instantlink_bridge.config import (
     DEFAULT_CONFIG_PATH,
     BridgeConfig,
     FtpConfig,
     PowerBackend,
     load_config,
-)
-from instantlink_bridge.imaging.pipeline import ImagePipelineError, ImageTooLargeError, PrintEdit
-from instantlink_bridge.imaging.worker import (
-    ImagePreparationTimeoutError,
-    close_default_image_preparation_worker,
 )
 from instantlink_bridge.net.health import FtpActivityTracker
 from instantlink_bridge.power.monitor import BatteryPolicy, IdlePolicy, PowerMonitor, PowerPolicy
@@ -61,6 +55,15 @@ from instantlink_bridge.ui.pairing import BluetoothctlPrinterPairer, PrinterPair
 from instantlink_bridge.ui.status import scan_bluez_instax_printers, status_target_for_visible_match
 from instantlink_bridge.watchdog import WatchdogNotifier, run_watchdog_heartbeat
 
+# docs/plans/032 Q2: keep PIL (via imaging.pipeline) and pyftpdlib (via
+# camera.ftp) off the bridge module-load path. The names below are only
+# referenced in annotations; we import the runtime symbols lazily inside the
+# functions that actually need them so `import instantlink_bridge.app` does
+# not pull in image-pipeline or FTP-server modules.
+if TYPE_CHECKING:
+    from instantlink_bridge.camera.ftp import ReceivedImage
+    from instantlink_bridge.imaging.pipeline import ImagePipelineError, PrintEdit
+
 LOGGER = logging.getLogger(__name__)
 AUTO_PRINT_DELAY_S = 5.0
 IMAGE_QUEUE_MAXSIZE = 100
@@ -71,7 +74,7 @@ PRINT_TARGET_SCAN_ATTEMPTS = 5
 POWEROFF_HELPER = "/usr/local/sbin/instantlink-bridge-poweroff"
 
 PrinterSender = Callable[
-    [PairedPrinter, ReceivedImage, BridgeConfig, PrintEdit, PrintProgressCallback],
+    [PairedPrinter, "ReceivedImage", BridgeConfig, "PrintEdit", PrintProgressCallback],
     Awaitable[None],
 ]
 
@@ -132,6 +135,13 @@ class AsyncStopService(Protocol):
 
 async def run_ftp_receive_slice(config_path: Path) -> None:
     """Run the first vertical slice: FTP upload -> logged file path."""
+
+    # docs/plans/032 Q2: defer pyftpdlib + image-prep worker imports until we
+    # actually start the receive loop, instead of loading them at module load.
+    # Grouped at function entry rather than inside the finally block so an
+    # import-time error can't shadow an earlier exception during cleanup.
+    from instantlink_bridge.camera.ftp import FtpReceiveService
+    from instantlink_bridge.imaging.worker import close_default_image_preparation_worker
 
     config = load_config(config_path)
     queue: asyncio.Queue[ReceivedImage] = asyncio.Queue(maxsize=IMAGE_QUEUE_MAXSIZE)
@@ -348,6 +358,11 @@ async def handle_received_image(
     notify_received: bool = True,
 ) -> None:
     """Run one FTP-received image through the auto-print flow."""
+
+    # docs/plans/032 Q2: ImagePipelineError lives under imaging.pipeline,
+    # which pulls PIL. Defer the import to the point where we actually need
+    # the exception class, keeping it off the bridge startup path.
+    from instantlink_bridge.imaging.pipeline import ImagePipelineError
 
     progress_tasks: list[asyncio.Future[None] | ThreadFuture[None]] = []
     accepting_progress = False
@@ -639,6 +654,15 @@ def select_configured_printer(
 
 def print_error_message(error: ImagePipelineError) -> str:
     """Map image pipeline errors to short LCD-friendly text."""
+
+    # docs/plans/032 Q2: imaging.pipeline + imaging.worker only need to be
+    # imported when we actually have an error to classify, not at module
+    # load. The `ImagePipelineError` parameter annotation is a forward
+    # reference (PEP 563 via `from __future__ import annotations`) and never
+    # evaluated at runtime, so the TYPE_CHECKING-only import in the module
+    # header is sufficient for typecheckers without paying for Pillow at startup.
+    from instantlink_bridge.imaging.pipeline import ImageTooLargeError
+    from instantlink_bridge.imaging.worker import ImagePreparationTimeoutError
 
     message = str(error).lower()
     if "printer offline" in message:

@@ -18,7 +18,9 @@ disable_overscan=1
 arm_boost=1
 
 [all]
-enable_uart=1
+# Serial console disabled for boot-speed; see docs/plans/032. The matching
+# `console=serial0,115200` token is also removed from cmdline.example.txt.
+# enable_uart=1
 gpio=6,19,5,26,13,21,20,16=pu
 
 # Waveshare 1.3" LCD HAT, ST7789VW 240x240 on SPI0 CE0.

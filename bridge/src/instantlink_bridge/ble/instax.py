@@ -11,12 +11,18 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from instantlink_bridge.ble import commands
 from instantlink_bridge.ble.models import PrinterModel, detect_model, is_success_status, spec_for
 from instantlink_bridge.ble.protocol import Packet
-from instantlink_bridge.imaging.pipeline import PreparedImage, chunk_image_data
+
+# Defer importing `instantlink_bridge.imaging.pipeline` (transitively pulls Pillow / pillow-heif)
+# out of module-load — the bridge only needs it at print time, not at startup. See docs/plans/032
+# (Q2). `PreparedImage` is annotation-only thanks to `from __future__ import annotations` above;
+# `chunk_image_data` is imported lazily inside `print_prepared`.
+if TYPE_CHECKING:
+    from instantlink_bridge.imaging.pipeline import PreparedImage
 
 DEFAULT_TIMEOUT_S = 10.0
 DOWNLOAD_CANCEL_TIMEOUT_S = 3.0
@@ -156,6 +162,10 @@ class InstaxProtocolClient:
         progress: ProgressCallback | None = None,
     ) -> None:
         """Print a prepared model-matched image."""
+
+        # Lazy-imported here so the bridge entrypoint does not pull Pillow/pillow-heif at startup
+        # (only when an image is actually being printed). See docs/plans/032 (Q2).
+        from instantlink_bridge.imaging.pipeline import chunk_image_data
 
         if prepared.model != self._model:
             raise ValueError(f"prepared image is for {prepared.model}, printer is {self._model}")

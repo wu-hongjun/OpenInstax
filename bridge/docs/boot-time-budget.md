@@ -117,6 +117,14 @@ gpu_mem=16
 dtparam=audio=off
 ```
 
+## `/boot/firmware/cmdline.txt` Tuning
+
+Track the kernel cmdline through `boot/firmware/cmdline.example.txt`. The serial
+console (`console=serial0,115200` + `enable_uart=1`) is intentionally disabled
+for boot-speed; see `docs/plans/032`. `quiet loglevel=3 vt.global_cursor_default=0`
+suppress kernel and console chatter during boot. `console=tty1` is retained so
+the framebuffer console still produces output if needed.
+
 ## Measurement
 
 Use:
