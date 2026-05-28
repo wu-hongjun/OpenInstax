@@ -3,6 +3,10 @@
 use std::path::Path;
 use std::time::Duration;
 
+// Brings the btleplug `Peripheral` trait methods (e.g. `disconnect`) into scope on the
+// `btleplug::platform::Peripheral` handles returned by `transport::collect_instax_peripherals`.
+use btleplug::api::Peripheral as _;
+
 use crate::connect_progress::{ConnectProgressCallback, ConnectStage, emit_connect_progress};
 use crate::device::{BlePrinterDevice, PrinterDevice, PrinterStatus};
 use crate::error::{PrinterError, Result};
@@ -13,6 +17,34 @@ use crate::transport::{self, BleTransport, DEFAULT_SCAN_DURATION};
 /// A named connect proceeds as soon as the printer is uniquely matched instead of waiting out the
 /// full scan duration, trimming several seconds off every (re)connect. See `docs/plans/031` Phase 1.
 const DISCOVERY_POLL_INTERVAL: Duration = Duration::from_millis(400);
+
+/// Budget for the fast-path connect attempt that runs with the active scan stopped.
+/// A healthy BlueZ direct connect to a bonded printer completes in ~0.3 s (including GATT/status
+/// setup); the slow active-scan fallback path takes ~11 s under controller contention. 3 s gives
+/// the fast path plenty of headroom while keeping the slow path well-separated. See
+/// `docs/plans/031` Phase 1.
+/// 5 s gives comfortable headroom over a slow-but-healthy connect: a single connect cycle on
+/// BlueZ can include `peripheral.connect()` plus the up-to-2 s `CHARACTERISTIC_RESOLVE_TIMEOUT`
+/// poll plus a subscribe retry, so the worst-case healthy total is ~3.5 s. 5 s keeps the fast
+/// path from spuriously falling back, while staying well below the ~11 s slow path.
+const FAST_PATH_TIMEOUT_S: u64 = 5;
+const FAST_PATH_TIMEOUT: Duration = Duration::from_secs(FAST_PATH_TIMEOUT_S);
+
+/// Substrings observed in btleplug/BlueZ error strings when BlueZ wedges its connection state
+/// machine (D-Bus `Connect()` returns `In Progress` immediately, or never replies until the
+/// ~25 s D-Bus reply timeout). The wedge is only known to clear when a live active scan is
+/// running during the next connect attempt, so these signatures gate the active-scan fallback.
+/// This is a pragmatic substring match — the underlying error strings are stable enough in
+/// practice — rather than a typed error variant. See `docs/plans/031` Phase 1.
+const WEDGE_SIGNATURE_IN_PROGRESS: &str = "In Progress";
+const WEDGE_SIGNATURE_DBUS_TIMEOUT: &str = "Timeout waiting for reply";
+
+/// Returns true if `error` matches the BlueZ "connection in progress" wedge signature, in which
+/// case the only known recovery is to retry the connect with an active scan running.
+fn is_wedge_signature(error: &PrinterError) -> bool {
+    let message = error.to_string();
+    message.contains(WEDGE_SIGNATURE_IN_PROGRESS) || message.contains(WEDGE_SIGNATURE_DBUS_TIMEOUT)
+}
 
 /// Information about a discovered printer (before connecting).
 #[derive(Debug, Clone)]
@@ -75,13 +107,20 @@ async fn connect_internal(
         }
     };
 
-    // Keep an ACTIVE scan running across both discovery AND the connect/status handshake. On
-    // BlueZ + the Pi Zero 2 W controller, BlueZ's connection state can get stuck "in progress"
-    // (D-Bus Connect() never replies / surfaces as "Timeout waiting for reply") and the only
-    // observed recovery is a live active scan during connect — it lets the stuck background
-    // connection finally complete (slow, ~11 s). Stopping the scan during connect (the fast
-    // ~0.3 s path) traded that recovery away, so a wedged BlueZ stays wedged forever — restored
-    // here as the safety-net. The follow-up hybrid restores speed without losing recovery.
+    // Start an active scan for discovery, then run a HYBRID connect strategy:
+    //
+    //   1. Fast path: stop the scan and attempt a direct connect bounded by FAST_PATH_TIMEOUT
+    //      (~3 s). On a healthy BlueZ this completes in ~0.3 s; with the scan still running it
+    //      would always cost ~11 s due to radio contention on the Pi Zero 2 W controller.
+    //   2. Active-scan fallback: if the fast path errors with the BlueZ wedge signature
+    //      ("In Progress" / "Timeout waiting for reply") OR exhausts FAST_PATH_TIMEOUT, restart
+    //      the active scan and retry connect with the scan held live. A live active scan is the
+    //      only observed recovery for a wedged BlueZ connection state machine — without it a
+    //      wedge stays wedged forever (Phase 0). This path is slow (~11 s) but reliable.
+    //
+    // The progress callback may emit `BleConnecting` twice (once per attempt) — readers should
+    // not be surprised by the duplicate stage.
+    //
     // See `docs/plans/031` Phase 1.
     if let Err(err) = transport::start_scan(&adapter).await {
         emit_connect_progress(progress, ConnectStage::Failed, Some(err.to_string()));
@@ -110,7 +149,47 @@ async fn connect_internal(
 
         emit_connect_progress(progress, ConnectStage::DeviceMatched, Some(name.clone()));
 
-        let transport = BleTransport::connect_with_progress(peripheral, progress).await?;
+        // Hybrid connect: stop the scan and try a fast direct connect first. If it times out or
+        // hits the BlueZ wedge signature, restart the active scan and retry — that is the only
+        // observed recovery for a wedged BlueZ. See the comment block above and
+        // `docs/plans/031` Phase 1.
+        let _ = transport::stop_scan(&adapter).await;
+        let fast_path_peripheral = peripheral.clone();
+        let fast_path = tokio::time::timeout(
+            FAST_PATH_TIMEOUT,
+            BleTransport::connect_with_progress(fast_path_peripheral, progress),
+        )
+        .await;
+        let transport = match fast_path {
+            Ok(Ok(transport)) => transport,
+            Ok(Err(error)) if is_wedge_signature(&error) => {
+                log::debug!(
+                    "fast-path connect hit BlueZ wedge signature; falling back to active-scan retry: {}",
+                    error
+                );
+                transport::start_scan(&adapter).await?;
+                BleTransport::connect_with_progress(peripheral, progress).await?
+            }
+            Ok(Err(error)) => return Err(error),
+            Err(_) => {
+                log::debug!(
+                    "fast-path connect exceeded {}s; falling back to active-scan retry",
+                    FAST_PATH_TIMEOUT_S
+                );
+                // The timeout cancelled the fast-path future mid-flight — btleplug does NOT
+                // auto-disconnect on drop, so BlueZ may still hold the link with GATT/notify
+                // setup incomplete. The fallback's `connect_with_progress` would then see
+                // `is_connected()==true` and skip the actual connect, running discovery on an
+                // inconsistent link. Force a bounded disconnect first so the retry starts clean.
+                let _ = tokio::time::timeout(
+                    Duration::from_secs(1),
+                    peripheral.disconnect(),
+                )
+                .await;
+                transport::start_scan(&adapter).await?;
+                BleTransport::connect_with_progress(peripheral, progress).await?
+            }
+        };
         let device =
             BlePrinterDevice::new_with_progress(Box::new(transport), name, progress).await?;
 
@@ -310,10 +389,40 @@ pub async fn connect_any(duration: Option<Duration>) -> Result<Box<dyn PrinterDe
 #[cfg(test)]
 mod tests {
     use super::{
-        combine_operation_and_disconnect, extracted_printer_serial, normalized_printer_name,
-        printer_name_matches, select_matching_result,
+        combine_operation_and_disconnect, extracted_printer_serial, is_wedge_signature,
+        normalized_printer_name, printer_name_matches, select_matching_result,
     };
     use crate::error::PrinterError;
+
+    #[test]
+    fn is_wedge_signature_matches_in_progress() {
+        // Mirrors the error string built by `BleTransport::connect_with_progress` when btleplug
+        // surfaces BlueZ's "Connect() returned In Progress" wedge.
+        let err = PrinterError::Ble("connect failed: In Progress".to_string());
+        assert!(is_wedge_signature(&err));
+    }
+
+    #[test]
+    fn is_wedge_signature_matches_dbus_reply_timeout() {
+        // BlueZ's other wedge surface: D-Bus Connect() never returns within the ~25 s reply
+        // timeout, yielding a btleplug error containing "Timeout waiting for reply".
+        let err = PrinterError::Ble("connect failed: Timeout waiting for reply".to_string());
+        assert!(is_wedge_signature(&err));
+    }
+
+    #[test]
+    fn is_wedge_signature_rejects_unrelated_ble_errors() {
+        // A generic write/discover failure should propagate to the caller, not trigger the
+        // expensive active-scan recovery path.
+        let err = PrinterError::Ble("write failed: not connected".to_string());
+        assert!(!is_wedge_signature(&err));
+    }
+
+    #[test]
+    fn is_wedge_signature_rejects_non_ble_errors() {
+        assert!(!is_wedge_signature(&PrinterError::PrinterNotFound));
+        assert!(!is_wedge_signature(&PrinterError::Timeout));
+    }
 
     #[test]
     fn normalizes_parenthetical_suffixes() {
