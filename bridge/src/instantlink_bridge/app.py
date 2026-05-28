@@ -189,9 +189,13 @@ async def run_ftp_receive_slice(config_path: Path) -> None:
         ui_event_tasks.add(task)
         task.add_done_callback(ui_event_tasks.discard)
 
-    async def start_ftp_service() -> FtpReceiveService:
-        # Deferred so pyftpdlib (and its transitive deps in camera.ftp) load off the
-        # app.py module-import path and run concurrently with BLE setup below.
+    def _setup_ftp_service_sync() -> FtpReceiveService:
+        # Run the WHOLE FTP setup off the event loop: the `from instantlink_bridge.camera.ftp
+        # import FtpReceiveService` line transitively pulls pyftpdlib (~1 s of synchronous import
+        # on a cold Pi Zero 2 W). Doing that import on the main thread would block the BLE
+        # gather sibling for the duration of the import, defeating M3. Performing the import +
+        # construction + .start() in the executor thread lets the BLE branch make real progress
+        # in parallel.
         from instantlink_bridge.camera.ftp import FtpReceiveService
 
         ftp_service = FtpReceiveService(
@@ -201,11 +205,11 @@ async def run_ftp_receive_slice(config_path: Path) -> None:
             activity_tracker=ftp_activity,
             queue_overflow_callback=notify_queue_overflow,
         )
-        # FtpReceiveService.start() is blocking (it waits for the FTP thread's
-        # bind+listen). Run it on the default executor so it does not stall the
-        # event loop while BLE setup is in flight.
-        await asyncio.to_thread(ftp_service.start)
+        ftp_service.start()  # blocks until the FTP thread's listener is bound
         return ftp_service
+
+    async def start_ftp_service() -> FtpReceiveService:
+        return await asyncio.to_thread(_setup_ftp_service_sync)
 
     async def start_ble_stack() -> AsyncStopService | None:
         agent = await start_bluez_agent_if_needed()
