@@ -507,6 +507,7 @@ def draw_settings_row(
     *,
     selected: bool,
     font: Font,
+    marker_font: Font | None = None,
     theme: Theme | None = None,
     row_height: int = 19,
 ) -> None:
@@ -515,10 +516,18 @@ def draw_settings_row(
     Selected row: ``theme.accent_blue`` background, ``theme.label_inverse`` text.
     Non-selected: transparent strip; label in ``theme.label_primary``, value in
     ``theme.label_secondary``.
+
+    ``marker_font`` lets the caller render the trailing chevron in a heavier
+    size than the row text. On iOS the disclosure chevron is visibly larger
+    than the surrounding label; we mirror that by passing ``fonts["body"]``
+    (≈1.4× the row font) so the chevron reads as an affordance, not as a
+    stray punctuation glyph.
     """
 
     if theme is None:
         theme = theme_for("light")
+    if marker_font is None:
+        marker_font = font
 
     if selected:
         # Selected row: flat vibrant accent fill (iOS picker style). The
@@ -537,17 +546,28 @@ def draw_settings_row(
 
     kind = _settings_row_kind(hint)
     marker, _marker_fill = _settings_row_marker(kind, selected)
-    marker_fill = text_fill  # always match row text colour
+    # iOS chevron tint: secondary grey on normal rows, inverse on selected.
+    # Always tracks the row's text colour so it disappears into the active-
+    # row glow rather than fighting it with a competing accent (the previous
+    # blue/green/yellow chevrons clashed with the selected-row blue fill).
+    marker_fill = theme.label_inverse if selected else theme.label_secondary
 
     label_max = 94
     _text(draw, 22, y + 3, _fit_text_to_width(draw, label, font, label_max), font, text_fill)
 
-    marker_width = _text_width(draw, marker, font) if marker else 0
-    marker_x = 218 - marker_width
     if marker:
-        _text(draw, marker_x, y + 3, marker, font, marker_fill)
+        marker_width = _text_width(draw, marker, marker_font)
+        marker_x = 218 - marker_width
+        # Vertically centre the (larger) chevron inside the row; using the
+        # body font's natural ascent would push it 2-3 px above the value
+        # baseline.
+        marker_h = _font_height(draw, marker, marker_font)
+        marker_y = y + (row_height - marker_h) // 2 - 1
+        _text(draw, marker_x, marker_y, marker, marker_font, marker_fill)
+        value_right = marker_x - 4
+    else:
+        value_right = 218
 
-    value_right = marker_x - 4 if marker else 218
     value_text = _fit_text_to_width(draw, value, font, max(0, value_right - 122))
     value_width = _text_width(draw, value_text, font)
     _text(draw, max(122, value_right - value_width), y + 3, value_text, font, value_fill)
@@ -945,6 +965,11 @@ def _settings(
             row.hint,
             selected=index == selected,
             font=font,
+            # Chevron sits in the body font (≈1.4× the small row font) so
+            # the disclosure affordance reads from arm's length on the
+            # 240×240 panel. iOS uses a heavier weight; we approximate with
+            # size.
+            marker_font=fonts["body"],
             theme=theme,
             row_height=row_height,
         )
@@ -1427,21 +1452,27 @@ def _settings_row_kind(hint: str) -> str:
 
 
 def _settings_row_marker(kind: str, selected: bool) -> tuple[str, str]:
-    if kind == "choose":
-        return "<>", GREEN if not selected else TEXT
-    if kind == "change":
-        return "<>", GREEN if not selected else TEXT
-    if kind == "run":
-        return "!", YELLOW if not selected else TEXT
-    if kind == "info":
-        return "i", MUTED if not selected else TEXT
-    if kind == "open":
+    """Pick the trailing affordance glyph for a settings row.
+
+    Matches iOS Settings vocabulary: read-only rows have no trailing icon at
+    all; rows that open a sub-page, picker, action, or toggle show a single
+    right chevron. The previous mix of "<>", "!", and "i" introduced four
+    different end-of-row glyphs that the user had to learn — that's gone.
+
+    The returned colour is unused (the draw site picks the theme-aware
+    secondary/inverse tint to match label colour); it's kept in the tuple
+    only to preserve the call signature.
+    """
+
+    if kind in ("open", "choose", "change", "run"):
         # U+203A "›" (single right-pointing angle quotation mark) is a
         # proper narrow chevron — matches iOS' grouped-list disclosure
-        # affordance. ASCII ">" rendered as a wide math glyph and looked
-        # squashed against the row edge.
-        return "›", BLUE if not selected else TEXT
-    return "", MUTED
+        # affordance. We draw it in `fonts["body"]` at the call site so
+        # it sits visibly larger than the row label, mirroring iOS where
+        # the chevron is heavier than the surrounding text.
+        return "›", ""
+    # "info" and "plain" rows are read-only — no trailing icon.
+    return "", ""
 
 
 def _ready_ftp_line(snapshot: UiSnapshot) -> str:
