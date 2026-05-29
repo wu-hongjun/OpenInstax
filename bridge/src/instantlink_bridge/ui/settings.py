@@ -51,6 +51,7 @@ class SettingKey(StrEnum):
     SYSTEM_IDLE_POWEROFF = "system_idle_poweroff"
     FONT_SIZE = "font_size"
     REFRESH_STATUS = "refresh_status"
+    RESET_CREDENTIALS = "reset_credentials"
 
 
 class SettingsPage(StrEnum):
@@ -104,6 +105,7 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.FTP_PASSWORD_INFO,
         SettingKey.FTP_RECEIVE_MODE,
         SettingKey.CAMERA_SETUP_INFO,
+        SettingKey.RESET_CREDENTIALS,
     ),
     SettingsPage.NETWORK: (
         SettingKey.NETWORK_HOTSPOT_INFO,
@@ -181,6 +183,7 @@ ACTION_SETTING_KEYS: frozenset[SettingKey] = frozenset(
         SettingKey.RESET_PRINTER_LINK,
         SettingKey.FORGET_PRINTER,
         SettingKey.REFRESH_STATUS,
+        SettingKey.RESET_CREDENTIALS,
     }
 )
 
@@ -279,6 +282,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.SYSTEM_IDLE_POWEROFF: "Shuts down after 10 min idle",
     SettingKey.FONT_SIZE: "LCD text size",
     SettingKey.REFRESH_STATUS: "Re-check printer and FTP now",
+    SettingKey.RESET_CREDENTIALS: "Generate new Wi-Fi & FTP credentials",
 }
 
 

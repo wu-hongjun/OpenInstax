@@ -2950,3 +2950,146 @@ async def test_image_queue_changed_updates_snapshot_depth() -> None:
     assert ui.snapshot.image_queue_depth == 2
     assert ui.snapshot.mode is initial_mode
     assert not ui._printer_status_is_fresh()
+
+
+@pytest.mark.asyncio
+async def test_reset_credentials_requires_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    ssid_path = tmp_path / "hotspot.ssid"
+    psk_path = tmp_path / "hotspot.psk"
+    ssid_path.write_text("IL-Bridge-ORIG\n", encoding="utf-8")
+    psk_path.write_text("11111111\n", encoding="utf-8")
+    monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
+    monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
+
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    # Navigate to Upload FTP page and select the Reset credentials row (last row)
+    await ui._handle_action(UiAction.SELECT)  # open settings
+    await ui._handle_action(UiAction.DOWN)  # move to Upload FTP
+    await ui._handle_action(UiAction.SELECT)  # open Upload FTP page
+
+    # Scroll to the last row (Reset credentials)
+    from instantlink_bridge.ui.settings import SETTINGS_BY_PAGE, SettingsPage
+
+    camera_keys = SETTINGS_BY_PAGE[SettingsPage.CAMERA]
+    for _ in range(len(camera_keys) - 1):
+        await ui._handle_action(UiAction.DOWN)
+
+    # First SELECT should show confirmation prompt, not execute
+    await ui._handle_action(UiAction.SELECT)
+
+    assert "confirm" in (display.snapshots[-1].settings_message or "").lower()
+    assert ssid_path.read_text(encoding="utf-8") == "IL-Bridge-ORIG\n"
+    assert psk_path.read_text(encoding="utf-8") == "11111111\n"
+    assert ui._pending_credential_reset is True
+
+
+@pytest.mark.asyncio
+async def test_reset_credentials_second_select_executes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    ssid_path = tmp_path / "hotspot.ssid"
+    psk_path = tmp_path / "hotspot.psk"
+    ssid_path.write_text("IL-Bridge-ORIG\n", encoding="utf-8")
+    psk_path.write_text("11111111\n", encoding="utf-8")
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[ftp]\npassword = "11111111"\n', encoding="utf-8")
+    monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
+    monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
+
+    applied_ftp: list[object] = []
+
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+        ftp_config_applied_callback=lambda cfg: applied_ftp.append(cfg),
+    )
+
+    # Navigate to Upload FTP page and go to Reset credentials row
+    await ui._handle_action(UiAction.SELECT)  # open settings
+    await ui._handle_action(UiAction.DOWN)  # Upload FTP
+    await ui._handle_action(UiAction.SELECT)  # open page
+
+    from instantlink_bridge.ui.settings import SETTINGS_BY_PAGE, SettingsPage
+
+    camera_keys = SETTINGS_BY_PAGE[SettingsPage.CAMERA]
+    for _ in range(len(camera_keys) - 1):
+        await ui._handle_action(UiAction.DOWN)
+
+    # First SELECT: confirmation prompt
+    await ui._handle_action(UiAction.SELECT)
+    assert ui._pending_credential_reset is True
+
+    # Second SELECT: execute reset
+    await ui._handle_action(UiAction.SELECT)
+
+    new_ssid = ssid_path.read_text(encoding="utf-8").strip()
+    new_psk = psk_path.read_text(encoding="utf-8").strip()
+
+    assert new_ssid.startswith("IL-Bridge-")
+    assert new_ssid != "IL-Bridge-ORIG"
+    assert len(new_psk) == 8
+    assert new_psk != "11111111"
+    assert ui._config.ftp.password != "11111111"
+    assert len(ui._config.ftp.password) == 8
+    assert len(applied_ftp) >= 1
+    assert ui._pending_credential_reset is False
+
+
+@pytest.mark.asyncio
+async def test_reset_credentials_other_key_cancels(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    ssid_path = tmp_path / "hotspot.ssid"
+    psk_path = tmp_path / "hotspot.psk"
+    ssid_path.write_text("IL-Bridge-ORIG\n", encoding="utf-8")
+    psk_path.write_text("11111111\n", encoding="utf-8")
+    monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
+    monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
+
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+
+    # Navigate to Upload FTP page and Reset credentials row
+    await ui._handle_action(UiAction.SELECT)  # open settings
+    await ui._handle_action(UiAction.DOWN)  # Upload FTP
+    await ui._handle_action(UiAction.SELECT)  # open page
+
+    from instantlink_bridge.ui.settings import SETTINGS_BY_PAGE, SettingsPage
+
+    camera_keys = SETTINGS_BY_PAGE[SettingsPage.CAMERA]
+    for _ in range(len(camera_keys) - 1):
+        await ui._handle_action(UiAction.DOWN)
+
+    # First SELECT: arm confirmation
+    await ui._handle_action(UiAction.SELECT)
+    assert ui._pending_credential_reset is True
+
+    # DOWN clears the flag and no files are written
+    await ui._handle_action(UiAction.DOWN)
+
+    assert ui._pending_credential_reset is False
+    assert ssid_path.read_text(encoding="utf-8") == "IL-Bridge-ORIG\n"
+    assert psk_path.read_text(encoding="utf-8") == "11111111\n"

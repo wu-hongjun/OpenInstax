@@ -6,6 +6,7 @@ import asyncio
 import logging
 import math
 import os
+import secrets
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import replace
@@ -259,6 +260,8 @@ class BridgeUi:
         self._pairing_generation = 0
         self._pair_return_page: SettingsPage | None = None
         self._forget_confirm_pending = False
+        self._pending_credential_reset = False
+        self._credential_hotspot_task: asyncio.Task[None] | None = None
         self._pending_print_result: asyncio.Future[PrintEdit | None] | None = None
         self._preview_edit = PrintEdit()
         self._preview_tool: PreviewTool = "zoom"
@@ -1007,6 +1010,7 @@ class BridgeUi:
             return
         if action in {UiAction.HELP, UiAction.PAIR}:
             self._forget_confirm_pending = False
+            self._pending_credential_reset = False
             if self._settings_page is SettingsPage.MAIN:
                 self._show_settings("KEY1 opens category")
                 return
@@ -1015,6 +1019,7 @@ class BridgeUi:
             return
         if action in {UiAction.BACK, UiAction.LEFT}:
             self._forget_confirm_pending = False
+            self._pending_credential_reset = False
             if self._settings_page is SettingsPage.MAIN:
                 await self.refresh_printer_status()
             else:
@@ -1022,6 +1027,7 @@ class BridgeUi:
             return
         if action in {UiAction.UP, UiAction.DOWN}:
             self._forget_confirm_pending = False
+            self._pending_credential_reset = False
             direction = -1 if action is UiAction.UP else 1
             keys = SETTINGS_BY_PAGE[self._settings_page]
             selected_index = (self._snapshot.selected_index + direction) % len(keys)
@@ -1060,6 +1066,9 @@ class BridgeUi:
             return
         if key is SettingKey.FORGET_PRINTER:
             await self._confirm_or_forget_selected_printer()
+            return
+        if key is SettingKey.RESET_CREDENTIALS:
+            await self._confirm_or_reset_credentials()
             return
         self._forget_confirm_pending = False
         if key is SettingKey.REFRESH_STATUS:
@@ -1280,6 +1289,92 @@ class BridgeUi:
         )
         self._show_settings("Printer forgotten")
 
+    async def _confirm_or_reset_credentials(self) -> None:
+        if not self._pending_credential_reset:
+            self._pending_credential_reset = True
+            self._show_settings("Reset Wi-Fi/FTP creds? K1 confirm K2 cancel")
+            return
+        self._pending_credential_reset = False
+        await self._reset_credentials()
+
+    async def _reset_credentials(self) -> None:
+        new_ssid = f"IL-Bridge-{secrets.token_hex(2).upper()}"
+        new_psk = f"{secrets.randbelow(90_000_000) + 10_000_000}"
+        new_ftp_pw = f"{secrets.randbelow(90_000_000) + 10_000_000}"
+        LOGGER.info("bridge.credentials_reset ssid=%s", new_ssid)
+
+        # Write SSID file
+        ssid_path = _hotspot_ssid_file()
+        try:
+            ssid_path.write_text(new_ssid + "\n", encoding="utf-8")
+            os.chmod(ssid_path, 0o600)
+            try:
+                import pwd
+
+                pw = pwd.getpwnam("ib")
+                os.chown(ssid_path, pw.pw_uid, pw.pw_gid)
+            except (ImportError, KeyError):
+                pass
+        except OSError:
+            LOGGER.exception("bridge.credentials_reset_ssid_write_failed path=%s", ssid_path)
+            self._show_settings("Credential write failed")
+            return
+
+        # Write PSK file
+        psk_path = _hotspot_psk_file()
+        try:
+            psk_path.write_text(new_psk + "\n", encoding="utf-8")
+            os.chmod(psk_path, 0o600)
+            try:
+                import pwd
+
+                pw = pwd.getpwnam("ib")
+                os.chown(psk_path, pw.pw_uid, pw.pw_gid)
+            except (ImportError, KeyError):
+                pass
+        except OSError:
+            LOGGER.exception("bridge.credentials_reset_psk_write_failed path=%s", psk_path)
+            self._show_settings("Credential write failed")
+            return
+
+        # Update FTP password in config
+        updated = replace(self._config, ftp=replace(self._config.ftp, password=new_ftp_pw))
+        await self._set_config(updated, message="Credentials regenerated")
+
+        # Notify live FTP server of the new password
+        self._notify_ftp_config_applied(updated.ftp)
+
+        # Restart hotspot so new SSID/PSK take effect (fire-and-forget)
+        self._credential_hotspot_task = asyncio.create_task(
+            self._restart_hotspot_for_credentials(),
+            name="bridge.credentials_hotspot_restart",
+        )
+
+        # Refresh snapshot so new SSID appears immediately
+        self._snapshot = replace(self._snapshot, settings_rows=self._settings_rows())
+        self._render()
+
+    async def _restart_hotspot_for_credentials(self) -> None:
+        command = (
+            "sudo",
+            "-n",
+            str(WIFI_MODE_HELPER),
+            "hotspot",
+        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            await process.communicate()
+            LOGGER.info(
+                "bridge.credentials_hotspot_restarted returncode=%s",
+                process.returncode,
+            )
+        except Exception:
+            LOGGER.exception("bridge.credentials_hotspot_restart_failed")
+
     def _settings_rows(self) -> tuple[SettingsRow, ...]:
         printer_name = (
             self._snapshot.paired_printer.name
@@ -1401,6 +1496,8 @@ class BridgeUi:
             return SettingsRow("Refresh status", "run")
         if key is SettingKey.FONT_SIZE:
             return SettingsRow("Text size", self._config.ui.font_size.value.capitalize())
+        if key is SettingKey.RESET_CREDENTIALS:
+            return SettingsRow("Reset credentials", "Hold K1")
         return SettingsRow("Unknown", "")
 
     def _settings_row_help(self, key: SettingKey) -> str:
