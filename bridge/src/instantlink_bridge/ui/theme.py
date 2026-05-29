@@ -104,9 +104,12 @@ LIGHT_THEME = Theme(
     accent_yellow="#FFCC00",  # systemYellow
     accent_red="#FF3B30",  # systemRed
     accent_orange="#FF9500",  # systemOrange
-    pill_bg_green="#34C759",
-    pill_bg_yellow="#FFCC00",
-    pill_bg_red="#FF3B30",
+    # Frosted pill fills: 70 % accent blended with systemBackground (#FFFFFF) at 30 %
+    # so the capsule reads as a translucent glass chip rather than a solid badge.
+    # Formula: round(accent * 0.70 + 255 * 0.30)
+    pill_bg_green="#65D87C",   # #34C759 * 0.70 + #FFF * 0.30 → #65D87C
+    pill_bg_yellow="#FFD833",  # #FFCC00 * 0.70 + #FFF * 0.30 → #FFD833
+    pill_bg_red="#FF6D65",     # #FF3B30 * 0.70 + #FFF * 0.30 → #FF6D65
     hint_bg="#E5E5EA",
     hint_fg="#6B6B70",
 )
@@ -128,9 +131,13 @@ DARK_THEME = Theme(
     accent_yellow="#FFD60A",  # systemYellow (dark)
     accent_red="#FF453A",  # systemRed (dark)
     accent_orange="#FF9F0A",
-    pill_bg_green="#30D158",
-    pill_bg_yellow="#FFD60A",
-    pill_bg_red="#FF453A",
+    # Frosted pill fills: 82 % dark accent + 18 % dark surface (#1C1C1E = 28,28,30)
+    # Dark mode needs less muting than light (already on dark bg) — 82/18 keeps
+    # the accent vibrant but adds the frosted-glass tonal shift.
+    # Formula: round(accent * 0.82 + surface * 0.18)
+    pill_bg_green="#2DB44E",   # #30D158 * 0.82 + #1C1C1E * 0.18 → #2DB44E
+    pill_bg_yellow="#D4B20D",  # #FFD60A * 0.82 + #1C1C1E * 0.18 → #D4B20D
+    pill_bg_red="#D43A30",     # #FF453A * 0.82 + #1C1C1E * 0.18 → #D43A30
     hint_bg="#1C1C1E",
     hint_fg="#A1A1A6",
 )

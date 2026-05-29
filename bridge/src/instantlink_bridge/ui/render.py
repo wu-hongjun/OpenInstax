@@ -31,10 +31,17 @@ BLUE = "#3d8bfd"
 BLACK = "#05080c"
 
 # Vertical layout constants
-STATUS_BAR_H = 30  # top status bar height (single line)
-HINT_BAR_Y = 220  # top of hint bar row (240 - 20)
+STATUS_BAR_H = 36  # top status bar — 6 px taller than v1 so the pill has
+# breathing room above + below (was 30 with pill almost touching the screen
+# edge). BODY_TOP adapts via the formula below; body renderers already use
+# STATUS_BAR_H + offset so no per-mode shift is needed.
+HINT_BAR_H = 32  # hint bar — taller to host two-line K-chips. Each chip
+# stacks the key label (K1/K2/K3) on line 1 and the action label on line 2,
+# which doubles the horizontal width budget per action.
+HINT_BAR_Y = 240 - HINT_BAR_H  # top of hint bar row
 BODY_TOP = STATUS_BAR_H + 4  # first usable body y
-TOAST_Y = 208  # settings_message toast y
+TOAST_Y = HINT_BAR_Y - 12  # settings_message toast y — sits between card
+# and hint bar so it can't overlap card borders or chips.
 
 
 # Font-size scale tables.  MEDIUM (1.0) is the historical baseline; changing
@@ -84,15 +91,29 @@ def render_snapshot(snapshot: UiSnapshot, now: float | None = None) -> Image.Ima
     image = Image.new("RGB", LCD_SIZE, theme.bg)
     draw = ImageDraw.Draw(image)
     font_scale, _row_scale = _scale_for_snapshot(snapshot)
-    # CJK glyphs aren't in DejaVu; prefer a CJK-capable family when the
-    # active language needs it. Latin glyphs are present in Noto CJK too,
-    # so a CJK font also renders English correctly — the preference flip
-    # is the only thing needed.
+    # DejaVu has the cleanest Latin glyphs but no CJK coverage; WenQuanYi/
+    # Noto cover CJK but render Latin slightly differently. Each font slot
+    # carries both:
+    #   primary   → DejaVu when language is English (preserves the v1 look),
+    #                CJK-first when the user picked 中文.
+    #   cjk_sibling (attached) → always a CJK-capable font of the same size,
+    #                so per-glyph fallback inside `_text` can render
+    #                strings like "中文" even on the English picker.
     prefer_cjk = snapshot.language.startswith("zh")
-    fonts: dict[str, Font] = {
-        key: _font(max(1, round(base * font_scale)), prefer_cjk=prefer_cjk)
-        for key, base in _BASE_FONTS.items()
-    }
+    fonts: dict[str, Font] = {}
+    for key, base in _BASE_FONTS.items():
+        size = max(1, round(base * font_scale))
+        primary = _font(size, prefer_cjk=prefer_cjk)
+        sibling = primary if prefer_cjk else _font(size, prefer_cjk=True)
+        # Attach for the smart `_text` fallback. PIL fonts are plain Python
+        # objects and accept arbitrary attrs.
+        try:
+            primary.cjk_sibling = sibling  # type: ignore[attr-defined]
+        except AttributeError:
+            # ImageFont.load_default() returns a slot-restricted object;
+            # fall back to a module-level cache keyed by id().
+            _CJK_SIBLING_BY_ID[id(primary)] = sibling
+        fonts[key] = primary
 
     breath_clock = time.monotonic() if now is None else now
     draw_status_bar(draw, snapshot, fonts, breath_clock, theme=theme)
@@ -136,6 +157,26 @@ def render_snapshot(snapshot: UiSnapshot, now: float | None = None) -> Image.Ima
 # ---------------------------------------------------------------------------
 
 
+def _lighten(colour: str | tuple[int, int, int], amount: int = 40) -> str:
+    """Return a hex colour lightened by ``amount`` (0-255) per channel."""
+    if isinstance(colour, str):
+        h = colour.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    else:
+        r, g, b = colour
+    return f"#{min(255, r + amount):02x}{min(255, g + amount):02x}{min(255, b + amount):02x}"
+
+
+def _darken(colour: str | tuple[int, int, int], amount: int = 30) -> str:
+    """Return a hex colour darkened by ``amount`` per channel."""
+    if isinstance(colour, str):
+        h = colour.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    else:
+        r, g, b = colour
+    return f"#{max(0, r - amount):02x}{max(0, g - amount):02x}{max(0, b - amount):02x}"
+
+
 def draw_pill(
     draw: ImageDraw.ImageDraw,
     x: int,
@@ -149,10 +190,35 @@ def draw_pill(
 ) -> None:
     """Draw a capsule (rounded rect, radius = h//2) with centred text.
 
+    Liquid Glass polish:
+    - Edge-light: 1 px brighter top arc, 1 px darker bottom arc (glass rim).
+    - Specular shimmer: a 1 px lighter horizontal line at h//3 from top, inset
+      by radius on each side, simulating a top-light specular streak on the
+      curved glass surface. Two single-line draws — essentially free.
+
     Used for the status bar live-indicator pill and hint chips.
     """
     radius = h // 2
     draw.rounded_rectangle((x, y, x + w, y + h), radius=radius, fill=fill)
+
+    # --- Edge-light: 1 px top-arc brighter, 1 px bottom-arc darker ----------
+    # We clip the highlight to the inner inset rect so it follows the capsule
+    # silhouette without leaking onto the background.
+    edge_top = _lighten(fill, 50)
+    edge_bot = _darken(fill, 25)
+    # Top edge: draw a 1 px thick rounded rect just covering the top line
+    draw.rounded_rectangle((x, y, x + w, y + 1), radius=radius, fill=edge_top)
+    # Bottom edge
+    draw.rounded_rectangle((x, y + h - 1, x + w, y + h), radius=radius, fill=edge_bot)
+
+    # --- Specular shimmer: thin lighter streak in upper third ----------------
+    shimmer_y = y + h // 3
+    shimmer_x0 = x + radius
+    shimmer_x1 = x + w - radius
+    if shimmer_x1 > shimmer_x0:
+        shimmer_col = _lighten(fill, 65)
+        draw.line((shimmer_x0, shimmer_y, shimmer_x1, shimmer_y), fill=shimmer_col, width=1)
+
     # Centre text within the pill
     bbox = draw.textbbox((0, 0), text, font=font)
     tw = bbox[2] - bbox[0]
@@ -174,19 +240,23 @@ def draw_card(
 ) -> None:
     """Draw a rounded card surface.
 
-    ``elevated`` uses ``theme.surface_elevated`` and adds a 1 px darker top
-    edge so it reads as a layer above the base surface.
+    ``elevated`` uses ``theme.surface_elevated`` and adds edge-light treatment.
+
+    Liquid Glass polish (applied to every card, not just elevated):
+    - Corner radius 10 pt — matches Apple's grouped-list style (was 12).
+    - Edge-light: 1 px top edge at ``_lighten(fill, 35)`` simulates the bright
+      top rim of a frosted glass panel catching overhead light.
+    - Edge-shadow: 1 px bottom edge at ``_darken(fill, 20)`` anchors the card
+      visually without a drop-shadow (essentially free — two line draws).
     """
     fill = theme.surface_elevated if elevated else theme.surface
-    radius = 12
+    radius = 10  # Apple grouped-list corner radius (was 12)
     draw.rounded_rectangle((x, y, x + w, y + h), radius=radius, fill=fill)
-    if elevated:
-        # 1 px top edge in separator colour — gives a subtle "lifted" read
-        draw.rounded_rectangle(
-            (x, y, x + w, y + 1),
-            radius=radius,
-            fill=theme.separator,
-        )
+
+    # Edge-light: top bright rim
+    draw.rounded_rectangle((x, y, x + w, y + 1), radius=radius, fill=_lighten(fill, 35))
+    # Edge-shadow: bottom dark rim
+    draw.rounded_rectangle((x, y + h - 1, x + w, y + h), radius=radius, fill=_darken(fill, 20))
 
 
 def draw_hairline(
@@ -368,51 +438,75 @@ def draw_hint_bar(
     font: Font,
     theme: Theme | None = None,
 ) -> None:
-    """Draw the single-row hint bar at the bottom of the screen.
+    """Draw the two-line hint bar at the bottom of the screen.
 
-    Liquid Glass redesign: bar background is ``theme.bg`` (no contrasting
-    band). Each non-empty hint becomes a small capsule pill with
-    ``theme.hint_bg`` fill and ``theme.hint_fg`` text, centred within its
-    80 px zone.
+    Each non-empty hint becomes a capsule pill stacking the key label on
+    line 1 (e.g. ``K1``) and the action label on line 2 (e.g. ``Setting``)
+    so each chip gets the full 80 px zone width for one short word per
+    line instead of trying to fit "K1 Setting" inline.
 
-    ``hints`` is a (left, center, right) triple of glyph/label strings.
-    Empty strings are not drawn.
+    The split happens on the first space — strings without a space render
+    on a single (centred) line.
     """
 
     if theme is None:
         theme = theme_for("light")
 
-    # No contrasting band — bg is the page background
     draw.rectangle((0, HINT_BAR_Y - 2, 239, 239), fill=theme.bg)
 
     left, center, right = hints
     zone_w = 80
     zone_max = zone_w - 8  # 4 px padding each side
     centers = (40, 120, 200)
-    pill_h = 18
-    pill_radius = pill_h // 2
+    # Pill is sized to host two lines comfortably. Single-line hints centre
+    # vertically inside the same chip so all three chips share one height.
+    pill_h = HINT_BAR_H - 6
+    pill_radius = 8
 
     for text, cx in zip((left, center, right), centers, strict=True):
         if not text:
             continue
-        fitted = _fit_text_to_width(draw, text, font, zone_max)
-        tw = _text_width(draw, fitted, font)
-        pill_w = tw + 14  # 7 px padding each side
-        pill_w = max(pill_w, 20)
+
+        # Split first token (the key) from the rest of the action label.
+        # "K1 Setting" → ("K1", "Setting"); "Hold K3" → ("Hold", "K3");
+        # "Done" → ("Done", "").
+        if " " in text:
+            line1, line2 = text.split(" ", 1)
+        else:
+            line1, line2 = text, ""
+
+        fitted1 = _fit_text_to_width(draw, line1, font, zone_max)
+        fitted2 = _fit_text_to_width(draw, line2, font, zone_max)
+        tw1 = _text_width(draw, fitted1, font)
+        tw2 = _text_width(draw, fitted2, font)
+
+        pill_w = max(tw1, tw2) + 14  # 7 px padding each side
+        pill_w = max(pill_w, 28)
         pill_x = cx - pill_w // 2
-        pill_y = HINT_BAR_Y + (20 - pill_h) // 2
+        pill_y = HINT_BAR_Y + (HINT_BAR_H - pill_h) // 2
 
         draw.rounded_rectangle(
             (pill_x, pill_y, pill_x + pill_w, pill_y + pill_h),
             radius=pill_radius,
             fill=theme.hint_bg,
         )
-        # Centre text within pill
-        bbox = draw.textbbox((0, 0), fitted, font=font)
-        text_h = bbox[3] - bbox[1]
-        tx = pill_x + (pill_w - tw) // 2 - bbox[0]
-        ty = pill_y + (pill_h - text_h) // 2 - bbox[1]
-        draw.text((tx, ty), fitted, fill=theme.hint_fg, font=font)
+
+        # Two-line layout: line 1 at the top third, line 2 at the bottom
+        # third; the small font is ~10 px so two lines fit in ~22 px.
+        bbox1 = draw.textbbox((0, 0), fitted1, font=font)
+        line_h = bbox1[3] - bbox1[1]
+        if fitted2:
+            total_h = line_h * 2 + 1
+            line1_y = pill_y + (pill_h - total_h) // 2 - bbox1[1]
+            line2_y = line1_y + line_h + 1
+            tx1 = pill_x + (pill_w - tw1) // 2 - bbox1[0]
+            tx2 = pill_x + (pill_w - tw2) // 2 - draw.textbbox((0, 0), fitted2, font=font)[0]
+            draw.text((tx1, line1_y), fitted1, fill=theme.hint_fg, font=font)
+            draw.text((tx2, line2_y), fitted2, fill=theme.hint_fg, font=font)
+        else:
+            line1_y = pill_y + (pill_h - line_h) // 2 - bbox1[1]
+            tx1 = pill_x + (pill_w - tw1) // 2 - bbox1[0]
+            draw.text((tx1, line1_y), fitted1, fill=theme.hint_fg, font=font)
 
 
 def draw_settings_row(
@@ -443,6 +537,18 @@ def draw_settings_row(
             (14, y, 226, y + row_height - 1),
             radius=4,
             fill=theme.accent_blue,
+        )
+        # Inner glass highlight: 1 px brighter top edge + 1 px darker bottom
+        # edge gives the "pressed into glass" Liquid Glass selection feel.
+        draw.rounded_rectangle(
+            (14, y, 226, y + 1),
+            radius=4,
+            fill=_lighten(theme.accent_blue, 40),
+        )
+        draw.rounded_rectangle(
+            (14, y + row_height - 2, 226, y + row_height - 1),
+            radius=4,
+            fill=_darken(theme.accent_blue, 25),
         )
         text_fill = theme.label_inverse
         value_fill = theme.label_inverse
@@ -550,20 +656,21 @@ def _ready(
             ry = start_y + i * row_h
             row_mid = ry + row_h // 2
 
-            # Label (left, secondary)
+            # Label (left, secondary) — 16 px inset aligns with iOS separator inset
             prefix = f"{label}: "
             lw = _text_width(draw, prefix, fonts["small"])
             label_y = row_mid - _font_height(draw, prefix, fonts["small"]) // 2
-            _text(draw, card_x + 10, label_y, prefix, fonts["small"], theme.label_secondary)
+            _text(draw, card_x + 16, label_y, prefix, fonts["small"], theme.label_secondary)
 
             # Value (follows label, primary)
             _text(
-                draw, card_x + 10 + lw, label_y, value, fonts["small"], theme.label_primary
+                draw, card_x + 16 + lw, label_y, value, fonts["small"], theme.label_primary
             )
 
-            # Hairline after row (except last)
+            # Hairline after row (except last) — 16 px leading inset matches
+            # iOS default UITableViewCell.separatorInset (16 pt leading).
             if i < num_rows - 1:
-                draw_hairline(draw, card_x + 8, ry + row_h - 1, card_w - 16, theme)
+                draw_hairline(draw, card_x + 16, ry + row_h - 1, card_w - 32, theme)
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"], theme)
@@ -774,14 +881,13 @@ def _settings(
 
     _font_scale, row_scale = _scale_for_snapshot(snapshot)
     row_height = max(1, round(_BASE_ROW_HEIGHT * row_scale))
-    # Compute how many rows fit between status bar and hint bar (leaving 8px margin).
-    body_height = HINT_BAR_Y - STATUS_BAR_H - 8
-    visible_count = max(1, body_height // row_height)
 
     selected = min(snapshot.selected_index, len(rows) - 1)
     selected_row = rows[selected]
 
-    # Determine bottom line content: toast takes priority, then per-row help text.
+    # Toast (settings_message) takes priority over help text. Both share a
+    # dedicated strip *below* the rounded card so they can never overlap the
+    # card's rounded borders.
     toast_message = snapshot.settings_message
     help_text = selected_row.help if selected_row.help else ""
     if toast_message is not None:
@@ -793,24 +899,26 @@ def _settings(
     else:
         bottom_text = ""
         bottom_color = theme.label_secondary
-
-    # Reserve the last visible row slot for the bottom line only when we have
-    # something to show there, so it never overlaps with row content.
     bottom_shown = bool(bottom_text)
-    if bottom_shown and visible_count > 1:
-        visible_count -= 1
+
+    # Card occupies the body area; if a bottom line is shown, leave a clear
+    # gap below the card so the toast sits in its own strip.
+    card_top = STATUS_BAR_H + 2
+    card_bottom = (HINT_BAR_Y - 16) if bottom_shown else (HINT_BAR_Y - 4)
+    card_h = card_bottom - card_top
+
+    # Compute how many rows fit inside the card with 4 px padding top/bottom.
+    body_height = card_h - 8
+    visible_count = max(1, body_height // row_height)
 
     start = min(max(0, selected - 4), max(0, len(rows) - visible_count))
 
     # Draw the full-page card backdrop behind the rows
-    card_top = STATUS_BAR_H + 2
-    card_bottom = HINT_BAR_Y - 4
-    card_h = card_bottom - card_top
     draw_card(draw, 12, card_top, 216, card_h, theme)
 
     for offset, row in enumerate(rows[start : start + visible_count]):
         index = start + offset
-        y = STATUS_BAR_H + 4 + offset * row_height
+        y = card_top + 4 + offset * row_height
         draw_settings_row(
             draw,
             y,
@@ -830,12 +938,13 @@ def _settings(
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"], theme)
 
-    # Bottom line occupies the slot below the last visible row (which we reserved
-    # above by reducing visible_count). Toast is accent_yellow; help text is label_secondary.
     if bottom_shown:
-        bottom_y = STATUS_BAR_H + 4 + visible_count * row_height
-        fitted = _fit_text_to_width(draw, bottom_text, font, 220)
-        _text(draw, 10, bottom_y, fitted, font, bottom_color)
+        # Bottom toast/help strip lives BELOW the card in its own 12 px gap.
+        # 16 px left/right insets clear the card's rounded corner radius so the
+        # text never visually intersects the border.
+        bottom_y = card_bottom + 2
+        fitted = _fit_text_to_width(draw, bottom_text, font, 240 - 32)
+        _text(draw, 16, bottom_y, fitted, font, bottom_color)
 
 
 def _pairing(
@@ -1008,6 +1117,39 @@ def _center_lines(
         y += 26
 
 
+# Fallback CJK-sibling lookup for fonts that don't accept arbitrary attrs.
+# Keyed by id(primary_font); cleared between renders implicitly because the
+# primary fonts are rebuilt every render_snapshot call.
+_CJK_SIBLING_BY_ID: dict[int, Font] = {}
+
+
+def _has_cjk(text: str) -> bool:
+    """Return True if ``text`` contains any CJK ideograph.
+
+    Covers the three Unicode blocks the LCD is likely to encounter:
+    CJK Unified Ideographs, the Extension-A block, and the CJK
+    Compatibility Ideographs range. Hiragana/Katakana aren't in WQY
+    coverage so we don't bother — the Chinese translations are pure
+    Han characters.
+    """
+
+    return any(
+        "一" <= ch <= "鿿"
+        or "㐀" <= ch <= "䶿"
+        or "豈" <= ch <= "﫿"
+        for ch in text
+    )
+
+
+def _cjk_font_for(font: Font) -> Font | None:
+    """Return the CJK sibling font registered for ``font``, or None."""
+
+    sibling = getattr(font, "cjk_sibling", None)
+    if sibling is not None:
+        return sibling  # type: ignore[no-any-return]
+    return _CJK_SIBLING_BY_ID.get(id(font))
+
+
 def _text(
     draw: ImageDraw.ImageDraw,
     x: int,
@@ -1016,6 +1158,19 @@ def _text(
     font: Font,
     fill: str,
 ) -> None:
+    """Draw ``text`` at ``(x, y)``.
+
+    Auto-switches to the font's CJK sibling when the string contains any
+    Han characters so picker options like "中文" render correctly even in
+    English mode (DejaVu has no CJK glyphs). Pure-Latin strings keep the
+    primary font for crisper Latin rendering.
+    """
+
+    if _has_cjk(text):
+        cjk_font = _cjk_font_for(font)
+        if cjk_font is not None:
+            draw.text((x, y), text, fill=fill, font=cjk_font)
+            return
     draw.text((x, y), text, fill=fill, font=font)
 
 
@@ -1072,11 +1227,17 @@ _LATIN_FONT_PATHS: tuple[str, ...] = (
 )
 
 _CJK_FONT_PATHS: tuple[str, ...] = (
+    # Pi OS — what production runs:
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
     "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    # macOS dev — Apple's location varies between Intel/Apple-Silicon and
+    # macOS release. Try the common ones so render previews work locally.
     "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/Hiragino Sans GB.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
+    "/System/Library/Fonts/STHeiti Medium.ttc",
 )
 
 
@@ -1095,6 +1256,17 @@ def _font(size: int, prefer_cjk: bool = False) -> Font:
 
 
 def _text_width(draw: ImageDraw.ImageDraw, text: str, font: Font) -> int:
+    """Return the rendered width of ``text`` in pixels.
+
+    Mirrors the CJK-fallback path in :func:`_text` so layout maths
+    (centring, fit-to-width) stay accurate when the string contains
+    Han characters and the actual draw call switches to the sibling.
+    """
+
+    if _has_cjk(text):
+        cjk_font = _cjk_font_for(font)
+        if cjk_font is not None:
+            font = cjk_font
     left, _top, right, _bottom = draw.textbbox((0, 0), text, font=font)
     return int(right - left)
 
