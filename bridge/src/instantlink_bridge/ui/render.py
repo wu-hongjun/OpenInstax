@@ -346,8 +346,10 @@ def _printer_searching(
         _text(draw, 18, 146, "Phone Bluetooth may grab it", fonts["small"], MUTED)
     else:
         _center_lines(draw, ["Finding", "printer"], 62, fonts["large"], TEXT)
-        _text(draw, 18, 128, "Turn selected printer on", fonts["body"], TEXT)
-        _text(draw, 18, 150, _ellipsize(message, 31), fonts["small"], MUTED)
+        # Single action line — message is typically already actionable
+        # ("Turn printer on" / "Keep printer awake"); a hardcoded prefix
+        # would duplicate it (e.g. "Turn selected printer on" + "Turn printer on").
+        _text(draw, 18, 128, _ellipsize(message, 31), fonts["body"], TEXT)
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"])
