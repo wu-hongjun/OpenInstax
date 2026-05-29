@@ -52,6 +52,13 @@ class PowerBackend(StrEnum):
     NONE = "none"
 
 
+class UiSurface(StrEnum):
+    """Bridge UI display surface."""
+
+    LCD = "lcd"
+    HEADLESS = "headless"
+
+
 @dataclass(frozen=True, slots=True)
 class FtpSourceDecision:
     """Result of applying FTP receive-mode source policy."""
@@ -262,6 +269,13 @@ class PowerConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class UiConfig:
+    """Bridge UI surface configuration."""
+
+    surface: UiSurface = UiSurface.LCD
+
+
+@dataclass(frozen=True, slots=True)
 class FirmwareTrustedPublicKeyConfig:
     """Configured firmware release signing public key."""
 
@@ -285,6 +299,7 @@ class BridgeConfig:
     workflow: WorkflowConfig = WorkflowConfig()
     power: PowerConfig = PowerConfig()
     firmware: FirmwareUpdateConfig = FirmwareUpdateConfig()
+    ui: UiConfig = UiConfig()
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> BridgeConfig:
@@ -299,6 +314,7 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> BridgeConfig:
         workflow=_load_workflow_config(data.get("workflow", {})),
         power=_load_power_config(data.get("power", {})),
         firmware=_load_firmware_config(data.get("firmware", {})),
+        ui=_load_ui_config(data.get("ui", {})),
     )
 
 
@@ -385,7 +401,14 @@ def render_config(config: BridgeConfig) -> str:
         lines.append("]")
     else:
         lines.append("trusted_public_keys = []")
-    lines.append("")
+    lines.extend(
+        [
+            "",
+            "[ui]",
+            f"surface = {_toml_string(config.ui.surface.value)}",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -522,6 +545,25 @@ def _load_firmware_config(data: object) -> FirmwareUpdateConfig:
         records.append(FirmwareTrustedPublicKeyConfig(key_id=key_id, public_key=public_key))
 
     return FirmwareUpdateConfig(trusted_public_keys=tuple(records))
+
+
+def _load_ui_config(data: object) -> UiConfig:
+    if not isinstance(data, dict):
+        raise ValueError("[ui] must be a TOML table")
+    return UiConfig(
+        surface=parse_ui_surface(data.get("surface", UiSurface.LCD.value)),
+    )
+
+
+def parse_ui_surface(value: object) -> UiSurface:
+    """Parse a configured UI surface."""
+
+    text = str(value).strip().lower()
+    try:
+        return UiSurface(text)
+    except ValueError as exc:
+        allowed = ", ".join(s.value for s in UiSurface)
+        raise ValueError(f"[ui].surface must be one of: {allowed}") from exc
 
 
 def parse_ftp_receive_mode(value: object) -> FtpReceiveMode:

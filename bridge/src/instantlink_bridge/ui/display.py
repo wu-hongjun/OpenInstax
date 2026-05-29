@@ -10,6 +10,7 @@ from typing import Protocol, cast
 
 from PIL import Image
 
+from instantlink_bridge.config import UiSurface
 from instantlink_bridge.ui.models import UiSnapshot
 from instantlink_bridge.ui.render import render_snapshot
 
@@ -224,9 +225,16 @@ class _FramebufferBacklight:
             )
 
 
-def create_display() -> Display:
-    """Create the hardware display, falling back to logs if unavailable."""
+def create_display(surface: UiSurface | None = None) -> Display:
+    """Create the hardware display, falling back to logs if unavailable.
 
+    When *surface* is ``UiSurface.HEADLESS`` the probe chain is skipped entirely
+    and a ``NullDisplay`` is returned immediately, avoiding the ~0.5 s cold-boot
+    cost of probing framebuffers and importing ``luma.lcd`` / ``gpiozero``.
+    """
+
+    if surface is UiSurface.HEADLESS:
+        return NullDisplay()
     framebuffer = _st7789_framebuffer()
     if framebuffer is not None:
         try:

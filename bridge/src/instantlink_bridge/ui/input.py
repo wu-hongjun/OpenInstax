@@ -8,6 +8,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from typing import Protocol, cast
 
+from instantlink_bridge.config import UiSurface
 from instantlink_bridge.ui.models import UiAction
 
 LOGGER = logging.getLogger(__name__)
@@ -105,9 +106,15 @@ class GpioUiInput:
         self._buttons.clear()
 
 
-def create_input() -> GpioUiInput | NullInput:
-    """Create GPIO input, falling back to no-op input if unavailable."""
+def create_input(surface: UiSurface | None = None) -> GpioUiInput | NullInput:
+    """Create GPIO input, falling back to no-op input if unavailable.
 
+    When *surface* is ``UiSurface.HEADLESS`` the GPIO probe is skipped entirely
+    and a ``NullInput`` is returned immediately.
+    """
+
+    if surface is UiSurface.HEADLESS:
+        return NullInput()
     try:
         gpio_input = GpioUiInput()
         return gpio_input

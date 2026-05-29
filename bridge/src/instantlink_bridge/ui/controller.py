@@ -188,8 +188,8 @@ class BridgeUi:
     ) -> None:
         self._config = config
         self._config_path = config_path
-        self._display = display if display is not None else create_display()
-        self._input = input_device if input_device is not None else create_input()
+        self._display = display if display is not None else create_display(config.ui.surface)
+        self._input = input_device if input_device is not None else create_input(config.ui.surface)
         self._pairer = pairer if pairer is not None else _default_printer_pairer()
         self._status_provider = (
             status_provider if status_provider is not None else _default_printer_status_provider()
