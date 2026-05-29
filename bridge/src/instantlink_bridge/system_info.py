@@ -45,12 +45,17 @@ def read_device_id() -> str:
 
 
 def default_hotspot_ssid() -> str:
-    """Return the default per-device bridge Wi-Fi SSID."""
+    """Return the default per-device bridge Wi-Fi SSID.
+
+    Format: ``InstantLink-XXXX`` where XXXX is the last 4 hex chars of
+    the machine identifier — matches the product name the user sees
+    elsewhere in the UI.
+    """
 
     suffix = read_device_suffix()
     if suffix is not None:
-        return f"LinkBrdg-{suffix}"
-    return "LinkBrdg-UNKNOWN"
+        return f"InstantLink-{suffix[-4:]}"
+    return "InstantLink-XXXX"
 
 
 def read_device_suffix() -> str | None:

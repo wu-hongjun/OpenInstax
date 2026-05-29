@@ -1430,7 +1430,7 @@ class BridgeUi:
         await self._reset_credentials()
 
     async def _reset_credentials(self) -> None:
-        new_ssid = f"IL-Bridge-{secrets.token_hex(2).upper()}"
+        new_ssid = f"InstantLink-{secrets.token_hex(2).upper()}"
         new_psk = f"{secrets.randbelow(90_000_000) + 10_000_000}"
         new_ftp_pw = f"{secrets.randbelow(90_000_000) + 10_000_000}"
         LOGGER.info("bridge.credentials_reset ssid=%s", new_ssid)

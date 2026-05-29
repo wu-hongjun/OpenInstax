@@ -1684,7 +1684,7 @@ async def test_settings_menu_shows_hotspot_pin(
 ) -> None:
     ssid_path = tmp_path / "hotspot.ssid"
     psk_path = tmp_path / "hotspot.psk"
-    ssid_path.write_text("LinkBrdg-TEST1234\n", encoding="utf-8")
+    ssid_path.write_text("InstantLink-T123\n", encoding="utf-8")
     psk_path.write_text("12345678\n", encoding="utf-8")
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
@@ -1707,7 +1707,7 @@ async def test_settings_menu_shows_hotspot_pin(
     # NETWORK: 0 Wi-Fi Mode  1 SSID  2 Wi-Fi PIN  3 FTP host ...
     rows = display.snapshots[-1].settings_rows
     assert rows[1].label == "SSID"
-    assert rows[1].value == "LinkBrdg-TEST1234"
+    assert rows[1].value == "InstantLink-T123"
     assert rows[2].label == "Wi-Fi PIN"
     assert rows[2].value == "12345678"
     assert rows[3].label == "FTP host"
@@ -3122,7 +3122,7 @@ async def test_reset_credentials_requires_confirmation(
 ) -> None:
     ssid_path = tmp_path / "hotspot.ssid"
     psk_path = tmp_path / "hotspot.psk"
-    ssid_path.write_text("IL-Bridge-ORIG\n", encoding="utf-8")
+    ssid_path.write_text("InstantLink-ORIG\n", encoding="utf-8")
     psk_path.write_text("11111111\n", encoding="utf-8")
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
@@ -3151,7 +3151,7 @@ async def test_reset_credentials_requires_confirmation(
     await ui._handle_action(UiAction.SELECT)
 
     assert "confirm" in (display.snapshots[-1].settings_message or "").lower()
-    assert ssid_path.read_text(encoding="utf-8") == "IL-Bridge-ORIG\n"
+    assert ssid_path.read_text(encoding="utf-8") == "InstantLink-ORIG\n"
     assert psk_path.read_text(encoding="utf-8") == "11111111\n"
     assert ui._pending_credential_reset is True
 
@@ -3163,7 +3163,7 @@ async def test_reset_credentials_second_select_executes(
 ) -> None:
     ssid_path = tmp_path / "hotspot.ssid"
     psk_path = tmp_path / "hotspot.psk"
-    ssid_path.write_text("IL-Bridge-ORIG\n", encoding="utf-8")
+    ssid_path.write_text("InstantLink-ORIG\n", encoding="utf-8")
     psk_path.write_text("11111111\n", encoding="utf-8")
     config_path = tmp_path / "config.toml"
     config_path.write_text('[ftp]\npassword = "11111111"\n', encoding="utf-8")
@@ -3204,8 +3204,8 @@ async def test_reset_credentials_second_select_executes(
     new_ssid = ssid_path.read_text(encoding="utf-8").strip()
     new_psk = psk_path.read_text(encoding="utf-8").strip()
 
-    assert new_ssid.startswith("IL-Bridge-")
-    assert new_ssid != "IL-Bridge-ORIG"
+    assert new_ssid.startswith("InstantLink-")
+    assert new_ssid != "InstantLink-ORIG"
     assert len(new_psk) == 8
     assert new_psk != "11111111"
     assert ui._config.ftp.password != "11111111"
@@ -3221,7 +3221,7 @@ async def test_reset_credentials_other_key_cancels(
 ) -> None:
     ssid_path = tmp_path / "hotspot.ssid"
     psk_path = tmp_path / "hotspot.psk"
-    ssid_path.write_text("IL-Bridge-ORIG\n", encoding="utf-8")
+    ssid_path.write_text("InstantLink-ORIG\n", encoding="utf-8")
     psk_path.write_text("11111111\n", encoding="utf-8")
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_SSID_FILE", str(ssid_path))
     monkeypatch.setenv("INSTANTLINK_BRIDGE_HOTSPOT_PSK_FILE", str(psk_path))
@@ -3254,5 +3254,5 @@ async def test_reset_credentials_other_key_cancels(
     await ui._handle_action(UiAction.DOWN)
 
     assert ui._pending_credential_reset is False
-    assert ssid_path.read_text(encoding="utf-8") == "IL-Bridge-ORIG\n"
+    assert ssid_path.read_text(encoding="utf-8") == "InstantLink-ORIG\n"
     assert psk_path.read_text(encoding="utf-8") == "11111111\n"

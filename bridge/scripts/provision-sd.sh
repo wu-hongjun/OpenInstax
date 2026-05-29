@@ -244,18 +244,23 @@ default_hotspot_ssid() {
     if [[ -r "${machine_id_path}" ]]; then
       machine_id="$(sed -n '1p' "${machine_id_path}" | tr '[:lower:]' '[:upper:]')"
       if [[ "${machine_id}" =~ ^[0-9A-F]{8} ]]; then
-        printf 'LinkBrdg-%s\n' "${machine_id:0:8}"
+        # Last 4 hex chars of the device suffix — shorter SSID, matches
+        # the InstantLink-XXXX format the Python default_hotspot_ssid uses.
+        printf 'InstantLink-%s\n' "${machine_id:4:4}"
         return
       fi
     fi
   done
-  printf '%s\n' 'LinkBrdg-SETUP'
+  printf '%s\n' 'InstantLink-XXXX'
 }
 
 HOTSPOT_SSID_FILE="${ROOT%/}/etc/InstantLinkBridge/hotspot.ssid"
 HOTSPOT_PSK_FILE="${ROOT%/}/etc/InstantLinkBridge/hotspot.psk"
+# Only the InstantLink-XXXX format is accepted; any older format
+# (rewritten or otherwise) gets replaced with the new default on next
+# provisioning pass.
 if [[ ! -f "${HOTSPOT_SSID_FILE}" ]] ||
-  ! sed -n '1p' "${HOTSPOT_SSID_FILE}" | grep -Eq '^LinkBrdg-[0-9A-F]{8}$'; then
+  ! sed -n '1p' "${HOTSPOT_SSID_FILE}" | grep -Eq '^InstantLink-[0-9A-F]{4}$'; then
   printf '%s\n' "$(default_hotspot_ssid)" > "${HOTSPOT_SSID_FILE}"
 fi
 if [[ ! -f "${HOTSPOT_PSK_FILE}" ]] ||

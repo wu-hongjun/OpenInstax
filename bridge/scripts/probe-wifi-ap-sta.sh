@@ -81,12 +81,12 @@ default_hotspot_ssid() {
     if [[ -r "${machine_id_path}" ]]; then
       machine_id="$(sed -n '1p' "${machine_id_path}" | tr '[:lower:]' '[:upper:]')"
       if [[ "${machine_id}" =~ ^[0-9A-F]{8} ]]; then
-        printf 'LinkBrdg-%s\n' "${machine_id:0:8}"
+        printf 'InstantLink-%s\n' "${machine_id:4:4}"
         return
       fi
     fi
   done
-  printf '%s\n' 'LinkBrdg-SETUP'
+  printf '%s\n' 'InstantLink-XXXX'
 }
 
 hotspot_psk() {

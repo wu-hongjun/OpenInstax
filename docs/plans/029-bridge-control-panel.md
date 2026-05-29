@@ -122,7 +122,7 @@ Tabs or sidebar sections:
 ### Connect Bridge
 
 1. User opens `Bridge`.
-2. App scans USB debug `192.168.7.1`, Bridge Wi-Fi `LinkBrdg-XXXXXXXX`, saved same-LAN addresses, and future Bonjour advertisements.
+2. App scans USB debug `192.168.7.1`, Bridge Wi-Fi `InstantLink-XXXX`, saved same-LAN addresses, and future Bonjour advertisements.
 3. If found, show device tile: `InstantLink Bridge IB-XXXXXXXX`.
 4. User clicks `Connect`.
 5. App checks service, version, config, FTP path, printer status, disk, and recent errors.
@@ -139,7 +139,7 @@ Tabs or sidebar sections:
 7. Show sender FTP card:
 
 ```text
-Wi-Fi: LinkBrdg-XXXXXXXX
+Wi-Fi: InstantLink-XXXX
 Wi-Fi PIN: 12345678
 FTP host: 192.168.8.1
 FTP user: ib
@@ -282,7 +282,7 @@ Use:
 
 - `InstantLink Bridge`
 - `IB-XXXXXXXX`
-- `LinkBrdg-XXXXXXXX`
+- `InstantLink-XXXX`
 - `Bridge Wi-Fi`
 - `Same Wi-Fi adv`
 - `USB debug`

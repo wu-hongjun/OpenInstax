@@ -33,7 +33,7 @@ The bridge `Connection` setting must match the transport you want to use. For v1
 ## Primary Bridge Wi-Fi FTP Profile
 
 Use this for portable/giftable operation. Connect the camera to the bridge SSID
-`LinkBrdg-XXXXXXXX`, where `XXXXXXXX` matches the bridge device suffix shown in System settings.
+`InstantLink-XXXX`, where `XXXXXXXX` matches the bridge device suffix shown in System settings.
 The WPA password is the 8-digit
 `Wi-Fi PIN` shown on the LCD under `Settings -> Camera FTP`. Then create or update the Sony FTP
 server profile:

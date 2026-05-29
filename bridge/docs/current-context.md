@@ -14,7 +14,7 @@ backend. The supported v1 camera path is hotspot-first:
 
 ```text
 Camera FTP upload
-  -> Bridge Wi-Fi SSID LinkBrdg-XXXXXXXX
+  -> Bridge Wi-Fi SSID InstantLink-XXXX
   -> FTP 192.168.8.1:21
   -> pyftpdlib receive queue
   -> Pillow / heif-thumbnailer / rawpy image preparation
@@ -35,7 +35,7 @@ for cameras and the bridge on an existing network.
 - Install root: `/opt/InstantLinkBridge`
 - Config root: `/etc/InstantLinkBridge`
 - Runtime user/group: `ib:ib`
-- Hotspot SSID pattern: `LinkBrdg-XXXXXXXX`
+- Hotspot SSID pattern: `InstantLink-XXXX`
 - Hotspot address: `192.168.8.1/24`
 - USB admin address: `192.168.7.1/24`
 - FTP port: `21`

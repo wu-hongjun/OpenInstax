@@ -6,7 +6,7 @@ autoconnect=false
 
 [wifi]
 mode=ap
-ssid=LinkBrdg-SETUP
+ssid=InstantLink-XXXX
 band=bg
 channel=6
 
