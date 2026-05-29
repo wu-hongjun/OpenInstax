@@ -154,7 +154,7 @@ state in v1.
   stale selected printers.
 - The LCD and Settings must treat camera FTP as hotspot-first for v1. Use `Bridge Wi-Fi` for the
   primary bridge AP workflow and `Same Wi-Fi adv` for the optional existing-network workflow. Do
-  not present USB gadget networking as a supported camera wired mode; label it `USB debug`.
+  not present USB gadget networking as a supported camera wired mode; label it `USB IP`.
 - Settings rows that change values must open explicit option lists. Do not rely on blind
   parent-row cycling for camera FTP path, printer type, image fit, JPEG quality, auto print,
   no-film test, keepalive, or idle poweroff.

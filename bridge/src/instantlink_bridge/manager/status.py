@@ -221,7 +221,7 @@ def bridge_upload_label(mode: FtpReceiveMode) -> str:
     if mode is FtpReceiveMode.PEER:
         return "Same-Wi-Fi"
     if mode is FtpReceiveMode.WIRED:
-        return "USB debug"
+        return "USB IP"
     return "Auto"
 
 
@@ -280,7 +280,7 @@ def device_payload(info: SystemInfo, *, pairing_open: bool = False) -> JsonObjec
         "api_version": API_VERSION,
         "management_public_key_fingerprint": None,
         "pairing_open": pairing_open,
-        "network_labels": ["Bridge Wi-Fi", "USB debug", "Same-Wi-Fi"],
+        "network_labels": ["Bridge Wi-Fi", "USB IP", "Same-Wi-Fi"],
         "endpoint_url": None,
         "is_paired": False,
     }
@@ -321,7 +321,7 @@ def network_labels_payload(config: BridgeConfig) -> list[JsonValue]:
     labels: list[JsonValue] = [
         {
             "key": "usb_debug",
-            "label": "USB debug",
+            "label": "USB IP",
             "address": config.ftp.host,
             "enabled": True,
         },

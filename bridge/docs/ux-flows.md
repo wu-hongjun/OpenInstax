@@ -137,7 +137,7 @@ Settings is sectioned so upload FTP setup is not mixed with bridge diagnostics:
   page shows `Bridge Wi-Fi`, `Wi-Fi PIN`, `FTP host`, `FTP user`, and `FTP pass` so the normal
   bridge Wi-Fi setup does not require jumping to Network.
 - `Network`: read-only connection diagnostics for `Bridge FTP`, `Bridge Wi-Fi`, `Wi-Fi PIN`,
-  `Bluetooth`, `Same Wi-Fi adv`, and `USB debug`.
+  `Bluetooth`, `Same Wi-Fi adv`, and `USB IP`.
 - `Print`: `Auto print`, `Image fit`, `JPEG quality`, and `No-film test`.
 - `System`: `Device ID`, `App version`, `Python`, `BlueZ`, `OS`, and `Refresh status`.
 

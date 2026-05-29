@@ -944,7 +944,7 @@ def camera_top_status_text(snapshot: UiSnapshot) -> str:
     if snapshot.wifi_host is not None:
         return "Same Wi-Fi adv"
     if snapshot.usb_connected:
-        return "USB debug"
+        return "USB IP"
     return "No FTP Wi-Fi"
 
 
@@ -1190,8 +1190,8 @@ def ftp_mode_label(snapshot: UiSnapshot) -> str:
     """Return the current user-facing FTP receive mode."""
 
     if snapshot.camera_transport_message is not None:
-        if snapshot.camera_transport_message.startswith(("Admin USB", "USB debug")):
-            return "USB debug"
+        if snapshot.camera_transport_message.startswith(("Admin USB", "USB IP")):
+            return "USB IP"
         if snapshot.camera_transport_message.startswith("Bridge"):
             return "Bridge Wi-Fi"
         if snapshot.camera_transport_message.startswith("Same Wi-Fi"):
@@ -1215,7 +1215,7 @@ def active_ftp_status_text(snapshot: UiSnapshot) -> str:
     if snapshot.preferred_wifi_host is not None:
         return f"Same Wi-Fi adv prefer {snapshot.preferred_wifi_host}"
     if snapshot.usb_connected:
-        return "USB debug connected"
+        return "USB IP connected"
     return "No FTP Wi-Fi"
 
 
@@ -1227,7 +1227,7 @@ def ftp_mode_hint_text(snapshot: UiSnapshot) -> str:
     if snapshot.wifi_host is not None:
         return "Bridge Wi-Fi in Settings"
     if snapshot.usb_connected:
-        return "USB debug in Network"
+        return "USB IP in Network"
     return "Open Upload FTP setup"
 
 
@@ -1236,14 +1236,14 @@ def usb_ftp_status_text(snapshot: UiSnapshot) -> str:
 
     if (
         snapshot.camera_transport_message is not None
-        and snapshot.camera_transport_message.startswith(("Admin USB", "USB debug"))
+        and snapshot.camera_transport_message.startswith(("Admin USB", "USB IP"))
     ):
-        return snapshot.camera_transport_message.replace("Admin USB", "USB debug")
+        return snapshot.camera_transport_message.replace("Admin USB", "USB IP")
     if snapshot.camera_receive_ready and snapshot.usb_connected:
-        return f"USB debug {snapshot.ftp_host}"
+        return f"USB IP {snapshot.ftp_host}"
     if snapshot.usb_connected:
-        return "USB debug connected"
-    return "USB debug off"
+        return "USB IP connected"
+    return "USB IP off"
 
 
 def wifi_ftp_status_text(snapshot: UiSnapshot) -> str:

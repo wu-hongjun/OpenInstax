@@ -243,7 +243,7 @@ def setting_action_hint(key: SettingKey) -> str:
 SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.OPEN_PRINTER: "Printer selection and status",
     SettingKey.OPEN_CAMERA: "Wi-Fi and FTP credentials",
-    SettingKey.OPEN_NETWORK: "Wi-Fi, Bluetooth, and USB debug",
+    SettingKey.OPEN_NETWORK: "Wi-Fi, Bluetooth, and USB IP",
     SettingKey.OPEN_PRINT: "Photo size and print options",
     SettingKey.OPEN_SYSTEM: "Device info and power",
     SettingKey.FTP_RECEIVE_MODE: "Choose Bridge or Same-Wi-Fi FTP",
@@ -255,7 +255,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.FTP_USERNAME_INFO: "FTP login user",
     SettingKey.FTP_PASSWORD_INFO: "FTP login password",
     SettingKey.CAMERA_SETUP_INFO: "Any FTP sender can upload",
-    SettingKey.NETWORK_ETHERNET_INFO: "USB debug SSH and firmware link",
+    SettingKey.NETWORK_ETHERNET_INFO: "USB IP for setup and updates",
     SettingKey.NETWORK_WIFI_INFO: "Advanced Same-Wi-Fi FTP address",
     SettingKey.NETWORK_HOTSPOT_INFO: "Camera connects here to upload",
     SettingKey.NETWORK_HOTSPOT_SSID_INFO: "FTP sender joins this Wi-Fi",
@@ -399,7 +399,7 @@ def ftp_receive_mode_label(mode: FtpReceiveMode) -> str:
 
     labels = {
         FtpReceiveMode.AUTO: "Advanced",
-        FtpReceiveMode.WIRED: "USB debug",
+        FtpReceiveMode.WIRED: "USB IP",
         FtpReceiveMode.HOTSPOT: "Bridge Wi-Fi",
         FtpReceiveMode.PEER: "Same Wi-Fi adv",
     }

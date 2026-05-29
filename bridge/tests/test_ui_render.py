@@ -424,7 +424,7 @@ def test_printer_model_text_shows_detecting_when_unknown() -> None:
 def test_usb_ftp_status_text_reports_admin_usb_disconnected() -> None:
     snapshot = UiSnapshot(mode=UiMode.READY, ftp_host="192.168.7.1")
 
-    assert usb_ftp_status_text(snapshot) == "USB debug off"
+    assert usb_ftp_status_text(snapshot) == "USB IP off"
 
 
 def test_usb_ftp_status_text_shows_admin_host_when_connected() -> None:
@@ -433,10 +433,10 @@ def test_usb_ftp_status_text_shows_admin_host_when_connected() -> None:
         ftp_host="192.168.7.1",
         usb_connected=True,
         camera_receive_ready=True,
-        camera_transport_message="USB debug 192.168.7.1",
+        camera_transport_message="USB IP 192.168.7.1",
     )
 
-    assert usb_ftp_status_text(snapshot) == "USB debug 192.168.7.1"
+    assert usb_ftp_status_text(snapshot) == "USB IP 192.168.7.1"
 
 
 def test_usb_ftp_status_text_does_not_use_wifi_transport() -> None:
@@ -448,7 +448,7 @@ def test_usb_ftp_status_text_does_not_use_wifi_transport() -> None:
         camera_transport_message="Same Wi-Fi adv 192.168.5.149",
     )
 
-    assert usb_ftp_status_text(snapshot) == "USB debug off"
+    assert usb_ftp_status_text(snapshot) == "USB IP off"
 
 
 def test_hotspot_ftp_status_text_shows_ap_mode_state() -> None:
@@ -529,10 +529,10 @@ def test_ftp_mode_label_names_bridge_wifi_same_wifi_and_admin_usb() -> None:
             UiSnapshot(
                 mode=UiMode.READY,
                 ftp_host="192.168.7.1",
-                camera_transport_message="USB debug 192.168.7.1",
+                camera_transport_message="USB IP 192.168.7.1",
             )
         )
-        == "USB debug"
+        == "USB IP"
     )
     assert (
         ftp_mode_label(

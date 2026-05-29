@@ -1356,7 +1356,7 @@ class BridgeUi:
                 bool_label(self._config.workflow.allow_print_without_film),
             )
         if key is SettingKey.NETWORK_ETHERNET_INFO:
-            return SettingsRow("USB debug", self._ethernet_network_value())
+            return SettingsRow("USB IP", self._ethernet_network_value())
         if key is SettingKey.NETWORK_WIFI_INFO:
             return SettingsRow("Same Wi-Fi adv", self._wifi_network_value())
         if key is SettingKey.NETWORK_HOTSPOT_INFO:
@@ -1417,14 +1417,14 @@ class BridgeUi:
             return "Bridge ready" if self._hotspot_host is not None else "Bridge off"
         if mode is FtpReceiveMode.WIRED:
             if self._usb_connected:
-                return "USB debug"
-            return "USB debug off"
+                return "USB IP"
+            return "USB IP off"
         if mode is FtpReceiveMode.PEER:
             return "Same Wi-Fi adv" if self._wifi_host is not None else "Same Wi-Fi adv off"
         return self._ftp_mode_value()
 
     def _ethernet_network_value(self) -> str:
-        if self._camera_transport_message in {"Admin USB no IP", "USB debug no IP"}:
+        if self._camera_transport_message in {"Admin USB no IP", "USB IP missing"}:
             return "no IP"
         if self._usb_connected:
             return f"SSH {self._config.ftp.host}"
@@ -1481,8 +1481,8 @@ class BridgeUi:
 
     def _ftp_mode_value(self) -> str:
         if self._camera_transport_message is not None:
-            if self._camera_transport_message.startswith(("Admin USB", "USB debug")):
-                return "USB debug"
+            if self._camera_transport_message.startswith(("Admin USB", "USB IP")):
+                return "USB IP"
             if self._camera_transport_message.startswith("Bridge"):
                 return "Bridge Wi-Fi"
             if self._camera_transport_message.startswith("Same Wi-Fi"):
@@ -1496,7 +1496,7 @@ class BridgeUi:
     def _camera_setup_value(self) -> str:
         mode = self._config.ftp.mode
         if mode is FtpReceiveMode.WIRED:
-            return "USB debug only"
+            return "USB IP only"
         if mode is FtpReceiveMode.HOTSPOT:
             return "join bridge"
         if mode is FtpReceiveMode.PEER:
@@ -1527,7 +1527,7 @@ class BridgeUi:
         if key is SettingKey.CAMERA_SETUP_INFO:
             return _camera_setup_info_message(self._config.ftp.mode)
         if key is SettingKey.NETWORK_ETHERNET_INFO:
-            return f"USB debug: {self._ethernet_network_value()}"
+            return f"USB IP: {self._ethernet_network_value()}"
         if key is SettingKey.NETWORK_WIFI_INFO:
             return f"Same Wi-Fi adv: {self._wifi_network_value()}"
         if key is SettingKey.NETWORK_HOTSPOT_INFO:
@@ -2531,12 +2531,12 @@ def camera_status_message_for_health(
 
     if mode is FtpReceiveMode.WIRED:
         if health.wired_ftp_ready:
-            return "USB debug only"
+            return "USB IP only"
         if health.usb_carrier and not health.usb_configured:
-            return "USB debug no IP"
+            return "USB IP missing"
         if health.usb_carrier:
-            return "USB debug connected"
-        return "USB debug off"
+            return "USB IP connected"
+        return "USB IP off"
     if mode is FtpReceiveMode.HOTSPOT:
         if health.hotspot_ftp_ready:
             return "Bridge Wi-Fi ready"
@@ -2570,12 +2570,12 @@ def camera_transport_message_for_health(
 
     if mode is FtpReceiveMode.WIRED:
         if health.wired_ftp_ready:
-            return f"USB debug {health.expected_usb_ipv4}"
+            return f"USB IP {health.expected_usb_ipv4}"
         if health.usb_carrier and not health.usb_configured:
-            return "USB debug no IP"
+            return "USB IP missing"
         if health.usb_carrier:
-            return "USB debug connected"
-        return "USB debug off"
+            return "USB IP connected"
+        return "USB IP off"
     if mode is FtpReceiveMode.HOTSPOT:
         if health.hotspot_ftp_ready and health.hotspot_ipv4 is not None:
             return f"Bridge FTP {health.hotspot_ipv4}"
@@ -2623,7 +2623,7 @@ def _recent_ftp_transport_message_for_health(
         return None
     if source is FtpSourceKind.USB:
         if mode is FtpReceiveMode.WIRED:
-            return f"USB debug {health.expected_usb_ipv4}"
+            return f"USB IP {health.expected_usb_ipv4}"
         return None
     if source is FtpSourceKind.HOTSPOT and health.hotspot_ipv4 is not None:
         return f"Bridge FTP {health.hotspot_ipv4}"
@@ -2704,7 +2704,7 @@ def _info_message_for_setting(key: SettingKey) -> str:
     if key is SettingKey.FTP_PASSWORD_INFO:
         return "FTP password"
     if key is SettingKey.NETWORK_ETHERNET_INFO:
-        return "USB debug SSH/update link"
+        return "USB IP for setup and updates"
     if key is SettingKey.NETWORK_WIFI_INFO:
         return "Advanced Same-Wi-Fi status"
     if key is SettingKey.NETWORK_HOTSPOT_INFO:
@@ -2732,7 +2732,7 @@ def _ftp_mode_switching_message(mode: FtpReceiveMode) -> str:
     if mode is FtpReceiveMode.PEER:
         return "Joining saved Wi-Fi"
     if mode is FtpReceiveMode.WIRED:
-        return "USB debug unchanged"
+        return "USB IP unchanged"
     return "Selecting Wi-Fi"
 
 
@@ -2742,7 +2742,7 @@ def _ftp_mode_failed_message(mode: FtpReceiveMode) -> str:
     if mode is FtpReceiveMode.PEER:
         return "Wi-Fi join failed"
     if mode is FtpReceiveMode.WIRED:
-        return "USB debug unchanged"
+        return "USB IP unchanged"
     return "Connection failed"
 
 
@@ -2752,7 +2752,7 @@ def _ftp_mode_saved_message(mode: FtpReceiveMode, label: str) -> str:
     if mode is FtpReceiveMode.PEER:
         return "Same Wi-Fi adv selected"
     if mode is FtpReceiveMode.WIRED:
-        return "USB debug selected"
+        return "USB IP selected"
     return f"FTP {label}"
 
 

@@ -67,7 +67,7 @@ def test_manager_cli_hello_json_is_safe(
         "api_version": "v1",
         "management_public_key_fingerprint": None,
         "pairing_open": False,
-        "network_labels": ["Bridge Wi-Fi", "USB debug", "Same-Wi-Fi"],
+        "network_labels": ["Bridge Wi-Fi", "USB IP", "Same-Wi-Fi"],
         "endpoint_url": None,
         "is_paired": False,
     }

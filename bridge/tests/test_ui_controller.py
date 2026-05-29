@@ -90,8 +90,8 @@ def test_camera_health_messages_report_usb_cable_warning_for_wired_mode() -> Non
         wifi_ipv4_addresses=[],
     )
 
-    assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug off"
-    assert camera_transport_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug off"
+    assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB IP off"
+    assert camera_transport_message_for_health(health, FtpReceiveMode.WIRED) == "USB IP off"
 
 
 def test_camera_health_messages_report_peer_subnet_conflict() -> None:
@@ -127,8 +127,8 @@ def test_camera_health_messages_report_usb_cable_warning() -> None:
 
     assert camera_status_message_for_health(health) == "No FTP Wi-Fi"
     assert camera_transport_message_for_health(health) == "No FTP Wi-Fi"
-    assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug no IP"
-    assert camera_transport_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug no IP"
+    assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB IP missing"
+    assert camera_transport_message_for_health(health, FtpReceiveMode.WIRED) == "USB IP missing"
 
 
 def test_camera_health_messages_auto_prefers_wireless_over_admin_usb() -> None:
@@ -213,7 +213,7 @@ def test_camera_health_messages_honor_selected_ftp_receive_mode() -> None:
         wifi_ipv4_addresses=["192.168.5.149"],
     )
 
-    assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB debug only"
+    assert camera_status_message_for_health(health, FtpReceiveMode.WIRED) == "USB IP only"
     assert (
         camera_transport_message_for_health(health, FtpReceiveMode.PEER)
         == "Same Wi-Fi adv 192.168.5.149"
@@ -1667,7 +1667,7 @@ async def test_settings_network_page_shows_connection_info() -> None:
         wifi_mode_setter=_unused_wifi_mode_setter,
     )
     ui._usb_connected = True
-    ui._camera_transport_message = "USB debug 192.168.7.1"
+    ui._camera_transport_message = "USB IP 192.168.7.1"
     ui._wifi_host = "192.168.5.149"
     ui._hotspot_host = "192.168.8.1"
     ui._snapshot = ui._build_snapshot(
@@ -1691,7 +1691,7 @@ async def test_settings_network_page_shows_connection_info() -> None:
         "Wi-Fi PIN",
         "Bluetooth",
         "Same Wi-Fi adv",
-        "USB debug",
+        "USB IP",
     ]
     assert rows[0].value == "192.168.8.1"
     assert rows[3].value == "connected"
@@ -1710,7 +1710,7 @@ async def test_settings_network_page_reports_admin_usb_without_camera_wording() 
         wifi_mode_setter=_unused_wifi_mode_setter,
     )
     ui._usb_connected = True
-    ui._camera_transport_message = "USB debug no IP"
+    ui._camera_transport_message = "USB IP missing"
 
     await ui._handle_action(UiAction.SELECT)
     for _ in range(2):
@@ -1718,7 +1718,7 @@ async def test_settings_network_page_reports_admin_usb_without_camera_wording() 
     await ui._handle_action(UiAction.SELECT)
 
     rows = display.snapshots[-1].settings_rows
-    assert rows[-1].label == "USB debug"
+    assert rows[-1].label == "USB IP"
     assert rows[-1].value == "no IP"
 
 
