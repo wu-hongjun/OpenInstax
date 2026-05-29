@@ -19,6 +19,7 @@ from instantlink_bridge.ui.render import (
     ftp_mode_label,
     home_wifi_ftp_status_text,
     hotspot_ftp_status_text,
+    printer_battery_life_text,
     printer_compact_status_text,
     printer_detail_text,
     printer_model_text,
@@ -276,8 +277,14 @@ def test_top_bar_status_shows_charge_marker_and_estimate() -> None:
         printer_battery_minutes_remaining=90,
     )
 
+    # The discharging time-remaining estimate moved off the top bar into the
+    # READY body via printer_battery_life_text, so the chip itself is identical
+    # for charging/discharging apart from the "+" marker.
     assert top_bar_status_text(charging) == "Bridge Wi-Fi | Sq 8/10 50%+"
-    assert top_bar_status_text(discharging) == "Bridge Wi-Fi | Sq 8/10 50% 1h 30m"
+    assert top_bar_status_text(discharging) == "Bridge Wi-Fi | Sq 8/10 50%"
+    # The time-remaining now lives in the READY body line.
+    assert printer_battery_life_text(charging) is None
+    assert printer_battery_life_text(discharging) == "1h 30m left"
 
 
 def test_printer_compact_status_text_includes_battery_when_available() -> None:
@@ -378,7 +385,7 @@ def test_ready_footer_exposes_upload_credentials_when_printer_is_paired() -> Non
         )
     )
 
-    assert lines == (("K1 Settings", "K2 Refresh", "K3 FTP"),)
+    assert lines == (("K1 Setting", "K2 Refresh", "K3 FTP"),)
 
 
 def test_settings_status_message_stays_in_settings_body_not_top_bar() -> None:

@@ -126,6 +126,11 @@ _GENERIC_SEARCHING_MESSAGES = frozenset({"Looking for printer", "Searching for p
 # shows a stale frame while a coroutine is busy. The `snapshot == last_rendered` short-circuit in
 # `_render` keeps this cheap and prevents render-spam.
 RENDER_TICK_S = 0.35
+# While the status indicator is breathing, the tick runs ~3× faster so the
+# tinted top bar advances smoothly across the 2 s breath cycle (~13 frames per
+# breath instead of ~6). The render itself short-circuits identical snapshots,
+# so a SOLID indicator costs nothing extra even if this faster tick fires.
+BREATH_TICK_S = 0.12
 USB_STATUS_POLL_S = 1.0
 # Readiness freshness gate: "Ready to print" must be backed by a printer status that succeeded
 # recently, not just stale cached film/mode. If the printer powers off, status polls fail and the
@@ -2609,11 +2614,21 @@ class BridgeUi:
         The action loop and background coroutines mutate ``self._snapshot`` and call
         ``_render`` directly, but a busy coroutine could otherwise leave the LCD showing a stale
         frame. This tick guarantees the screen converges on the latest snapshot. ``_render`` keeps
-        the ``snapshot == last_rendered`` short-circuit, so this is cheap and never render-spams.
+        the ``snapshot == last_rendered`` short-circuit (bypassed while breathing), so this is
+        cheap on idle screens and smooth across the breath cycle when active.
         """
 
         while True:
-            await asyncio.sleep(RENDER_TICK_S)
+            # Choose the cadence from the last rendered indicator: breathing
+            # states want ~8 fps so the tinted bar reads as a smooth pulse;
+            # solid states keep the cheap 0.35 s converger.
+            last_state = self._last_status_state
+            tick = (
+                BREATH_TICK_S
+                if last_state is not None and last_state.pattern is StatusPattern.BREATHING
+                else RENDER_TICK_S
+            )
+            await asyncio.sleep(tick)
             # Age out readiness: if no status succeeded within the TTL, downgrade the cached
             # snapshot so a stale "Ready to print" leaves the screen even when no explicit failure
             # arrived (e.g. a dropped PRINTER_SEARCHING transition). The snapshot short-circuit in

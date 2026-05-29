@@ -2075,10 +2075,10 @@ async def test_power_events_update_settings_and_display_idle_stage() -> None:
     )
 
     assert display.snapshots[-1].settings_title == "System"
-    assert any(
-        row.label == "Power" and row.value == "Battery case"
-        for row in display.snapshots[-1].settings_rows
-    )
+    # The Power row was removed: with no host telemetry on the X306, every
+    # power source ("Battery case", USB-C, pogo, data USB) collapsed to the
+    # same string. Battery (charge %) and Idle stay; Power should be gone.
+    assert all(row.label != "Power" for row in display.snapshots[-1].settings_rows)
     assert display.idle_stages == ["screen_off"]
 
 

@@ -203,22 +203,24 @@ def draw_hint_bar(
     """Draw the single-row hint bar at the bottom of the screen.
 
     ``hints`` is a (left, center, right) triple of glyph/label strings.
-    Empty strings are not drawn. Center text is centered at x=120.
+    Empty strings are not drawn. Each slot owns a third of the 240 px bar and
+    its label is *centered within its third*; this gives even spacing across
+    K1/K2/K3 regardless of label length and prevents the old left/right anchors
+    from clipping mid-length labels like "K1 Setting".
     """
 
     draw.rectangle((0, HINT_BAR_Y - 2, 239, 239), fill=PANEL)
     left, center, right = hints
-    x_left = 8
-    x_right = 232
-    if left:
-        _text(draw, x_left, HINT_BAR_Y, _fit_text_to_width(draw, left, font, 74), font, MUTED)
-    if center:
-        cw = _text_width(draw, center, font)
-        _text(draw, 120 - cw // 2, HINT_BAR_Y, center, font, MUTED)
-    if right:
-        rw = _text_width(draw, right, font)
-        fitted_right = _fit_text_to_width(draw, right, font, 74)
-        _text(draw, x_right - rw, HINT_BAR_Y, fitted_right, font, MUTED)
+    # 240 px split into three equal zones of 80 px each.
+    zone_w = 80
+    zone_max = zone_w - 4  # 2 px of padding on each side
+    centers = (40, 120, 200)
+    for text, cx in zip((left, center, right), centers, strict=True):
+        if not text:
+            continue
+        fitted = _fit_text_to_width(draw, text, font, zone_max)
+        tw = _text_width(draw, fitted, font)
+        _text(draw, cx - tw // 2, HINT_BAR_Y, fitted, font, MUTED)
 
 
 def draw_settings_row(
@@ -282,20 +284,30 @@ def _ready(
         return
 
     _center_lines(draw, ["Ready"], 75, fonts["large"], TEXT)
-    # Body: waiting for upload + paired printer ID + Wi-Fi SSID
+    # Body: waiting for upload + paired printer ID + Wi-Fi SSID + battery-life
     _text(draw, 18, 120, "Waiting for upload", fonts["body"], TEXT)
     if snapshot.paired_printer is not None:
         # Strip the verbose "INSTAX-" prefix; the model name in the status bar
         # already identifies the brand. Shorter ID = more compact body line.
         bare_id = snapshot.paired_printer.name.removeprefix("INSTAX-")
         _text(draw, 18, 148, f"Printer: {bare_id}", fonts["small"], MUTED)
+    # Printer battery-life estimate (e.g. "4h32m left"). Moved off the top
+    # chip so the status bar stays compact; only shown when discharging and
+    # the estimate is known.
+    battery_life = printer_battery_life_text(snapshot)
+    if battery_life is not None:
+        _text(draw, 18, 164, f"Printer life: {battery_life}", fonts["small"], MUTED)
+        ssid_y = 180
+    else:
+        ssid_y = 168
     if snapshot.hotspot_ssid is not None:
-        _text(draw, 18, 168, f"Wi-Fi: {snapshot.hotspot_ssid}", fonts["small"], MUTED)
+        _text(draw, 18, ssid_y, f"Wi-Fi: {snapshot.hotspot_ssid}", fonts["small"], MUTED)
     depth = snapshot.image_queue_depth
+    queue_y = ssid_y + 22
     if depth == 1:
-        _text(draw, 18, 172, "1 photo in queue", fonts["small"], MUTED)
+        _text(draw, 18, queue_y, "1 photo in queue", fonts["small"], MUTED)
     elif depth > 1:
-        _text(draw, 18, 172, f"{depth} photos in queue", fonts["small"], MUTED)
+        _text(draw, 18, queue_y, f"{depth} photos in queue", fonts["small"], MUTED)
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"])
@@ -638,11 +650,11 @@ def _footer_label_lines(snapshot: UiSnapshot) -> tuple[tuple[str, str, str], ...
         return (("", "Printing", ""),)
     if snapshot.mode is UiMode.PRINT_COMPLETE:
         if snapshot.paired_printer is not None:
-            return (("K1 Settings", "Done", "K3 FTP"),)
-        return (("K1 Settings", "Done", "Hold K3"),)
+            return (("K1 Setting", "Done", "K3 FTP"),)
+        return (("K1 Setting", "Done", "Hold K3"),)
     if snapshot.paired_printer is not None:
-        return (("K1 Settings", "K2 Refresh", "K3 FTP"),)
-    return (("K1 Settings", "K2 Refresh", "Hold K3"),)
+        return (("K1 Setting", "K2 Refresh", "K3 FTP"),)
+    return (("K1 Setting", "K2 Refresh", "Hold K3"),)
 
 
 # ---------------------------------------------------------------------------
@@ -997,18 +1009,16 @@ def printer_top_status_text(snapshot: UiSnapshot) -> str:
 
 
 def top_bar_battery_state_text(snapshot: UiSnapshot) -> str:
-    """Return a tiny charge-state marker for the top-bar battery percentage.
+    """Return the tiny charge-state marker for the top-bar battery percentage.
 
-    A ``+`` flags charging; a discharging estimate is shown compactly when known. Kept short so it
-    fits the title bar alongside the film/battery chip without crowding the 240x240 layout.
+    A ``+`` flags charging; the discharge time-remaining estimate is *not*
+    included here — it lives on the READY body via :func:`printer_battery_life_text`
+    so the top bar stays minimal at 240 px.
     """
 
     if snapshot.printer_is_charging:
         return "+"
-    minutes = snapshot.printer_battery_minutes_remaining
-    if minutes is None:
-        return ""
-    return f" {format_battery_life(minutes)}"
+    return ""
 
 
 def _preview_top_status_text(snapshot: UiSnapshot) -> str:
@@ -1057,8 +1067,9 @@ def _status_bar_printer_name(snapshot: UiSnapshot) -> str:
 def _status_bar_printer_chip(snapshot: UiSnapshot) -> str | None:
     """Return the compact film/battery chip for the right side of the status bar.
 
-    Shows nothing when no printer is selected or film status is unknown.
-    Shows film count and optional battery when available.
+    Shows nothing when no printer is selected or film status is unknown. Shows
+    film count and optional battery % when available; the time-remaining
+    estimate lives on the READY body so the top chip stays compact.
     """
 
     if snapshot.paired_printer is None:
@@ -1067,8 +1078,28 @@ def _status_bar_printer_chip(snapshot: UiSnapshot) -> str | None:
         return None
     film = f"{snapshot.film_remaining}/{snapshot.film_capacity}"
     if snapshot.printer_battery is not None:
-        return f"{film}  {snapshot.printer_battery}%{top_bar_battery_state_text(snapshot)}"
+        charging = "+" if snapshot.printer_is_charging else ""
+        return f"{film}  {snapshot.printer_battery}%{charging}"
     return film
+
+
+def printer_battery_life_text(snapshot: UiSnapshot) -> str | None:
+    """Return the body-line printer battery life estimate (e.g. "4h32m left").
+
+    Returns ``None`` when the printer is charging or no minutes-remaining
+    estimate is available. Lives in the body so the top status bar stays
+    minimal; both the LCD READY screen and the future Mac/headless views can
+    consume this same string.
+    """
+
+    if snapshot.paired_printer is None:
+        return None
+    if snapshot.printer_is_charging:
+        return None
+    minutes = snapshot.printer_battery_minutes_remaining
+    if minutes is None:
+        return None
+    return f"{format_battery_life(minutes)} left"
 
 
 def bridge_power_header_text(snapshot: UiSnapshot) -> str | None:

@@ -39,5 +39,5 @@ references/*/
 .env
 
 # OMC / Claude Code tooling state (machine-local, never committed)
-.claude/worktrees/
+.claude/
 .omc/

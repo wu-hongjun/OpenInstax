@@ -127,7 +127,11 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.SYSTEM_PYTHON_VERSION,
         SettingKey.SYSTEM_BLUEZ_VERSION,
         SettingKey.SYSTEM_OS_VERSION,
-        SettingKey.SYSTEM_POWER_INFO,
+        # SYSTEM_POWER_INFO removed: the X306 case has no host telemetry, so
+        # the row always read "Battery case" regardless of whether the bridge
+        # was powered via the case USB-C, the bottom pogo pins, or the data
+        # USB. A row that can't distinguish those just wastes a slot — if the
+        # Pi is running, it's powered.
         SettingKey.SYSTEM_BATTERY_INFO,
         SettingKey.SYSTEM_IDLE_INFO,
         SettingKey.SYSTEM_IDLE_POWEROFF,
@@ -273,10 +277,10 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.SEARCH_INTERVAL: "Scans when printer offline",
     SettingKey.SYSTEM_DEVICE_ID: "Unique ID; used by the Mac app",
     SettingKey.SYSTEM_APP_VERSION: "Bridge software version",
-    SettingKey.SYSTEM_PYTHON_VERSION: "Python runtime version",
-    SettingKey.SYSTEM_BLUEZ_VERSION: "Bluetooth stack version",
-    SettingKey.SYSTEM_OS_VERSION: "Linux distribution version",
-    SettingKey.SYSTEM_POWER_INFO: "Bridge battery/UPS hardware",
+    SettingKey.SYSTEM_PYTHON_VERSION: "Python: language running bridge code",
+    SettingKey.SYSTEM_BLUEZ_VERSION: "BlueZ: Linux Bluetooth stack for pairing",
+    SettingKey.SYSTEM_OS_VERSION: "Debian/Linux release on the Pi",
+    SettingKey.SYSTEM_POWER_INFO: "Bridge battery/UPS hardware (legacy)",
     SettingKey.SYSTEM_BATTERY_INFO: "Battery charge if telemetry available",
     SettingKey.SYSTEM_IDLE_INFO: "Dim and screen-off timing",
     SettingKey.SYSTEM_IDLE_POWEROFF: "Shuts down after 10 min idle",
