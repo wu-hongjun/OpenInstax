@@ -1,5 +1,13 @@
 """Early LCD boot splash entry point.
 
+NOTE: this module is NO LONGER on the cold-boot critical path as of plan 033
+L1. The systemd unit (bridge/systemd/instantlink-bridge-boot-splash.service)
+now uses `dd` to write the pre-rendered framebuffer blob
+(bridge/assets/boot-splash.rgb565) directly, eliminating the Python interpreter
+cold-start (~1 s saving). This file is retained as a fallback and local
+development tool — invoke it directly or via `instantlink-bridge-splash` in the
+venv to regenerate or inspect the splash without a Pi.
+
 Writes a solid brand colour to the framebuffer so the user gets immediate
 feedback that the bridge has started booting. The heavier UI stack (PIL,
 `instantlink_bridge.ui.display`, `instantlink_bridge.config` — which transitively

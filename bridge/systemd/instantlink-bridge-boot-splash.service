@@ -6,9 +6,19 @@ Description=InstantLink Bridge early LCD boot splash
 # now runs in parallel with the bridge — kept WantedBy=sysinit.target so it
 # still activates as early as the rest of sysinit (visual feedback retained)
 # while no longer blocking the bridge.
+# plan 033 L1: dd of pre-rendered framebuffer eliminates Python interpreter
+# cold-start (~1 s saving). plan 033 L5: ConditionPathExists=/dev/fb1 gates
+# the unit off on the headless SKU where /dev/fb1 does not exist.
 DefaultDependencies=no
-After=local-fs.target systemd-udev-settle.service
-ConditionPathExists=/opt/InstantLinkBridge/.venv/bin/instantlink-bridge-splash
+# Order against the auto-generated .device unit for /dev/fb1 so the kernel has
+# finished probing the fbtft overlay before we evaluate ConditionPathExists.
+# systemd-udev-settle.service is a no-op shim on Trixie and does NOT wait for
+# udev queue drain, so it was racy on the LCD-SKU (silent splash skip).
+# On the headless SKU /dev/fb1 never appears and Wants=dev-fb1.device is a
+# non-fatal request; the ConditionPathExists guard then skips the unit.
+After=local-fs.target dev-fb1.device
+Wants=dev-fb1.device
+ConditionPathExists=/dev/fb1
 
 [Service]
 Type=oneshot
@@ -16,7 +26,9 @@ User=ib
 Group=ib
 SupplementaryGroups=gpio spi i2c video
 WorkingDirectory=/opt/InstantLinkBridge
-ExecStart=/opt/InstantLinkBridge/.venv/bin/instantlink-bridge-splash --config /etc/InstantLinkBridge/config.toml --hold 0
+# conv=fsync forces the SPI DMA to flush to the panel before dd exits, so the
+# splash is guaranteed visible by the time the oneshot is "active".
+ExecStart=/usr/bin/dd if=/opt/InstantLinkBridge/assets/boot-splash.rgb565 of=/dev/fb1 bs=115200 count=1 conv=fsync status=none
 RemainAfterExit=yes
 
 [Install]
