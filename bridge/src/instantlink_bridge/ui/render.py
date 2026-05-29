@@ -929,10 +929,12 @@ def _settings(
     draw_hint_bar(draw, hints, fonts["hint"], theme)
 
     if bottom_shown:
-        # Two-line bottom strip BELOW the card. The text wraps at the first
-        # word boundary that overflows the available width (240 - 32 = 208 px
-        # with 16 px left/right insets), and any remaining text after two
-        # lines is ellipsised on line 2.
+        # Translate at the render boundary — `bottom_text` is the controller-
+        # built English help string (or settings_message toast); the i18n
+        # table carries the translations and t() falls back to the source
+        # when no entry exists. Translate FIRST, then wrap, so the wrap
+        # measurement uses the rendered character widths.
+        bottom_text = t(bottom_text, snapshot.language)
         bottom_y = card_bottom + 2
         max_w = 240 - 32
         lines = _wrap_two_lines(draw, bottom_text, font, max_w)
