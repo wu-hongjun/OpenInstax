@@ -72,8 +72,8 @@ _RED_RGB: tuple[int, int, int] = (225, 85, 84)  # #e15554
 # Breath curve: 2 s cycle, intensity scaled 60 % → 100 %. Gentle enough to read
 # as "alive" without distracting from the body content.
 BREATH_PERIOD_S: float = 2.0
-BREATH_BASELINE: float = 0.6
-BREATH_AMPLITUDE: float = 0.4
+BREATH_BASELINE: float = 0.35
+BREATH_AMPLITUDE: float = 0.65
 
 
 def breath_intensity(t: float) -> float:
