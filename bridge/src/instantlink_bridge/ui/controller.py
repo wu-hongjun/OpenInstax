@@ -63,6 +63,7 @@ from instantlink_bridge.ui.settings import (
     PAGE_FOR_OPEN_KEY,
     PAGE_TITLES,
     SETTINGS_BY_PAGE,
+    SETTINGS_PARENT_PAGE,
     SettingKey,
     SettingsPage,
     WifiMode,
@@ -1079,7 +1080,12 @@ class BridgeUi:
             if self._settings_page is SettingsPage.MAIN:
                 await self.refresh_printer_status()
             else:
-                self._show_settings(page=SettingsPage.MAIN)
+                # Multi-level nesting: ABOUT lives under SYSTEM, so BACK from
+                # ABOUT returns to SYSTEM rather than jumping all the way to
+                # MAIN. Every other sub-page is one level deep and returns to
+                # MAIN as before.
+                parent = SETTINGS_PARENT_PAGE.get(self._settings_page, SettingsPage.MAIN)
+                self._show_settings(page=parent)
             return
         if action in {UiAction.UP, UiAction.DOWN}:
             self._clear_pending_confirms()
@@ -1516,6 +1522,8 @@ class BridgeUi:
             return SettingsRow("Print", "")
         if key is SettingKey.OPEN_SYSTEM:
             return SettingsRow("System", "")
+        if key is SettingKey.OPEN_ABOUT:
+            return SettingsRow("About", "")
         if key is SettingKey.PRINTER_SERIAL_INFO:
             # Strip the verbose "INSTAX-" prefix so the saved serial fits on
             # one row without clipping. When nothing is paired the row reads

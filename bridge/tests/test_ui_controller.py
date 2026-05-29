@@ -1855,7 +1855,13 @@ async def test_settings_printer_reset_ble_link_stays_in_printer_settings() -> No
 
 
 @pytest.mark.asyncio
-async def test_settings_system_page_shows_device_and_versions() -> None:
+async def test_settings_about_page_shows_device_and_versions() -> None:
+    """Versions (Python/BlueZ/OS) + identity rows now live behind System →
+    About so the System page itself stays operational. This test exercises
+    the navigation chain and asserts the About page presents the expected
+    rows in order, plus a BACK from About returns to System (not MAIN).
+    """
+
     display = _FakeDisplay()
     ui = BridgeUi(
         BridgeConfig(),
@@ -1872,10 +1878,20 @@ async def test_settings_system_page_shows_device_and_versions() -> None:
         ),
     )
 
+    # MAIN: rows are Printer, Connect, Network, Print, System.
+    # 4 DOWNs lands on System; SELECT enters the System page.
     await ui._handle_action(UiAction.SELECT)
     for _ in range(4):
         await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.SELECT)
+    assert display.snapshots[-1].settings_title == "System"
+
+    # System rows: Battery, Idle, Idle poweroff, Text size, Refresh status,
+    # About. 5 DOWNs lands on About; SELECT enters the About page.
+    for _ in range(5):
+        await ui._handle_action(UiAction.DOWN)
+    await ui._handle_action(UiAction.SELECT)
+    assert display.snapshots[-1].settings_title == "About"
 
     rows = display.snapshots[-1].settings_rows
     assert [row.label for row in rows[:5]] == [
@@ -1891,8 +1907,11 @@ async def test_settings_system_page_shows_device_and_versions() -> None:
     assert rows[3].value == "5.82"
 
     await ui._handle_action(UiAction.HELP)
-
     assert display.snapshots[-1].settings_message == "Unique ID; used by the Mac app"
+
+    # BACK from About goes to its parent (System), not all the way to MAIN.
+    await ui._handle_action(UiAction.BACK)
+    assert display.snapshots[-1].settings_title == "System"
 
 
 @pytest.mark.asyncio

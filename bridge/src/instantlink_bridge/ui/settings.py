@@ -42,6 +42,7 @@ class SettingKey(StrEnum):
     FORGET_PRINTER = "forget_printer"
     PRINTER_SERIAL_INFO = "printer_serial_info"
     FORGET_AND_REPAIR = "forget_and_repair"
+    OPEN_ABOUT = "open_about"
     SYSTEM_DEVICE_ID = "system_device_id"
     SYSTEM_APP_VERSION = "system_app_version"
     SYSTEM_PYTHON_VERSION = "system_python_version"
@@ -65,6 +66,7 @@ class SettingsPage(StrEnum):
     NETWORK = "network"
     PRINT = "print"
     SYSTEM = "system"
+    ABOUT = "about"
 
 
 class WifiMode(StrEnum):
@@ -132,21 +134,25 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.ALLOW_PRINT_WITHOUT_FILM,
     ),
     SettingsPage.SYSTEM: (
-        SettingKey.SYSTEM_DEVICE_ID,
-        SettingKey.SYSTEM_APP_VERSION,
-        SettingKey.SYSTEM_PYTHON_VERSION,
-        SettingKey.SYSTEM_BLUEZ_VERSION,
-        SettingKey.SYSTEM_OS_VERSION,
-        # SYSTEM_POWER_INFO removed: the X306 case has no host telemetry, so
-        # the row always read "Battery case" regardless of whether the bridge
-        # was powered via the case USB-C, the bottom pogo pins, or the data
-        # USB. A row that can't distinguish those just wastes a slot — if the
-        # Pi is running, it's powered.
+        # Operational/adjustable rows only. The static device/version info
+        # ("Python 3.13", "BlueZ 5.79", etc.) lives behind the OPEN_ABOUT
+        # row so the System page stays scannable.
         SettingKey.SYSTEM_BATTERY_INFO,
         SettingKey.SYSTEM_IDLE_INFO,
         SettingKey.SYSTEM_IDLE_POWEROFF,
         SettingKey.FONT_SIZE,
         SettingKey.REFRESH_STATUS,
+        SettingKey.OPEN_ABOUT,
+        # SYSTEM_POWER_INFO removed: the X306 case has no host telemetry, so
+        # the row always read "Battery case" regardless of source. If the Pi
+        # is running, it's powered.
+    ),
+    SettingsPage.ABOUT: (
+        SettingKey.SYSTEM_DEVICE_ID,
+        SettingKey.SYSTEM_APP_VERSION,
+        SettingKey.SYSTEM_PYTHON_VERSION,
+        SettingKey.SYSTEM_BLUEZ_VERSION,
+        SettingKey.SYSTEM_OS_VERSION,
     ),
 }
 
@@ -157,6 +163,7 @@ PAGE_TITLES: dict[SettingsPage, str] = {
     SettingsPage.NETWORK: "Network",
     SettingsPage.PRINT: "Print",
     SettingsPage.SYSTEM: "System",
+    SettingsPage.ABOUT: "About",
 }
 
 PAGE_FOR_OPEN_KEY: dict[SettingKey, SettingsPage] = {
@@ -165,6 +172,14 @@ PAGE_FOR_OPEN_KEY: dict[SettingKey, SettingsPage] = {
     SettingKey.OPEN_NETWORK: SettingsPage.NETWORK,
     SettingKey.OPEN_PRINT: SettingsPage.PRINT,
     SettingKey.OPEN_SYSTEM: SettingsPage.SYSTEM,
+    SettingKey.OPEN_ABOUT: SettingsPage.ABOUT,
+}
+
+# Parent for each sub-page when the user presses BACK/LEFT. Top-level sub-pages
+# (PRINTER, CAMERA, etc.) are not listed because the controller defaults to
+# MAIN; only nested pages need an explicit override.
+SETTINGS_PARENT_PAGE: dict[SettingsPage, SettingsPage] = {
+    SettingsPage.ABOUT: SettingsPage.SYSTEM,
 }
 
 INFO_SETTING_KEYS: frozenset[SettingKey] = frozenset(
@@ -265,6 +280,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.OPEN_NETWORK: "Wi-Fi, Bluetooth, USB-C info",
     SettingKey.OPEN_PRINT: "Photo size and print options",
     SettingKey.OPEN_SYSTEM: "Device info and power",
+    SettingKey.OPEN_ABOUT: "Versions and device identity",
     SettingKey.FTP_RECEIVE_MODE: "Hotspot: bridge AP. Client: join existing.",
     SettingKey.PAIR_PRINTER: "Scan and remember one Instax printer",
     SettingKey.RESET_PRINTER_LINK: "Reconnect to the saved printer",
