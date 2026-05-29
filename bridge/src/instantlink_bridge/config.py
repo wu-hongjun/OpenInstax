@@ -67,6 +67,20 @@ class FontSize(StrEnum):
     LARGE = "large"
 
 
+class StatusSinkKind(StrEnum):
+    """Where the unified status signal is published.
+
+    ``lcd`` is the default for the LCD-SKU and means the status indicator is
+    drawn into the top bar; no separate sink is wired. ``gpio`` is reserved
+    for the future headless-SKU (Plan 033 Phase 5); today it logs transitions.
+    ``null`` disables the side-channel entirely (LCD bar still renders).
+    """
+
+    LCD = "lcd"
+    GPIO = "gpio"
+    NULL = "null"
+
+
 @dataclass(frozen=True, slots=True)
 class FtpSourceDecision:
     """Result of applying FTP receive-mode source policy."""
@@ -282,6 +296,7 @@ class UiConfig:
 
     surface: UiSurface = UiSurface.LCD
     font_size: FontSize = FontSize.MEDIUM
+    status_sink: StatusSinkKind = StatusSinkKind.LCD
 
 
 @dataclass(frozen=True, slots=True)
@@ -416,6 +431,7 @@ def render_config(config: BridgeConfig) -> str:
             "[ui]",
             f"surface = {_toml_string(config.ui.surface.value)}",
             f"font_size = {_toml_string(config.ui.font_size.value)}",
+            f"status_sink = {_toml_string(config.ui.status_sink.value)}",
             "",
         ]
     )
@@ -563,6 +579,7 @@ def _load_ui_config(data: object) -> UiConfig:
     return UiConfig(
         surface=parse_ui_surface(data.get("surface", UiSurface.LCD.value)),
         font_size=parse_font_size(data.get("font_size", FontSize.MEDIUM.value)),
+        status_sink=parse_status_sink(data.get("status_sink", StatusSinkKind.LCD.value)),
     )
 
 
@@ -586,6 +603,17 @@ def parse_font_size(value: object) -> FontSize:
     except ValueError as exc:
         allowed = ", ".join(s.value for s in FontSize)
         raise ValueError(f"[ui].font_size must be one of: {allowed}") from exc
+
+
+def parse_status_sink(value: object) -> StatusSinkKind:
+    """Parse a configured status indicator sink kind."""
+
+    text = str(value).strip().lower()
+    try:
+        return StatusSinkKind(text)
+    except ValueError as exc:
+        allowed = ", ".join(s.value for s in StatusSinkKind)
+        raise ValueError(f"[ui].status_sink must be one of: {allowed}") from exc
 
 
 def parse_ftp_receive_mode(value: object) -> FtpReceiveMode:

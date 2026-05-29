@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable
 
 from PIL import Image, ImageDraw, ImageFont
 
 from instantlink_bridge.ble.models import PrinterModel
 from instantlink_bridge.ui.models import UiMode, UiSnapshot
+from instantlink_bridge.ui.status_indicator import StatusState, derive_status
 
 LCD_SIZE = (240, 240)
 Font = ImageFont.ImageFont | ImageFont.FreeTypeFont
@@ -59,8 +61,13 @@ def _scale_for_snapshot(snapshot: UiSnapshot) -> tuple[float, float]:
     return _FONT_SCALES.get(snapshot.font_size, _FONT_SCALES["medium"])
 
 
-def render_snapshot(snapshot: UiSnapshot) -> Image.Image:
-    """Render one UI frame."""
+def render_snapshot(snapshot: UiSnapshot, now: float | None = None) -> Image.Image:
+    """Render one UI frame.
+
+    ``now`` is the breath-clock seed for the status indicator. Defaults to
+    ``time.monotonic()`` so production code does nothing different; tests pass
+    a fixed value for deterministic pixel comparisons.
+    """
 
     image = Image.new("RGB", LCD_SIZE, BG)
     draw = ImageDraw.Draw(image)
@@ -69,7 +76,8 @@ def render_snapshot(snapshot: UiSnapshot) -> Image.Image:
         key: _font(max(1, round(base * font_scale))) for key, base in _BASE_FONTS.items()
     }
 
-    draw_status_bar(draw, snapshot, fonts)
+    breath_clock = time.monotonic() if now is None else now
+    draw_status_bar(draw, snapshot, fonts, breath_clock)
 
     if snapshot.mode is UiMode.READY:
         _ready(draw, snapshot, fonts)
@@ -114,31 +122,32 @@ def draw_status_bar(
     draw: ImageDraw.ImageDraw,
     snapshot: UiSnapshot,
     fonts: dict[str, Font],
+    now: float = 0.0,
 ) -> None:
     """Draw the single-line 30px status bar.
 
+    The bar itself *is* the status indicator: the full background is tinted
+    by the resolved :class:`StatusState`, breathing where the pattern calls
+    for it. Text on top uses a luma-picked foreground (black on yellow,
+    white on green/red) so the chips stay legible across the palette.
+
     Layout (left to right):
-      [dot]  printer-name          film/battery  bridge-battery
+      printer-name                       film/battery  bridge-battery
 
     The mode name never appears here — it belongs only in the body title.
     """
 
-    accent, _ = _snapshot_chrome(snapshot)
+    state = derive_status(snapshot)
+    bg = state.tint_at(now)
+    fg = state.foreground()
     font_small = fonts["small"]
 
-    # Background
-    draw.rectangle((0, 0, 239, STATUS_BAR_H - 1), fill=PANEL)
+    # Background — full-bar tint replaces the old PANEL band + dot pattern.
+    draw.rectangle((0, 0, 239, STATUS_BAR_H - 1), fill=bg)
 
-    # Status dot (6px filled circle, mode accent colour)
-    dot_x, dot_y, dot_r = 8, STATUS_BAR_H // 2, 3
-    draw.ellipse(
-        (dot_x - dot_r, dot_y - dot_r, dot_x + dot_r, dot_y + dot_r),
-        fill=accent,
-    )
-
-    # Printer name (left, after dot) — prefer friendly model-derived name
-    # (e.g. "Instax Link Square") over the raw BLE name ("INSTAX-52006924"),
-    # which is shown separately on the READY body.
+    # Printer name (left). Prefer the friendly model-derived name
+    # (e.g. "Instax Link Square") over the raw BLE name; the raw id lives on
+    # the READY body so both surfaces stay useful.
     printer_name = _status_bar_printer_name(snapshot)
 
     # Right side: bridge battery (outermost) then film+printer-battery chip.
@@ -161,14 +170,15 @@ def draw_status_bar(
     right_width = _text_width(draw, right_text, font_small) if right_text else 0
     right_x = 232 - right_width
 
-    # Printer name — fitted to avoid overlap with right side
-    name_max = max(0, right_x - 18 - 4)
+    # Printer name — fitted to avoid overlap with right side. Left margin
+    # tightens from 18 → 8 now that the dot no longer occupies that slot.
+    name_max = max(0, right_x - 8 - 4)
     fitted_name = _fit_text_to_width(draw, printer_name, font_small, name_max)
     name_y = STATUS_BAR_H // 2 - 5  # vertically centred for 10px font
-    _text(draw, 18, name_y, fitted_name, font_small, TEXT)
+    _text(draw, 8, name_y, fitted_name, font_small, fg)
 
     if right_text:
-        _text(draw, right_x, name_y, right_text, font_small, MUTED)
+        _text(draw, right_x, name_y, right_text, font_small, fg)
 
 
 def draw_body_message(

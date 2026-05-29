@@ -1076,17 +1076,56 @@ async def test_render_tick_re_renders_latest_snapshot() -> None:
     tick_task = asyncio.create_task(ui._run_render_tick())
     try:
         # Mutate the snapshot without calling _render; the tick must converge the LCD to it.
+        # PRINTER_OFFLINE is a SOLID indicator (no breath) so the short-circuit applies; the
+        # complementary breathing case is asserted by
+        # test_render_tick_keeps_animating_breathing_indicator below.
+        ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_OFFLINE, paired_printer=printer)
+        for _ in range(50):
+            if display.snapshots and display.snapshots[-1].mode is UiMode.PRINTER_OFFLINE:
+                break
+            await asyncio.sleep(0.01)
+        assert display.snapshots, "render tick never rendered"
+        assert display.snapshots[-1].mode is UiMode.PRINTER_OFFLINE
+        render_count = len(display.snapshots)
+        # An unchanged snapshot must not be re-rendered (short-circuit keeps the tick cheap).
+        await asyncio.sleep(RENDER_TICK_S * 2)
+        assert len(display.snapshots) == render_count
+    finally:
+        tick_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await tick_task
+
+
+@pytest.mark.asyncio
+async def test_render_tick_keeps_animating_breathing_indicator() -> None:
+    """When the status indicator is breathing, the tick must re-render so the
+    time-modulated tint advances even though the snapshot itself is identical."""
+
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([printer]),
+        status_provider=_FakeStatusProvider(),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+
+    tick_task = asyncio.create_task(ui._run_render_tick())
+    try:
+        # PRINTER_SEARCHING resolves to a breathing yellow indicator.
         ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_SEARCHING, paired_printer=printer)
         for _ in range(50):
             if display.snapshots and display.snapshots[-1].mode is UiMode.PRINTER_SEARCHING:
                 break
             await asyncio.sleep(0.01)
-        assert display.snapshots, "render tick never rendered"
-        assert display.snapshots[-1].mode is UiMode.PRINTER_SEARCHING
-        render_count = len(display.snapshots)
-        # An unchanged snapshot must not be re-rendered (short-circuit keeps the tick cheap).
-        await asyncio.sleep(RENDER_TICK_S * 2)
-        assert len(display.snapshots) == render_count
+        assert display.snapshots, "render tick never rendered the breathing state"
+        baseline = len(display.snapshots)
+        # Two more tick periods must produce at least one extra render — the breath
+        # curve advances even though the snapshot is bit-identical.
+        await asyncio.sleep(RENDER_TICK_S * 3)
+        assert len(display.snapshots) > baseline
     finally:
         tick_task.cancel()
         with suppress(asyncio.CancelledError):

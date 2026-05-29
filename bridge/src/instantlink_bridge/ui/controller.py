@@ -24,6 +24,7 @@ from instantlink_bridge.config import (
     FtpReceiveMode,
     FtpSourceKind,
     PowerBackend,
+    StatusSinkKind,
     write_config,
 )
 from instantlink_bridge.imaging.pipeline import (
@@ -75,6 +76,14 @@ from instantlink_bridge.ui.settings import (
     setting_action_hint,
     setting_help_text,
     setting_options,
+)
+from instantlink_bridge.ui.status_indicator import (
+    GpioStatusSink,
+    NullStatusSink,
+    StatusPattern,
+    StatusSink,
+    StatusState,
+    derive_status,
 )
 from instantlink_bridge.ui.status import (
     BlePrinterStatusProvider,
@@ -168,6 +177,20 @@ def _default_printer_status_provider() -> PrinterStatusProvider:
     return BlePrinterStatusProvider()
 
 
+def _default_status_sink(kind: StatusSinkKind) -> StatusSink:
+    """Resolve a default :class:`StatusSink` from config.
+
+    - ``LCD`` / ``NULL``: no side channel — the LCD bar paints the indicator
+      itself, so a no-op sink is correct.
+    - ``GPIO``: the headless-SKU placeholder. Logs transitions today; Phase 5
+      replaces the body with the real RGB-LED PWM driver.
+    """
+
+    if kind is StatusSinkKind.GPIO:
+        return GpioStatusSink()
+    return NullStatusSink()
+
+
 class BridgeUi:
     """Own the LCD state, hardware input, and printer pairing actions."""
 
@@ -186,11 +209,20 @@ class BridgeUi:
         ftp_config_applied_callback: FtpConfigAppliedCallback | None = None,
         system_info: SystemInfo | None = None,
         ready_event: asyncio.Event | None = None,
+        status_sink: StatusSink | None = None,
     ) -> None:
         self._config = config
         self._config_path = config_path
         self._display = display if display is not None else create_display(config.ui.surface)
         self._input = input_device if input_device is not None else create_input(config.ui.surface)
+        # Status sink is the side channel for surfaces other than the LCD bar.
+        # The LCD itself always paints from derive_status inside draw_status_bar,
+        # so a null sink is correct for the LCD-SKU; GPIO is for the headless
+        # SKU and is a logging stub until Phase 5 wires real PWM.
+        self._status_sink: StatusSink = (
+            status_sink if status_sink is not None else _default_status_sink(config.ui.status_sink)
+        )
+        self._last_status_state: StatusState | None = None
         self._pairer = pairer if pairer is not None else _default_printer_pairer()
         self._status_provider = (
             status_provider if status_provider is not None else _default_printer_status_provider()
@@ -2675,10 +2707,26 @@ class BridgeUi:
 
     def _render(self) -> None:
         try:
-            if self._snapshot == self._last_rendered_snapshot:
+            state = derive_status(self._snapshot)
+            # Push every render to the sink (headless GPIO LED, future surfaces).
+            # The sink itself dedups; calling it on every render keeps the LCD
+            # bar and the side channel in lockstep with no extra plumbing.
+            try:
+                self._status_sink.set(state)
+            except Exception:
+                LOGGER.exception("ui.status_sink_failed signal=%s", state.signal.value)
+            # Snapshot-equality short-circuit avoids redundant SPI traffic on
+            # idle screens. Bypass it while the indicator is breathing so the
+            # 0.35 s render tick keeps the breath curve animating; the snapshot
+            # itself is unchanged but the time-based tint is not.
+            if (
+                state.pattern is not StatusPattern.BREATHING
+                and self._snapshot == self._last_rendered_snapshot
+            ):
                 return
             self._display.render(self._snapshot)
             self._last_rendered_snapshot = self._snapshot
+            self._last_status_state = state
         except Exception:
             LOGGER.exception("ui.render_failed mode=%s", self._snapshot.mode)
 

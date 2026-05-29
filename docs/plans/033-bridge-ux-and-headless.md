@@ -509,6 +509,49 @@ Same data the LCD shows; just exposed to the FTP handler.
 - Should we wrap the snapshot in a debounce so a flapping "online/offline" doesn't yield contradictory messages on close-spaced C1 presses? Probably yes — debounce window ~2 s.
 - Multi-print queueing: if the camera sends C1 while we're mid-print on a previous photo, do we accept and queue (today's behaviour) or reject with 450? Today's behaviour is correct for the "FTP Trans. (Multi)" workflow; only reject if the queue is full.
 
+### Phase 7 — Unified status indicator (added 2026-05-29)
+
+**Why:** The single-pixel status dot in the top bar is too small to register at arm's length, and the LCD-SKU and the future headless-SKU need the *same* health language: a coloured top bar on LCD = a coloured LED on headless. Both surfaces should consume the same `StatusState`. Encoding the signal explicitly (rather than implicitly via `UiMode → accent`) also lets Phase 5's GPIO LED reuse it without re-deriving anything from the snapshot.
+
+**Signal vocabulary (6 states, 2 patterns):**
+
+| State | Pattern | Color | Trigger |
+|---|---|---|---|
+| `READY` | solid | green | `UiMode.READY` (printer fresh + can accept), `PRINT_COMPLETE` |
+| `PRINTING` | breathing | green | `IMAGE_RECEIVED`, `AWAITING_CONFIRM`, `PRINTING` |
+| `NOT_READY` | solid | yellow | `PRINTER_OFFLINE`, `NEEDS_PAIRING`, `PAIR_FAILED` |
+| `SEARCHING` | breathing | yellow | `BOOTING`, `PRINTER_SEARCHING`, `PAIRING`, `VALIDATION` |
+| `ERROR` | solid | red | `UiMode.ERROR` |
+| `WARNING` | breathing | red | `NO_FILM` |
+
+`SETTINGS` inherits — derive from the same non-mode signals (paired_printer presence, printer_status_fresh, film_remaining, can_accept_images) so the bar still reflects bridge health while the user is configuring.
+
+**Pattern definition:**
+- Solid: full intensity, no modulation.
+- Breathing: 2 s period (0.5 Hz), intensity scaled 60 % → 100 % via `0.6 + 0.4 × (1 + sin(2πt/2))/2`.
+
+**Surface bindings:**
+- **LCD**: `draw_status_bar` fills the full 30 px band with `state.tint_at(t)` and chooses text color by luma (white on green/red, black on yellow). The standalone dot is removed.
+- **Headless (Phase 5)**: a `GpioStatusSink` consumes the same `StatusState` and drives an RGB LED via PWM. Cadence is identical so users learn one vocabulary across SKUs.
+
+**Abstraction:**
+- New `bridge/src/instantlink_bridge/ui/status_indicator.py` owns the enum, the derivation pure function, and the breath modulation math. Both `render.py` (LCD) and the future GPIO driver consume it; nothing else imports `UiMode → color` mapping.
+- `StatusSink` protocol with `set(state: StatusState) -> None` is wired into the controller's `_render` path. Default sink is `NullStatusSink` (no-op). `GpioStatusSink` is a logging stub today — Phase 5 replaces the body with the actual `gpiozero.RGBLED` calls.
+
+**Re-render cadence:**
+- The existing snapshot-equality short-circuit in `_render` is bypassed when `state.pattern == BREATHING`, so the render tick (`RENDER_TICK_S = 0.35`) drives ~3 frames per second of the breath curve. Imperceptible on a static frame; smooth enough for the 2 s breath cycle.
+
+**Files touched:**
+- New `bridge/src/instantlink_bridge/ui/status_indicator.py` (~120 lines).
+- `bridge/src/instantlink_bridge/ui/render.py` — replace `draw_status_bar` body, drop the dot, route chip colors through `state.foreground`.
+- `bridge/src/instantlink_bridge/ui/controller.py` — instantiate sink, push state on each `_render`, bypass short-circuit on breathing.
+- `bridge/src/instantlink_bridge/config.py` — add `ui.status_sink: "lcd" | "null" | "gpio"` config knob (default `lcd`).
+- New `bridge/tests/test_status_indicator.py` — per-mode derivation + breath modulation + sink dispatch.
+
+**Out of this phase:**
+- Real GPIO wiring (Phase 5; depends on hardware BOM).
+- Tinting any surface other than the LCD top bar (e.g., film row chips).
+
 ## Sequencing
 
 Phases are mostly independent and can ship in this order. Phase 0 (boot
