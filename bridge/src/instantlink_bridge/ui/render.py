@@ -275,7 +275,10 @@ def _ready(
     # Body: waiting for upload + paired printer ID + Wi-Fi SSID
     _text(draw, 18, 120, "Waiting for upload", fonts["body"], TEXT)
     if snapshot.paired_printer is not None:
-        _text(draw, 18, 148, snapshot.paired_printer.name, fonts["small"], MUTED)
+        # Strip the verbose "INSTAX-" prefix; the model name in the status bar
+        # already identifies the brand. Shorter ID = more compact body line.
+        bare_id = snapshot.paired_printer.name.removeprefix("INSTAX-")
+        _text(draw, 18, 148, f"Printer: {bare_id}", fonts["small"], MUTED)
     if snapshot.hotspot_ssid is not None:
         _text(draw, 18, 168, f"Wi-Fi: {snapshot.hotspot_ssid}", fonts["small"], MUTED)
     depth = snapshot.image_queue_depth
