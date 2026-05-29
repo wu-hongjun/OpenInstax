@@ -15,9 +15,12 @@ from typing import Protocol
 from instantlink_bridge.config import FtpConfig, FtpSourceDecision, ftp_config_source_decision
 from instantlink_bridge.net.addresses import detect_ipv4_addresses_for_interface
 from instantlink_bridge.net.health import DEFAULT_WIFI_INTERFACE, FtpActivityTracker
+from instantlink_bridge.ui.models import UiMode, UiSnapshot
 
 LOGGER = logging.getLogger(__name__)
 INSECURE_FTP_PASSWORDS = {"", "change-me", "instax"}
+
+BridgeSnapshotProvider = Callable[[], UiSnapshot]
 
 
 class FtpServiceFailedError(RuntimeError):
@@ -44,6 +47,29 @@ FtpQueueOverflowCallback = Callable[[ReceivedImage, int, int], None]
 ActivePeerHostProvider = Callable[[], Iterable[str]]
 
 
+def _printer_reachable(snap: UiSnapshot) -> bool:
+    """Return True when the printer is considered online and reachable.
+
+    Requires a fresh status poll (printer_status_fresh=True) and a mode that
+    is not one of the non-operational states.
+    """
+    if not snap.printer_status_fresh:
+        return False
+    # PAIRING and PAIR_FAILED are included because mid-pairing the printer is
+    # not in a state to receive prints; treat as unreachable so STOR returns a
+    # descriptive 451 instead of falling through to a confusing data-channel error.
+    unreachable_modes = {
+        UiMode.PRINTER_SEARCHING,
+        UiMode.PRINTER_OFFLINE,
+        UiMode.BOOTING,
+        UiMode.NEEDS_PAIRING,
+        UiMode.PAIRING,
+        UiMode.PAIR_FAILED,
+        UiMode.ERROR,
+    }
+    return snap.mode not in unreachable_modes
+
+
 class FtpReceiveService:
     """Run pyftpdlib in a background thread and hand completed files to asyncio."""
 
@@ -55,6 +81,8 @@ class FtpReceiveService:
         activity_tracker: FtpActivityTracker | None = None,
         queue_overflow_callback: FtpQueueOverflowCallback | None = None,
         active_peer_host_provider: ActivePeerHostProvider | None = None,
+        *,
+        bridge_snapshot_provider: BridgeSnapshotProvider | None = None,
     ) -> None:
         self._config = config
         self._config_lock = Lock()
@@ -63,6 +91,7 @@ class FtpReceiveService:
         self._activity_tracker = activity_tracker
         self._queue_overflow_callback = queue_overflow_callback
         self._active_peer_host_provider = active_peer_host_provider
+        self._bridge_snapshot_provider = bridge_snapshot_provider
         self._thread: Thread | None = None
         self._server: _FtpServer | None = None
         self._started = Event()
@@ -320,6 +349,78 @@ class FtpReceiveService:
             return
         self._failure = error
 
+    def _ftp_preflight_reply(self, remote_ip: str | None = None) -> str | None:
+        """Return an FTP error reply string if the bridge cannot accept a print job right now.
+
+        Check ordering follows the architect's Phase 6 rationale: hard-fail states first
+        (booting, not paired, printer offline, no film), then transient-busy last (printing).
+        Returns None to fall through to the normal STOR handler on success.
+
+        Gracefully degrades to None when no bridge_snapshot_provider is wired.
+        """
+        if self._bridge_snapshot_provider is None:
+            return None
+
+        snap = self._bridge_snapshot_provider()
+
+        if snap.mode is UiMode.BOOTING:
+            reply = "451 Bridge starting, try again in a moment."
+            LOGGER.info(
+                "ftp.preflight_rejected reply=%r remote_ip=%s",
+                reply,
+                remote_ip,
+            )
+            return reply
+
+        if snap.paired_printer is None:
+            reply = "501 Bridge not paired. Pair from the Mac app."
+            LOGGER.info(
+                "ftp.preflight_rejected reply=%r remote_ip=%s",
+                reply,
+                remote_ip,
+            )
+            return reply
+
+        if not _printer_reachable(snap):
+            printer_name = snap.paired_printer.name
+            if len(printer_name) > 15:
+                printer_name = printer_name[:15]
+            reply = f"451 {printer_name} offline. Power on printer."
+            LOGGER.info(
+                "ftp.preflight_rejected reply=%r remote_ip=%s",
+                reply,
+                remote_ip,
+            )
+            return reply
+
+        # film_remaining is None when the printer status is not yet populated;
+        # treat as unknown and fall through. The printer itself rejects at the
+        # BLE layer if the cartridge is truly empty, so this guard only fires
+        # when we have a confirmed zero.
+        if (
+            snap.film_remaining is not None
+            and snap.film_remaining <= 0
+            and not snap.allow_print_without_film
+        ):
+            reply = "552 No film. Load film and retry."
+            LOGGER.info(
+                "ftp.preflight_rejected reply=%r remote_ip=%s",
+                reply,
+                remote_ip,
+            )
+            return reply
+
+        if snap.mode is UiMode.PRINTING:
+            reply = "450 Printer busy, try again."
+            LOGGER.info(
+                "ftp.preflight_rejected reply=%r remote_ip=%s",
+                reply,
+                remote_ip,
+            )
+            return reply
+
+        return None
+
     def _run_server(self) -> None:
         from pyftpdlib.authorizers import DummyAuthorizer
         from pyftpdlib.handlers import FTPHandler
@@ -344,6 +445,13 @@ class FtpReceiveService:
 
             def on_file_received(self, file: str) -> None:
                 service._handle_received_file(file, self.remote_ip)
+
+            def ftp_STOR(self, file: str, mode: str = "w") -> object:
+                reply = service._ftp_preflight_reply(self.remote_ip)
+                if reply is not None:
+                    self.respond(reply)
+                    return None
+                return super().ftp_STOR(file, mode)
 
         try:
             authorizer = DummyAuthorizer()

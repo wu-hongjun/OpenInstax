@@ -206,6 +206,7 @@ async def run_ftp_receive_slice(config_path: Path) -> None:
             loop,
             activity_tracker=ftp_activity,
             queue_overflow_callback=notify_queue_overflow,
+            bridge_snapshot_provider=lambda: ui.snapshot,
         )
         ftp_service.start()  # blocks until the FTP thread's listener is bound
         return ftp_service

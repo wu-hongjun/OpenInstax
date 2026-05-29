@@ -274,6 +274,15 @@ class BridgeUi:
 
         return self._config
 
+    @property
+    def snapshot(self) -> UiSnapshot:
+        """Read-only access to the current UI snapshot; used by FTP pre-flight (Phase 6).
+
+        Safe to call from any thread: UiSnapshot is frozen+slotted, the attribute swap
+        is atomic under the GIL, and a one-mutation-lag is acceptable for FTP replies.
+        """
+        return self._snapshot
+
     async def start(self) -> None:
         """Start rendering and input handling."""
 
