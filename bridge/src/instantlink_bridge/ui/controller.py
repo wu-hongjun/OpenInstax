@@ -1002,7 +1002,7 @@ class BridgeUi:
                 self._show_settings("KEY1 opens category")
                 return
             keys = SETTINGS_BY_PAGE[self._settings_page]
-            self._show_settings(setting_help_text(keys[self._snapshot.selected_index]))
+            self._show_settings(self._settings_row_help(keys[self._snapshot.selected_index]))
             return
         if action in {UiAction.BACK, UiAction.LEFT}:
             self._forget_confirm_pending = False
@@ -1281,7 +1281,7 @@ class BridgeUi:
             replace(
                 self._settings_row_for_key(key, printer_name),
                 hint=setting_action_hint(key),
-                help=setting_help_text(key),
+                help=self._settings_row_help(key),
             )
             for key in SETTINGS_BY_PAGE[self._settings_page]
         )
@@ -1393,6 +1393,97 @@ class BridgeUi:
         if key is SettingKey.FONT_SIZE:
             return SettingsRow("Text size", self._config.ui.font_size.value.capitalize())
         return SettingsRow("Unknown", "")
+
+    def _settings_row_help(self, key: SettingKey) -> str:
+        """Return per-key help text, embedding current config values where useful."""
+
+        config = self._config
+        if key is SettingKey.FTP_RECEIVE_MODE:
+            return "How camera reaches bridge"
+        if key is SettingKey.PRINTER_MODEL:
+            if config.printer.model is None:
+                return "Auto detects from printer"
+            return f"Fixed to {model_label(config.printer.model)}"
+        if key is SettingKey.IMAGE_FIT:
+            return "How to fit photo to film aspect"
+        if key is SettingKey.JPEG_QUALITY:
+            return f"Trade-off: higher = bigger, sharper. Current: {config.printer.quality}"
+        if key is SettingKey.AUTO_PRINT_DELAY:
+            value = config.workflow.auto_print_delay_s
+            if value == 5.0:
+                return "Editable preview, then prints"
+            if value == 0.0:
+                return "Prints immediately on upload"
+            return "Waits for K1 press"
+        if key is SettingKey.ALLOW_PRINT_WITHOUT_FILM:
+            return "Test mode: skip 0/10 film check"
+        if key is SettingKey.KEEPALIVE:
+            return f"Polls printer every {int(config.printer.keepalive_interval_s)}s while idle"
+        if key is SettingKey.SEARCH_INTERVAL:
+            return f"Scans every {int(config.printer.search_interval_s)}s when printer offline"
+        if key is SettingKey.SYSTEM_IDLE_POWEROFF:
+            if config.power.idle_poweroff_enabled:
+                return "Shuts down after 10 min idle"
+            return "Stays on indefinitely"
+        if key is SettingKey.FONT_SIZE:
+            return "LCD text size"
+        if key is SettingKey.FTP_HOST_INFO:
+            return "Enter as FTP server in camera"
+        if key is SettingKey.FTP_USERNAME_INFO:
+            return "Enter as FTP user in camera"
+        if key is SettingKey.FTP_PASSWORD_INFO:
+            return "Enter as FTP password in camera"
+        if key is SettingKey.FTP_MODE_INFO:
+            return "Path the camera actually used"
+        if key is SettingKey.CAMERA_SETUP_INFO:
+            return "Any FTP client works (camera, app, scp)"
+        if key is SettingKey.NETWORK_HOTSPOT_INFO:
+            return "Camera connects here for upload"
+        if key is SettingKey.NETWORK_HOTSPOT_SSID_INFO:
+            return "Bridge Wi-Fi name to join from camera"
+        if key is SettingKey.NETWORK_HOTSPOT_PASSWORD_INFO:
+            return "Bridge Wi-Fi password (8 digits)"
+        if key is SettingKey.NETWORK_BLUETOOTH_INFO:
+            return "BLE link to Instax printer"
+        if key is SettingKey.NETWORK_WIFI_INFO:
+            return "Advanced: bridge on existing Wi-Fi"
+        if key is SettingKey.NETWORK_ETHERNET_INFO:
+            return "USB-C network to Mac (setup, updates)"
+        if key is SettingKey.SYSTEM_DEVICE_ID:
+            return "Unique ID; used by the Mac app"
+        if key is SettingKey.SYSTEM_APP_VERSION:
+            return "Bridge software version"
+        if key is SettingKey.SYSTEM_PYTHON_VERSION:
+            return "Python runtime version"
+        if key is SettingKey.SYSTEM_BLUEZ_VERSION:
+            return "Bluetooth stack version"
+        if key is SettingKey.SYSTEM_OS_VERSION:
+            return "Linux distribution version"
+        if key is SettingKey.SYSTEM_POWER_INFO:
+            return "Bridge battery/UPS hardware"
+        if key is SettingKey.SYSTEM_BATTERY_INFO:
+            return "Battery charge if telemetry available"
+        if key is SettingKey.SYSTEM_IDLE_INFO:
+            return "Dim and screen-off timing"
+        if key is SettingKey.PAIR_PRINTER:
+            return "Scan and remember one Instax printer"
+        if key is SettingKey.RESET_PRINTER_LINK:
+            return "Reconnect to the saved printer"
+        if key is SettingKey.FORGET_PRINTER:
+            return "Remove the saved printer"
+        if key is SettingKey.REFRESH_STATUS:
+            return "Re-check printer and FTP now"
+        if key is SettingKey.OPEN_PRINTER:
+            return "Printer pairing and status"
+        if key is SettingKey.OPEN_CAMERA:
+            return "Camera-side FTP credentials"
+        if key is SettingKey.OPEN_NETWORK:
+            return "Wi-Fi, Bluetooth, USB-C info"
+        if key is SettingKey.OPEN_PRINT:
+            return "Photo size and print options"
+        if key is SettingKey.OPEN_SYSTEM:
+            return "Device info and power"
+        return setting_help_text(key)
 
     def _system_info_snapshot(self) -> SystemInfo:
         if self._system_info is None:
