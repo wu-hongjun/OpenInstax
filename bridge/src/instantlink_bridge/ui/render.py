@@ -344,7 +344,7 @@ def _printer_searching(
         _text(draw, 18, 128, "Turn printer on and keep awake", fonts["small"], TEXT)
         _text(draw, 18, 146, "Phone Bluetooth may grab it", fonts["small"], MUTED)
     else:
-        _center_lines(draw, ["Finding", "printer"], 62, fonts["large"], TEXT)
+        _center_lines(draw, ["Searching"], 75, fonts["large"], TEXT)
         # Single action line — message is typically already actionable
         # ("Turn printer on" / "Keep printer awake"); a hardcoded prefix
         # would duplicate it (e.g. "Turn selected printer on" + "Turn printer on").
@@ -534,7 +534,7 @@ def _pairing(
     snapshot: UiSnapshot,
     fonts: dict[str, Font],
 ) -> None:
-    _center_lines(draw, ["Finding", "printer"], 55, fonts["large"], TEXT)
+    _center_lines(draw, ["Searching"], 70, fonts["large"], TEXT)
     _text(draw, 18, 128, "Keep printer awake", fonts["body"], TEXT)
     _text(draw, 18, 150, "Close phone app if it fails", fonts["small"], MUTED)
 
