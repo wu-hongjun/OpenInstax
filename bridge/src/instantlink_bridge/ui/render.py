@@ -599,8 +599,10 @@ def _ready(
         bare_id = snapshot.paired_printer.name.removeprefix("INSTAX-")
         row_data.append((t("Printer", snapshot.language), bare_id))
 
-    if snapshot.hotspot_ssid is not None:
-        row_data.append((t("SSID", snapshot.language), snapshot.hotspot_ssid))
+    # SSID row removed from READY body: the READY card is the *printer*
+    # info section (type, film, battery, serial). The bridge hotspot SSID
+    # lives on Settings → Network → SSID for camera-side setup; it does
+    # not belong on the run-time print readiness card.
 
     depth = snapshot.image_queue_depth
     if depth == 1:
