@@ -411,9 +411,13 @@ def test_settings_row_kind_is_inferred_from_hint() -> None:
 
 
 def test_settings_footer_includes_key2_back() -> None:
+    """Settings hint chips name physical-key shortcuts only. Joystick is the
+    primary navigation surface so 'Up/Dn' / 'Move' / 'Left Back' descriptors
+    don't take a chip slot. KEY2 → BACK is the meaningful one to expose."""
+
     lines = _footer_label_lines(UiSnapshot(mode=UiMode.SETTINGS, ftp_host="192.168.7.1"))
 
-    assert ("Move", "Left Back", "KEY2 Back") in lines
+    assert lines == (("KEY1 OK", "KEY2 Back", "KEY3 Help"),)
 
 
 def test_ready_footer_exposes_upload_credentials_when_printer_is_paired() -> None:

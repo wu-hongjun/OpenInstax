@@ -17,7 +17,13 @@ ExecStart=/opt/InstantLinkBridge/.venv/bin/instantlink-bridge --config /etc/Inst
 Restart=on-failure
 RestartSec=2
 WatchdogSec=30
-TimeoutStopSec=12
+# Stop budget: the BLE worker holds an FFI scan call that can take a few
+# seconds to release after SIGTERM. The InstantLink backend wrapper has a
+# 5 s in-process grace before bailing, ui.stop() then unwinds the rest of
+# the task graph. 12 s was tight enough that every --restart deploy
+# bumped into stop-sigterm timeout → SIGKILL → unit failed → manual
+# reset-failed. 30 s leaves the FFI grace + cleanup ample room.
+TimeoutStopSec=30
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 # Wi-Fi mode switching is limited through /etc/sudoers.d/instantlink-bridge-wifi.
 # Do not restrict CapabilityBoundingSet or set NoNewPrivileges=yes; sudo cannot run the

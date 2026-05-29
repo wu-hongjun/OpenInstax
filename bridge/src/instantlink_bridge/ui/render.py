@@ -665,7 +665,18 @@ def _validation(
     else:
         _text(draw, 18, 112, t("Next action", snapshot.language), fonts["body"], theme.label_primary)
         for index, cause in enumerate(causes[:3]):
-            _text(draw, 18, 132 + index * 17, _ellipsize(cause, 31), fonts["small"], theme.accent_yellow)
+            # cause strings come from readiness_cause_texts in English; the
+            # i18n table has entries for the common ones ("Turn printer on",
+            # "Wait for printer", "Replace film pack"). Translate at draw
+            # time so 中文 mode picks them up.
+            _text(
+                draw,
+                18,
+                132 + index * 17,
+                _ellipsize(t(cause, snapshot.language), 31),
+                fonts["small"],
+                theme.accent_yellow,
+            )
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"], theme)
@@ -711,9 +722,18 @@ def _printer_searching(
         _text(draw, 18, 146, t("Phone Bluetooth may grab it", snapshot.language), fonts["small"], theme.label_secondary)
     else:
         # Title states the active state ("Searching"); body (status_message)
-        # carries the live retry copy (e.g. "Looking for printer").
+        # carries the live retry copy (e.g. "Looking for printer"). The
+        # message is set by the controller in English; translate at the
+        # render boundary so 中文 mode picks up the i18n entry.
         _center_lines(draw, [t("Searching", snapshot.language)], 75, fonts["large"], theme.label_primary)
-        _text(draw, 18, 128, _ellipsize(message, 31), fonts["body"], theme.label_primary)
+        _text(
+            draw,
+            18,
+            128,
+            _ellipsize(t(message, snapshot.language), 31),
+            fonts["body"],
+            theme.label_primary,
+        )
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"], theme)
@@ -1001,8 +1021,12 @@ def _footer_label_lines(snapshot: UiSnapshot) -> tuple[tuple[str, str, str], ...
         return (("", "Starting", ""),)
     if snapshot.mode is UiMode.SETTINGS:
         return (
-            ("Up/Dn", "KEY1 OK", "KEY3 Help"),
-            ("Move", "Left Back", "KEY2 Back"),
+            # Three chips, three physical keys (KEY1/KEY2/KEY3 left-to-right
+            # on the LCD HAT silkscreen). The joystick handles every nav
+            # action by itself — Up/Dn used to live in the left chip but
+            # it was a joystick descriptor pretending to be a key shortcut.
+            # Now each chip names exactly its physical key's shortcut.
+            ("KEY1 OK", "KEY2 Back", "KEY3 Help"),
         )
     if snapshot.mode is UiMode.NEEDS_PAIRING:
         return (("Up/Dn", "KEY1 Select", "Hold KEY3"),)

@@ -354,8 +354,18 @@ class BridgeUi:
         self._initial_status_task = asyncio.create_task(self._deferred_initial_status())
 
     async def stop(self) -> None:
-        """Stop background UI tasks."""
+        """Stop background UI tasks.
 
+        Each task is cancelled; the await uses a per-task timeout so a
+        stuck BLE FFI worker (which can hold its executor thread for a
+        few seconds after CancelledError until the shielded grace inside
+        InstantLinkBackend resolves) never blocks the whole shutdown
+        sequence. If a task is still pending after the budget, we move
+        on and let the process exit — the background worker either
+        completes its grace or systemd sends SIGKILL on the unit timeout.
+        """
+
+        TASK_CANCEL_BUDGET_S = 6.0
         for task in (
             self._action_task,
             self._pairing_task,
@@ -369,10 +379,16 @@ class BridgeUi:
             self._proactive_bond_reset_task,
             self._initial_status_task,
         ):
-            if task is not None:
-                task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await task
+            if task is None:
+                continue
+            task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=TASK_CANCEL_BUDGET_S)
+            except (asyncio.CancelledError, TimeoutError):
+                # Cancelled: expected. Timeout: the worker is still in
+                # an uncancellable thread call; abandon the await and
+                # continue the shutdown chain.
+                pass
         self._input.close()
         await self._close_cached_printer_session()
         await self._status_provider.close()
