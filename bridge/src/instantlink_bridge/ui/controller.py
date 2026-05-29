@@ -1100,7 +1100,7 @@ class BridgeUi:
                 self._snapshot,
                 selected_index=selected_index,
                 settings_rows=self._setting_picker_rows(key, selected_index),
-                settings_message="KEY1 saves option",
+                settings_message=None,
             )
             self._render()
             return
@@ -1294,7 +1294,7 @@ class BridgeUi:
 
     def _settings_default_message(self) -> str | None:
         if self._settings_page is SettingsPage.CAMERA:
-            return "Wi-Fi + FTP credentials"
+            return None
         return None
 
     def _settings_row_for_key(self, key: SettingKey, printer_name: str) -> SettingsRow:

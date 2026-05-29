@@ -260,7 +260,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.NETWORK_HOTSPOT_INFO: "Camera connects here to upload",
     SettingKey.NETWORK_HOTSPOT_SSID_INFO: "FTP sender joins this Wi-Fi",
     SettingKey.NETWORK_HOTSPOT_PASSWORD_INFO: "8-digit Wi-Fi password",
-    SettingKey.NETWORK_BLUETOOTH_INFO: "Printer Bluetooth status",
+    SettingKey.NETWORK_BLUETOOTH_INFO: "Link to Instax printer",
     SettingKey.PRINTER_MODEL: "Auto detects Mini/Square/Wide",
     SettingKey.IMAGE_FIT: "Auto rotates/crops per format",
     SettingKey.JPEG_QUALITY: "Higher = better detail, slower",

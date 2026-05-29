@@ -1160,7 +1160,7 @@ def error_copy_for_message(message: str | None) -> tuple[str, str, str | None]:
         return "Bridge error", "Check logs", None
     normalized = message.lower()
     if "pair printer first" in normalized or "select printer first" in normalized:
-        return "No printer selected", "Open Printer settings", "K3 starts scan"
+        return "No printer selected", "Open Printer settings", "Turn printer on first"
     if "printer offline" in normalized:
         return "Printer offline", "Turn printer on", "Keep it awake near bridge"
     if "printer type unknown" in normalized:
