@@ -124,61 +124,83 @@ def draw_status_bar(
     fonts: dict[str, Font],
     now: float = 0.0,
 ) -> None:
-    """Draw the single-line 30px status bar.
+    """Draw the single-line 30 px status bar.
 
-    The bar itself *is* the status indicator: the full background is tinted
-    by the resolved :class:`StatusState`, breathing where the pattern calls
-    for it. Text on top uses a luma-picked foreground (black on yellow,
-    white on green/red) so the chips stay legible across the palette.
+    The bar is dedicated to a single piece of information: the live status
+    word ("Connected", "Searching", "Printing", …). All other data (printer
+    type, film, battery, queue) lives in the body so the bar reads as a
+    glanceable, colour-coded signal across every screen.
 
-    Layout (left to right):
-      printer-name                       film/battery  bridge-battery
+    The full background is tinted by the resolved :class:`StatusState`,
+    breathing where the pattern calls for it. The status word uses a
+    luma-picked foreground (black on yellow, white on green/red) so the text
+    stays legible across the palette.
 
-    The mode name never appears here — it belongs only in the body title.
+    SETTINGS mode appends a small page counter (e.g. ``Settings  3/10``) so
+    the user always sees navigation context.
     """
 
     state = derive_status(snapshot)
     bg = state.tint_at(now)
     fg = state.foreground()
+    font_body = fonts["body"]
     font_small = fonts["small"]
 
-    # Background — full-bar tint replaces the old PANEL band + dot pattern.
     draw.rectangle((0, 0, 239, STATUS_BAR_H - 1), fill=bg)
 
-    # Printer name (left). Prefer the friendly model-derived name
-    # (e.g. "Instax Link Square") over the raw BLE name; the raw id lives on
-    # the READY body so both surfaces stay useful.
-    printer_name = _status_bar_printer_name(snapshot)
-
-    # Right side: bridge battery (outermost) then film+printer-battery chip.
-    # In SETTINGS mode, prepend the position counter (e.g. "3/10") so the user
-    # always sees navigation context without taking a row out of the body.
-    right_parts: list[str] = []
-    power = bridge_power_header_text(snapshot)
-    if power is not None:
-        right_parts.append(power)
-
-    film_battery = _status_bar_printer_chip(snapshot)
-    if film_battery is not None:
-        right_parts.insert(0, film_battery)
-
+    word = status_bar_word(snapshot)
+    counter = ""
     if snapshot.mode is UiMode.SETTINGS and snapshot.settings_rows:
         selected = min(snapshot.selected_index, len(snapshot.settings_rows) - 1)
-        right_parts.insert(0, f"{selected + 1}/{len(snapshot.settings_rows)}")
+        counter = f"  {selected + 1}/{len(snapshot.settings_rows)}"
 
-    right_text = "  ".join(right_parts) if right_parts else ""
-    right_width = _text_width(draw, right_text, font_small) if right_text else 0
-    right_x = 232 - right_width
+    # Fit the status word in the centre and any counter to its right. We
+    # measure both so the combined block stays visually centred.
+    word_w = _text_width(draw, word, font_body)
+    counter_w = _text_width(draw, counter, font_small) if counter else 0
+    gap = 0 if counter == "" else 0  # the counter already has a leading "  "
+    total = word_w + gap + counter_w
+    start_x = max(8, (240 - total) // 2)
+    word_y = STATUS_BAR_H // 2 - 7  # body font is ~14 px; vertically centred
+    counter_y = STATUS_BAR_H // 2 - 5
+    _text(draw, start_x, word_y, word, font_body, fg)
+    if counter:
+        _text(draw, start_x + word_w, counter_y, counter, font_small, fg)
 
-    # Printer name — fitted to avoid overlap with right side. Left margin
-    # tightens from 18 → 8 now that the dot no longer occupies that slot.
-    name_max = max(0, right_x - 8 - 4)
-    fitted_name = _fit_text_to_width(draw, printer_name, font_small, name_max)
-    name_y = STATUS_BAR_H // 2 - 5  # vertically centred for 10px font
-    _text(draw, 8, name_y, fitted_name, font_small, fg)
 
-    if right_text:
-        _text(draw, right_x, name_y, right_text, font_small, fg)
+# Mapping from UiMode → one-word status the top bar shows. Kept here rather
+# than in status_indicator.py because these are LCD-surface labels (the GPIO
+# headless surface has no text); the colours/patterns are owned by
+# status_indicator.StatusSignal which we share across surfaces.
+_MODE_STATUS_WORD: dict[UiMode, str] = {
+    UiMode.BOOTING: "Starting",
+    UiMode.NEEDS_PAIRING: "No printer",
+    UiMode.PAIRING: "Pairing",
+    UiMode.PAIR_FAILED: "Pair failed",
+    UiMode.PRINTER_SEARCHING: "Searching",
+    UiMode.PRINTER_OFFLINE: "Offline",
+    UiMode.VALIDATION: "Validating",
+    UiMode.NO_FILM: "No film",
+    UiMode.IMAGE_RECEIVED: "Received",
+    UiMode.AWAITING_CONFIRM: "Preview",
+    UiMode.PRINTING: "Printing",
+    UiMode.PRINT_COMPLETE: "Done",
+    UiMode.ERROR: "Error",
+    UiMode.SETTINGS: "Settings",
+}
+
+
+def status_bar_word(snapshot: UiSnapshot) -> str:
+    """Return the one-word status the top bar should display.
+
+    READY is split into ``Connected`` (printer + FTP path are healthy) and
+    ``Waiting`` (something is missing) so the user can tell at a glance
+    whether the next ``FTP Trans. (This Img.)`` will actually print.
+    """
+
+    if snapshot.mode is UiMode.READY:
+        return "Connected" if can_accept_images(snapshot) else "Waiting"
+    return _MODE_STATUS_WORD.get(snapshot.mode, "")
 
 
 def draw_body_message(
@@ -283,31 +305,62 @@ def _ready(
         _validation(draw, snapshot, fonts)
         return
 
-    _center_lines(draw, ["Ready"], 75, fonts["large"], TEXT)
-    # Body: waiting for upload + paired printer ID + Wi-Fi SSID + battery-life
-    _text(draw, 18, 120, "Waiting for upload", fonts["body"], TEXT)
+    # The top status bar carries the state word ("Connected"/"Waiting"); the
+    # body is purely informational. The old "Ready" title and "Waiting for
+    # upload" line were both removed — they restated what the bar already
+    # says. Each row is `Label   Value` with a fixed value column so the
+    # values line up vertically and the user can scan one column at a glance.
+    body_y = 46
+    line_h = 18
+    label_x = 18
+    value_x = 110  # value column anchor — keeps the right side aligned
+
+    def row(label: str, value: str, y: int) -> None:
+        _text(draw, label_x, y, label, fonts["small"], MUTED)
+        _text(draw, value_x, y, value, fonts["small"], TEXT)
+
+    # 1. Printer type — e.g. "Instax Link Square"
     if snapshot.paired_printer is not None:
-        # Strip the verbose "INSTAX-" prefix; the model name in the status bar
-        # already identifies the brand. Shorter ID = more compact body line.
+        row("Type", _status_bar_printer_name(snapshot), body_y)
+        body_y += line_h
+
+    # 2. Film count — e.g. "2/10"
+    if snapshot.film_remaining is not None:
+        row(
+            "Film",
+            f"{snapshot.film_remaining}/{snapshot.film_capacity}",
+            body_y,
+        )
+        body_y += line_h
+
+    # 3. Battery % + optional time-remaining estimate
+    if snapshot.printer_battery is not None:
+        charging = "+" if snapshot.printer_is_charging else ""
+        battery_val = f"{snapshot.printer_battery}%{charging}"
+        life = printer_battery_life_text(snapshot)
+        if life is not None:
+            battery_val = f"{battery_val}  ({life})"
+        row("Battery", battery_val, body_y)
+        body_y += line_h
+
+    # 4. Bare printer ID (no "INSTAX-" prefix) so the user can confirm which
+    # unit is bonded without staring at the verbose BLE name.
+    if snapshot.paired_printer is not None:
         bare_id = snapshot.paired_printer.name.removeprefix("INSTAX-")
-        _text(draw, 18, 148, f"Printer: {bare_id}", fonts["small"], MUTED)
-    # Printer battery-life estimate (e.g. "4h32m left"). Moved off the top
-    # chip so the status bar stays compact; only shown when discharging and
-    # the estimate is known.
-    battery_life = printer_battery_life_text(snapshot)
-    if battery_life is not None:
-        _text(draw, 18, 164, f"Printer life: {battery_life}", fonts["small"], MUTED)
-        ssid_y = 180
-    else:
-        ssid_y = 168
+        row("Printer", bare_id, body_y)
+        body_y += line_h
+
+    # 5. Bridge Wi-Fi SSID (camera connects to this hotspot to FTP photos in)
     if snapshot.hotspot_ssid is not None:
-        _text(draw, 18, ssid_y, f"Wi-Fi: {snapshot.hotspot_ssid}", fonts["small"], MUTED)
+        row("SSID", snapshot.hotspot_ssid, body_y)
+        body_y += line_h
+
+    # 6. Pending uploads queue
     depth = snapshot.image_queue_depth
-    queue_y = ssid_y + 22
     if depth == 1:
-        _text(draw, 18, queue_y, "1 photo in queue", fonts["small"], MUTED)
+        row("Queue", "1 photo", body_y)
     elif depth > 1:
-        _text(draw, 18, queue_y, f"{depth} photos in queue", fonts["small"], MUTED)
+        row("Queue", f"{depth} photos", body_y)
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"])

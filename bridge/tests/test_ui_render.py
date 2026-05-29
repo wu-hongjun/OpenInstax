@@ -56,6 +56,29 @@ def test_render_ready_screen_is_square_lcd_size() -> None:
     assert image.size == (240, 240)
 
 
+def test_status_bar_word_resolves_per_mode() -> None:
+    from instantlink_bridge.ui.render import status_bar_word
+
+    ready_connected = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+        camera_receive_ready=True,
+        paired_printer=PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678"),
+        printer_status_fresh=True,
+        film_remaining=7,
+    )
+    ready_waiting = UiSnapshot(
+        mode=UiMode.READY,
+        ftp_host="192.168.7.1",
+    )
+    assert status_bar_word(ready_connected) == "Connected"
+    assert status_bar_word(ready_waiting) == "Waiting"
+    assert status_bar_word(UiSnapshot(mode=UiMode.PRINTER_SEARCHING, ftp_host="x")) == "Searching"
+    assert status_bar_word(UiSnapshot(mode=UiMode.PRINTING, ftp_host="x")) == "Printing"
+    assert status_bar_word(UiSnapshot(mode=UiMode.NO_FILM, ftp_host="x")) == "No film"
+    assert status_bar_word(UiSnapshot(mode=UiMode.PRINTER_OFFLINE, ftp_host="x")) == "Offline"
+
+
 def test_render_validation_screen_is_square_lcd_size() -> None:
     image = render_snapshot(
         UiSnapshot(
