@@ -1436,7 +1436,11 @@ def _settings_row_marker(kind: str, selected: bool) -> tuple[str, str]:
     if kind == "info":
         return "i", MUTED if not selected else TEXT
     if kind == "open":
-        return ">", BLUE if not selected else TEXT
+        # U+203A "›" (single right-pointing angle quotation mark) is a
+        # proper narrow chevron — matches iOS' grouped-list disclosure
+        # affordance. ASCII ">" rendered as a wide math glyph and looked
+        # squashed against the row edge.
+        return "›", BLUE if not selected else TEXT
     return "", MUTED
 
 
