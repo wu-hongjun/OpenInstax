@@ -867,7 +867,7 @@ def _validation(
         _text(
             draw,
             18,
-            112,
+            118,
             t("FTP and printer ready", snapshot.language),
             fonts["body"],
             theme.label_primary,
@@ -875,14 +875,17 @@ def _validation(
         _text(
             draw,
             18,
-            132,
+            136,
             t("Waiting for upload", snapshot.language),
             fonts["small"],
             theme.label_secondary,
         )
     else:
+        # "Next action" label moved to y=118 and first cause to y=136 to
+        # tighten the label→cause binding and add breathing room above
+        # (plan 034 item 15: +6 px shift vs previous y=112/132).
         _text(
-            draw, 18, 112, t("Next action", snapshot.language), fonts["body"], theme.label_primary
+            draw, 18, 118, t("Next action", snapshot.language), fonts["body"], theme.label_primary
         )
         for index, cause in enumerate(causes[:3]):
             # cause strings come from readiness_cause_texts in English; the
@@ -892,7 +895,7 @@ def _validation(
             _text(
                 draw,
                 18,
-                132 + index * 17,
+                136 + index * 17,
                 _ellipsize(t(cause, snapshot.language), 31),
                 fonts["small"],
                 theme.accent_yellow,
@@ -1272,7 +1275,14 @@ def _settings(
     help_text = selected_row.help if selected_row.help else ""
     if toast_message is not None:
         bottom_text = toast_message
-        bottom_color = theme.accent_yellow
+        # Destructive-confirm toasts start with "Press KEY1 again" — the
+        # canonical shape the controller emits when arming a two-press confirm.
+        # Render them in red so the user sees the affordance before a second
+        # press blows through the action (plan 034 item 10).
+        if toast_message.startswith("Press KEY1 again"):
+            bottom_color = theme.accent_destructive
+        else:
+            bottom_color = theme.accent_yellow
     elif help_text:
         bottom_text = help_text
         bottom_color = theme.label_secondary

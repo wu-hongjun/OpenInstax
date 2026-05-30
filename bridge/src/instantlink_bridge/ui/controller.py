@@ -1707,6 +1707,12 @@ class BridgeUi:
             # hold. The actual instruction lives in the toast that
             # appears after the first KEY1 press.
             return SettingsRow("Reset credentials", "")
+        if key is SettingKey.NETWORK_DIAGNOSTICS_HEADER:
+            # Info-only section divider — no value, no action.
+            return SettingsRow("Diagnostics", "")
+        if key is SettingKey.PRINT_ADVANCED_HEADER:
+            # Info-only section divider — no value, no action.
+            return SettingsRow("Advanced", "")
         return SettingsRow("Unknown", "")
 
     def _settings_row_help(self, key: SettingKey) -> str:

@@ -1345,10 +1345,12 @@ async def test_settings_save_failure_keeps_runtime_config(
     await ui._handle_action(UiAction.SELECT)
     # PRINT page row order (unpaired):
     #   0 Serial  1 Pair  2 Printer type  3 Auto print  4 Image fit
-    #   5 JPEG quality  6 No-film test  7 KEEPALIVE  8 Search rate.
-    # Reconnect / Forget rows are hidden when nothing is saved.
-    # Seven DOWN presses from Serial lands on KEEPALIVE.
-    for _ in range(7):
+    #   5 JPEG quality  6 No-film test  7 Advanced  8 KEEPALIVE  9 Search rate.
+    # Reconnect / Forget rows are hidden when nothing is saved; the
+    # PRINT_ADVANCED_HEADER divider at index 7 separates everyday options
+    # from the power-user polling knobs (plan 034 item 18).
+    # Eight DOWN presses from Serial lands on KEEPALIVE.
+    for _ in range(8):
         await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.RIGHT)
     await ui._handle_action(UiAction.RIGHT)
@@ -1357,8 +1359,8 @@ async def test_settings_save_failure_keeps_runtime_config(
     assert ui.config.printer.keepalive_interval_s == 10.0
     assert load_config(config_path).printer.keepalive_interval_s == 10.0
     assert display.snapshots[-1].settings_message == "Config not writable"
-    assert display.snapshots[-1].settings_rows[7].label == "Keepalive"
-    assert display.snapshots[-1].settings_rows[7].value == "10s"
+    assert display.snapshots[-1].settings_rows[8].label == "Keepalive"
+    assert display.snapshots[-1].settings_rows[8].value == "10s"
 
 
 @pytest.mark.asyncio
@@ -1495,13 +1497,14 @@ async def test_settings_rows_show_action_specific_hints() -> None:
     await ui._handle_action(UiAction.SELECT)
     # PRINT page rows (unpaired): 0 Serial  1 Pair  2 Printer type
     #   3 Auto print  4 Image fit  5 JPEG quality  6 No-film test
-    #   7 KEEPALIVE  8 Search rate. Reconnect / Forget hidden when unpaired.
-    # Seven DOWN presses lands on KEEPALIVE (an adjustable picker row).
-    for _ in range(7):
+    #   7 Advanced  8 KEEPALIVE  9 Search rate. Reconnect / Forget hidden
+    # when unpaired; Advanced separator at 7 fences off the polling knobs.
+    # Eight DOWN presses lands on KEEPALIVE (an adjustable picker row).
+    for _ in range(8):
         await ui._handle_action(UiAction.DOWN)
 
-    assert display.snapshots[-1].settings_rows[7].label == "Keepalive"
-    assert display.snapshots[-1].settings_rows[7].hint == "Right/KEY1 choose"
+    assert display.snapshots[-1].settings_rows[8].label == "Keepalive"
+    assert display.snapshots[-1].settings_rows[8].hint == "Right/KEY1 choose"
 
 
 @pytest.mark.asyncio
@@ -1777,14 +1780,17 @@ async def test_settings_network_page_shows_connection_info() -> None:
     await ui._handle_action(UiAction.SELECT)
 
     # NETWORK: 0 Wi-Fi Mode  1 SSID  2 Wi-Fi PIN  3 FTP host  4 FTP user
-    #   5 FTP PIN  6 Bluetooth  7 Same Wi-Fi adv  8 USB IP  9 Reset credentials
+    #   5 FTP PIN  6 Diagnostics  7 Bluetooth  8 Same Wi-Fi adv  9 USB IP
+    #   10 Reset credentials. The Diagnostics divider at index 6 separates
+    # the camera-setup credentials block from the read-only status rows
+    # (plan 034 item 9).
     rows = display.snapshots[-1].settings_rows
-    assert rows[6].label == "Bluetooth"
-    assert rows[6].value == "connected"
-    assert rows[7].label == "Same Wi-Fi adv"
-    assert rows[7].value == "192.168.5.149"
-    assert rows[8].label == "USB IP"
-    assert rows[8].value == "192.168.7.1"
+    assert rows[7].label == "Bluetooth"
+    assert rows[7].value == "connected"
+    assert rows[8].label == "Same Wi-Fi adv"
+    assert rows[8].value == "192.168.5.149"
+    assert rows[9].label == "USB IP"
+    assert rows[9].value == "192.168.7.1"
 
 
 @pytest.mark.asyncio
@@ -1806,11 +1812,12 @@ async def test_settings_network_page_reports_admin_usb_without_camera_wording() 
     await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.SELECT)
 
-    # NETWORK: 0 Wi-Fi Mode  1 SSID  2 Wi-Fi PIN  3 FTP host  4 FTP user
-    #   5 FTP PIN  6 Bluetooth  7 Same Wi-Fi adv  8 USB IP  9 Reset credentials
+    # NETWORK (with Diagnostics divider at 6): 0 Wi-Fi Mode  1 SSID
+    #   2 Wi-Fi PIN  3 FTP host  4 FTP user  5 FTP PIN  6 Diagnostics
+    #   7 Bluetooth  8 Same Wi-Fi adv  9 USB IP  10 Reset credentials.
     rows = display.snapshots[-1].settings_rows
-    assert rows[8].label == "USB IP"
-    assert rows[8].value == "no IP"
+    assert rows[9].label == "USB IP"
+    assert rows[9].value == "no IP"
 
 
 @pytest.mark.asyncio
@@ -2160,10 +2167,11 @@ async def test_bluetooth_settings_do_not_claim_connected_while_searching() -> No
 
     ui._show_settings(page=SettingsPage.NETWORK)
 
-    # NETWORK: 0 Wi-Fi Mode  1 SSID  2 Wi-Fi PIN  3 FTP host  4 FTP user
-    #   5 FTP PIN  6 Bluetooth  7 Same Wi-Fi adv  8 USB IP  9 Reset credentials
-    assert display.snapshots[-1].settings_rows[6].label == "Bluetooth"
-    assert display.snapshots[-1].settings_rows[6].value == "searching"
+    # NETWORK (with Diagnostics divider at 6): 0 Wi-Fi Mode  1 SSID
+    #   2 Wi-Fi PIN  3 FTP host  4 FTP user  5 FTP PIN  6 Diagnostics
+    #   7 Bluetooth  8 Same Wi-Fi adv  9 USB IP  10 Reset credentials.
+    assert display.snapshots[-1].settings_rows[7].label == "Bluetooth"
+    assert display.snapshots[-1].settings_rows[7].value == "searching"
 
 
 @pytest.mark.asyncio

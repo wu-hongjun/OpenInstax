@@ -47,6 +47,8 @@ class SettingKey(StrEnum):
     FORGET_PRINTER = "forget_printer"
     PRINTER_SERIAL_INFO = "printer_serial_info"
     FORGET_AND_REPAIR = "forget_and_repair"
+    NETWORK_DIAGNOSTICS_HEADER = "network_diagnostics_header"
+    PRINT_ADVANCED_HEADER = "print_advanced_header"
     OPEN_ABOUT = "open_about"
     SYSTEM_DEVICE_ID = "system_device_id"
     SYSTEM_APP_VERSION = "system_app_version"
@@ -107,7 +109,9 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
     # PRINT subsumes the old Printer page. Printer-pairing rows come first
     # (Serial, Pair, Reconnect, Forget, Printer type) so the user can
     # confirm/recover the bonded printer before tweaking print-time options.
-    # Keepalive and Search rate are advanced knobs at the bottom.
+    # PRINT_ADVANCED_HEADER separates the power-user knobs (Keepalive,
+    # Search rate) from the common print options so they read as developer
+    # knobs rather than everyday settings (plan 034 item 18, Option B).
     #
     # PAIR_PRINTER is the single pair/re-pair surface: when no printer is
     # saved it shows "Pair" and starts a scan; when one is saved it shows
@@ -126,13 +130,16 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.IMAGE_FIT,
         SettingKey.JPEG_QUALITY,
         SettingKey.ALLOW_PRINT_WITHOUT_FILM,
+        SettingKey.PRINT_ADVANCED_HEADER,
         SettingKey.KEEPALIVE,
         SettingKey.SEARCH_INTERVAL,
     ),
-    # NETWORK subsumes the old Connect (camera FTP) page. Wi-Fi mode leads
-    # because picking it changes how every row below behaves; the hotspot
-    # SSID + Wi-Fi PIN come next (most-asked questions), then the FTP
-    # credentials the camera needs to enter, then the diagnostic rows.
+    # NETWORK subsumes the old Connect (camera FTP) page. Camera-setup block
+    # (Wi-Fi Mode → FTP PIN) comes first — these are the values the user
+    # literally types into the Sony a7C II FTP settings. The
+    # NETWORK_DIAGNOSTICS_HEADER row acts as a visual separator before the
+    # read-only diagnostic rows (Bluetooth, Same Wi-Fi adv, USB IP) so they
+    # read as status info, not credentials to enter (plan 034 item 9).
     # RESET_CREDENTIALS is last — destructive escape hatch.
     SettingsPage.NETWORK: (
         SettingKey.FTP_RECEIVE_MODE,
@@ -141,6 +148,7 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.FTP_HOST_INFO,
         SettingKey.FTP_USERNAME_INFO,
         SettingKey.FTP_PASSWORD_INFO,
+        SettingKey.NETWORK_DIAGNOSTICS_HEADER,
         SettingKey.NETWORK_BLUETOOTH_INFO,
         SettingKey.NETWORK_WIFI_INFO,
         SettingKey.NETWORK_ETHERNET_INFO,
@@ -206,6 +214,8 @@ INFO_SETTING_KEYS: frozenset[SettingKey] = frozenset(
         SettingKey.NETWORK_HOTSPOT_SSID_INFO,
         SettingKey.NETWORK_HOTSPOT_PASSWORD_INFO,
         SettingKey.NETWORK_BLUETOOTH_INFO,
+        SettingKey.NETWORK_DIAGNOSTICS_HEADER,
+        SettingKey.PRINT_ADVANCED_HEADER,
         SettingKey.PRINTER_SERIAL_INFO,
         SettingKey.SYSTEM_DEVICE_ID,
         SettingKey.SYSTEM_APP_VERSION,
@@ -296,7 +306,7 @@ def setting_action_hint(key: SettingKey) -> str:
 SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.OPEN_NETWORK: "Wi-Fi, FTP credentials, Bluetooth, USB",
     SettingKey.OPEN_PRINT: "Pairing and photo/print options",
-    SettingKey.OPEN_SYSTEM: "Bridge health and updates",
+    SettingKey.OPEN_SYSTEM: "bridge health and updates",
     SettingKey.OPEN_ABOUT: "Versions and device identity",
     SettingKey.OPEN_ACCESSIBILITY: "Text size, language, and appearance",
     SettingKey.FTP_RECEIVE_MODE: "Hotspot: bridge AP. Client: join existing.",
@@ -340,6 +350,9 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.APPEARANCE: "Auto: light 07-19, dark overnight",
     SettingKey.REFRESH_STATUS: "Re-check printer and FTP now",
     SettingKey.RESET_CREDENTIALS: "Generate new Wi-Fi & FTP credentials",
+    # Separator rows — info-only, no interactive action.
+    SettingKey.NETWORK_DIAGNOSTICS_HEADER: "Read-only connection diagnostics",
+    SettingKey.PRINT_ADVANCED_HEADER: "Power-user polling intervals",
 }
 
 

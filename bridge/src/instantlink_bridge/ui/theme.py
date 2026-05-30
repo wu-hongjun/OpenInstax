@@ -94,6 +94,7 @@ class Theme:
     accent_yellow: str  # warning / searching
     accent_red: str  # error / destructive
     accent_orange: str  # secondary warnings
+    accent_destructive: str  # two-press destructive-confirm toasts
 
     # Status pill tint (slightly translucent feel — full alpha but desaturated)
     pill_bg_green: str
@@ -121,6 +122,7 @@ LIGHT_THEME = Theme(
     accent_yellow="#FFCC00",  # systemYellow
     accent_red="#FF3B30",  # systemRed
     accent_orange="#FF9500",  # systemOrange
+    accent_destructive="#FF3B30",  # systemRed — same as accent_red in light mode
     # Frosted pill fills: 70 % accent blended with systemBackground (#FFFFFF) at 30 %
     # so the capsule reads as a translucent glass chip rather than a solid badge.
     # Formula: round(accent * 0.70 + 255 * 0.30)
@@ -148,6 +150,7 @@ DARK_THEME = Theme(
     accent_yellow="#FFD60A",  # systemYellow (dark)
     accent_red="#FF453A",  # systemRed (dark)
     accent_orange="#FF9F0A",
+    accent_destructive="#FF453A",  # systemRed (dark) — same as accent_red in dark mode
     # Frosted pill fills: 82 % dark accent + 18 % dark surface (#1C1C1E = 28,28,30)
     # Dark mode needs less muting than light (already on dark bg) — 82/18 keeps
     # the accent vibrant but adds the frosted-glass tonal shift.
