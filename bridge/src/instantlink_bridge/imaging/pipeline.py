@@ -492,10 +492,11 @@ def _open_heif_thumbnail(source_path: Path, thumbnailer: str, size: int) -> Imag
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
             raise UnsupportedImageError("could not decode HIF image") from error
         with Image.open(output_path) as thumbnail:
-            # `Image.convert(mode)` is typed as returning `Image` on modern
-            # Pillow stubs, so the historical `cast` here is now redundant
-            # and mypy flags it. Return directly.
-            return thumbnail.convert("RGB")
+            # Pillow 10 inline stubs return `Image | Any` from `.convert`; the
+            # cast was redundant on the Pillow stub revision active when
+            # b0eefa2 landed, but the current stubs need it again to avoid
+            # an implicit-`Any` return under `mypy --strict`.
+            return cast(Image.Image, thumbnail.convert("RGB"))
 
 
 def _open_raw_image(

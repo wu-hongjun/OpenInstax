@@ -255,6 +255,105 @@ Scope:
 - `test_watermark_row_shows_current_text_when_set`
 - `test_watermark_row_shows_no_text_hint_when_empty`
 
+### Phase 5 — Post-audit polish (15 items)
+
+After Phases 1-4 shipped, two parallel fresh-eyes audits (designer +
+adversarial critic) produced ~42 raw findings. A tracer agent
+verified the highest-impact P1 claims: 1 confirmed actionable, 1
+confirmed dead-but-inert, 3 falsified. The actionable subset became
+this batch.
+
+**P1 visual fixes**
+1. Section headers (`SettingsRow.is_header` flag) — render at small
+   font with no row-grid hairline so they read as dividers rather
+   than greyed-out selectable rows.
+2. Adjustments scrollbar — 2 px indicator on the card's right edge
+   when `start > 0` or `start + visible_count < len(rows)`. The
+   page has 10 rows after Phase 4; only ~8 fit visibly.
+3. Empty preset slot picker hint dropped (was "KEY1 empty" — read
+   as "press to do nothing").
+4. Watermark row `On · "Hello"` translates the `On` prefix in
+   zh-Hans via a new `SettingsRow.i18n_value_prefix` field. The
+   render layer translates the prefix only; the user text stays
+   verbatim.
+
+**P2 visual fixes**
+
+5. Chevron `›` reserved for `kind == "open"` rows. Action rows
+   (Pair, Forget, Save current, etc.) drop the chevron and use
+   `theme.accent_blue` (or `theme.accent_destructive`) label tint
+   instead. The chevron stops lying about "this opens a new view".
+6. Preset modified marker `*` → ` · edited` (textual badge,
+   translatable via `t("edited", lang)`).
+7. Edit-preview tile failure path — instead of `except: pass`,
+   draw a cross-hatch + log WARNING once per session. Users now
+   see "preview is broken" rather than "preview looks the same as
+   identity".
+8. "Wi-Fi Mode" row → "Camera link". The setting controls FTP
+   receive path, not the bridge's Wi-Fi station/AP mode.
+9. Drop duplicate "Searching" body title from `_printer_searching`;
+   promote the actionable hint to the primary line.
+10. zh-Hans "Press KEY1 again to delete CustomN" added for all 6
+    slots (i18n parity with the overwrite variant).
+11. KEY3 help text auto-clears on subsequent UP/DOWN in edit mode
+    (was sticky).
+
+**Cleanups**
+
+12. Delete `SYSTEM_IDLE_INFO` enum — tracer confirmed unreachable.
+13. Delete `_settings_default_message` helper — both branches
+    returned `None`.
+14. Drop trailing period from Hue help text (en + zh-Hans) for
+    consistency with sibling rows.
+15. zh-Hans translations for "Quartz Date" / "Modern" / "Lab Print"
+    (descriptive English). "Olympus" / "Contax" stay Latin (real
+    product brands).
+
+#### Design contract additions
+
+- **`SettingsRow.is_header: bool`** — explicit flag, replaces the
+  brittle `hint == "" and value == ""` heuristic for header
+  detection.
+- **`SettingsRow.i18n_value_prefix: str`** — render layer
+  translates the prefix only; the suffix (user text) stays
+  verbatim. Used by the watermark row's `On · "..."` format.
+- **Row kind discipline** — chevron `›` ONLY for `"open"` rows;
+  `"run"` rows get `accent_blue` label; destructive runs get
+  `accent_destructive`. Codifies plan 036 phase 5's "no chevron
+  lies on read-only rows" rule for the action class.
+
+#### Tests added
+
++28 tests delta (787 → 815). Coverage spans section-header
+rendering, scroll cue, camera-link rename, Hue help period guard,
+zh-Hans delete-confirm parity, datestamp format zh-Hans, toggle-edit
+message clearing, watermark prefix translation, chevron-on-open
+guard, preview tile placeholder, preset modified marker.
+
+### Phase 6 — Tool-pin cleanup
+
+The `b0eefa2` "clear mypy debt" commit on 2026-05-29 removed three
+`cast(...)` calls that the then-current mypy / Pillow stub revision
+treated as redundant. After phases 1-5 shipped, `mypy --strict`
+flagged them again — Pillow 10.4 inline stubs return `Image | Any`
+from `.convert()` and mypy 1.11.2 does not narrow `object → str`
+on set-membership tests.
+
+- `imaging/postprocess.py:478` — restore `cast(Image.Image, ...)`
+  around the example-photo resize+convert chain.
+- `imaging/pipeline.py:498` — restore `cast(Image.Image, ...)`
+  around the HIF thumbnail convert.
+- `update/signing.py:473` — restore `cast(str, explicit_kind)`
+  inside the membership-check branch.
+
+Each cast carries a comment explaining when it was removed and
+why it had to come back, so the next "redundant cast" cleanup pass
+doesn't repeat the cycle.
+
+The `SKIP_HOOK no longer needed` memory was true at `b0eefa2`
+and stays true after this phase — both mypy strict and ruff are
+clean again.
+
 ## Out of scope
 
 - Custom datestamp fonts (DSEG7 / MatrixSans) — macOS-only for now.

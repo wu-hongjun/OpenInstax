@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -475,7 +475,11 @@ def _load_example_photo_resized(size: tuple[int, int]) -> Image.Image:
     with importlib.resources.as_file(ref) as path:
         with Image.open(path) as raw:
             resized = raw.resize(size, Image.Resampling.LANCZOS).convert("RGB")
-    return resized
+    # Pillow 10 inline stubs return `Image | Any` from `.convert`; restore the
+    # explicit cast so `mypy --strict` doesn't flag the implicit-`Any` return.
+    # See b0eefa2 — the same cast was deleted on an older Pillow stub revision
+    # that narrowed correctly; the stub regressed in Pillow ~10.4.
+    return cast(Image.Image, resized)
 
 
 def render_adjustments_preview(
