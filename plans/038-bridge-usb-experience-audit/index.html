@@ -1,0 +1,2591 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Open-source Rust CLI and macOS 15+ app for Fujifilm Instax Link printers via BLE">
+      
+      
+      
+        <link rel="canonical" href="https://instantlink.hongjunwu.com/plans/038-bridge-usb-experience-audit/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Plan 038 — Bridge USB-plug-in experience: audit + Mac control surface - InstantLink</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-038-bridge-usb-plug-in-experience-audit-mac-control-surface" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="InstantLink" class="md-header__button md-logo" aria-label="InstantLink" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            InstantLink
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plan 038 — Bridge USB-plug-in experience: audit + Mac control surface
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="white"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/wu-hongjun/InstantLink" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wu-hongjun/InstantLink
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/cli/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../development/architecture/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../001-full-stack-scaffold/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Plans
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="InstantLink" class="md-nav__button md-logo" aria-label="InstantLink" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    InstantLink
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/wu-hongjun/InstantLink" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wu-hongjun/InstantLink
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ffi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FFI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/bridge-firmware-release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bridge Firmware Release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/reverse-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reverse Engineering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plans
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plans
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../001-full-stack-scaffold/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 001 Full-Stack Scaffold
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../002-ci-cd-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 002 CI/CD Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../003-github-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 003 GitHub Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../004-app-bundle-and-release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 004 App Bundle and Release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../005-mock-transport-device-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 005 Mock Transport Device Tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../006-overlay-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 006 Overlay System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../007-ui-ux-pass-1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 007 UI/UX Pass 1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../008-ui-ux-pass-2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 008 UI/UX Pass 2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../009-repo-simplification-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 009 Repo Simplification Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-ui-ux-pass-3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 010 UI/UX Pass 3
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../011-macos-coordinator-extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 011 macOS Coordinator Extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../012-macos-15-liquid-glass-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 012 macOS 15 Baseline and Liquid Glass Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../013-ffi-connection-stage-callbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 013 FFI Connection Stage Callbacks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../014-printer-led-print-feedback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 014 Printer LED Print Phase Feedback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../015-ffi-callback-safety/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 015 FFI Callback Safety and Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../016-transport-command-serialization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 016 Transport Command Serialization and Protocol Hardening
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../017-reconnect-fallback-behavior/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 017 Reconnect Fallback and Recovery UX
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../018-auto-update-signature-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 018 Auto-Update Signature Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../019-packet-assembler-error-surfacing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 019 Packet Assembler Error Surfacing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-notification-listener-lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 020 Notification Listener Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../021-print-flow-deduplication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 021 Print Flow Deduplication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../022-ffi-device-guard-concurrency/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 022 FFI Device Guard Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../023-ffi-unsafe-block-discipline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 023 FFI Unsafe Block Discipline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../024-protocol-build-packet-bounds/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 024 Protocol Build Packet Bounds
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../025-rand-dependency-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 025 Rand Dependency Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../026-docs-ffi-symbol-count-and-context-variants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 026 Docs FFI Symbol Count and Context Variants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../027-docs-protocol-mini-link-3-flip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 027 Docs Protocol Mini Link 3 Flip
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../028-sparkle-2-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 028 Sparkle 2 Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../029-bridge-control-panel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 029 Bridge Control Panel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-bridge-secure-management-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 030 Bridge Secure Management and Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#audit-2026-05-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit (2026-05-30)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Audit (2026-05-30)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-actually-happens-today" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What actually happens today
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-built-the-iceberg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is built (the iceberg)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-user-confirmed-2026-05-30" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope (user-confirmed 2026-05-30)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scope (user-confirmed 2026-05-30)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-a-foundation-discovery-pairing-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase A — Foundation: discovery + pairing + status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-b-settings-editor-typed-apply-to-bridge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase B — Settings editor: typed Apply-to-Bridge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-c-updates-preflight-upload-install-rollback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase C — Updates: preflight + upload + install + rollback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-d-backup-restore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase D — Backup &amp; restore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-e-diagnostics-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase E — Diagnostics + recovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verification-every-phase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification (every phase)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions-deferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open questions (deferred)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plan-038-bridge-usb-plug-in-experience-audit-mac-control-surface">Plan 038 — Bridge USB-plug-in experience: audit + Mac control surface<a class="headerlink" href="#plan-038-bridge-usb-plug-in-experience-audit-mac-control-surface" title="Permanent link">&para;</a></h1>
+<h2 id="audit-2026-05-30">Audit (2026-05-30)<a class="headerlink" href="#audit-2026-05-30" title="Permanent link">&para;</a></h2>
+<p>The single largest UX gap in the project: <strong>plan 029 Phase 1 shipped
+the bridge management contract and the Mac transport layer, but
+Phases 2-5 (the entire macOS Bridge Control UI) never landed.</strong></p>
+<h3 id="what-actually-happens-today">What actually happens today<a class="headerlink" href="#what-actually-happens-today" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Reality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plug Pi into Mac via USB-C</td>
+<td>USB gadget enumerates → <code>usb0</code> UP → <code>192.168.7.1</code> reachable</td>
+</tr>
+<tr>
+<td>Open InstantLink.app</td>
+<td>App opens to Print main view. Zero mention of Bridge.</td>
+</tr>
+<tr>
+<td>Find Bridge in app</td>
+<td>Not possible. No menu item, no preference pane, no discovery.</td>
+</tr>
+<tr>
+<td>Configure Wi-Fi / FTP / printer model</td>
+<td>Not possible via app. Requires SSH + TOML edit + service restart.</td>
+</tr>
+<tr>
+<td>Update firmware</td>
+<td>Not possible via app. Requires <code>deploy-to-pi.sh</code> from a repo checkout with password auth.</td>
+</tr>
+<tr>
+<td>Diagnostics</td>
+<td>Not possible via app. SSH + <code>journalctl</code> only.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-is-built-the-iceberg">What is built (the iceberg)<a class="headerlink" href="#what-is-built-the-iceberg" title="Permanent link">&para;</a></h3>
+<p><strong>Bridge side — fully shipped:</strong></p>
+<ul>
+<li><code>instantlink-bridge-manager.service</code> running as its own systemd
+  unit, independent from the print bridge.</li>
+<li>Listening on <code>192.168.7.1:8742</code> (USB) AND <code>192.168.8.1:8742</code>
+  (Bridge Wi-Fi). Verified live: 14h uptime, <code>NRestarts=0</code>.</li>
+<li>Discovery contract: <code>GET /v1/hello</code> returns rich device identity
+  (device_id, software_version, network labels, pairing state,
+  management public-key fingerprint) — anonymous-readable per
+  design. Live verification:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>$ curl http://192.168.7.1:8742/v1/hello
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>{&quot;device&quot;:{&quot;device_id&quot;:&quot;IB-7B4233E7&quot;,&quot;software_version&quot;:&quot;0.1.16&quot;,
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a> &quot;is_paired&quot;:false,&quot;pairing_open&quot;:false,&quot;network_labels&quot;:[
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a> &quot;Bridge Wi-Fi&quot;,&quot;USB IP&quot;,&quot;Same-Wi-Fi&quot;]},...}
+</code></pre></div></li>
+<li>Pairing contract: <code>GET /v1/pairing/status</code>, <code>POST /v1/pairing/complete</code>.</li>
+<li>Admin route surface (signed-request auth required):
+  <code>/v1/status</code>, <code>/v1/config</code> (GET+PUT), <code>/v1/network/mode</code>,
+  <code>/v1/printer/scan</code>, <code>/v1/printer/select</code>, <code>/v1/printer/forget</code>,
+  <code>/v1/backup/create</code>, <code>/v1/backup/restore</code>, full update flow
+  (preflight / upload / start / status / events / mark-good /
+  rollback).</li>
+<li><code>bridge/src/instantlink_bridge/manager/</code> ships 12 Python files:
+  <code>api.py</code>, <code>auth.py</code>, <code>contract.py</code>, <code>status.py</code>, <code>backup.py</code>,
+  <code>installer.py</code>, <code>update_flow.py</code>, <code>release_slots.py</code>, <code>health.py</code>,
+  <code>cli.py</code>, <code>signing.py</code>, <code>__init__.py</code>.</li>
+</ul>
+<p><strong>Mac side — transport built, UI absent:</strong></p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Lines</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Core/BridgeAuth.swift</code></td>
+<td>243</td>
+<td>Ed25519 signer ready</td>
+</tr>
+<tr>
+<td><code>Core/BridgeHTTPTransport.swift</code></td>
+<td>327</td>
+<td>HTTP client matching the contract</td>
+</tr>
+<tr>
+<td><code>Core/BridgeTransport.swift</code></td>
+<td>440</td>
+<td>Protocol + in-memory mock</td>
+</tr>
+<tr>
+<td><code>Core/BridgeModels.swift</code></td>
+<td>854</td>
+<td>Complete Codable type tree</td>
+</tr>
+<tr>
+<td><code>Core/BridgeFirmwareBundle.swift</code></td>
+<td>89</td>
+<td>Local firmware bundle reader</td>
+</tr>
+<tr>
+<td><code>Tests/BridgeHTTPTransportTests.swift</code></td>
+<td>—</td>
+<td>Round-trip tests against contract</td>
+</tr>
+<tr>
+<td><code>Features/Bridge/</code></td>
+<td>—</td>
+<td><strong>DOES NOT EXIST</strong></td>
+</tr>
+<tr>
+<td>Bridge Control menu item</td>
+<td>—</td>
+<td><strong>NOT PRESENT</strong> in <code>InstantLinkApplication.swift</code></td>
+</tr>
+<tr>
+<td>Discovery probe on launch</td>
+<td>—</td>
+<td><strong>NOT WIRED</strong></td>
+</tr>
+<tr>
+<td>Pairing UI</td>
+<td>—</td>
+<td><strong>NOT BUILT</strong></td>
+</tr>
+<tr>
+<td>Settings editor</td>
+<td>—</td>
+<td><strong>NOT BUILT</strong></td>
+</tr>
+<tr>
+<td>Update preflight + install UI</td>
+<td>—</td>
+<td><strong>NOT BUILT</strong></td>
+</tr>
+<tr>
+<td>Backup / restore UI</td>
+<td>—</td>
+<td><strong>NOT BUILT</strong></td>
+</tr>
+<tr>
+<td>Diagnostics + log viewer</td>
+<td>—</td>
+<td><strong>NOT BUILT</strong></td>
+</tr>
+<tr>
+<td>Recovery assistant</td>
+<td>—</td>
+<td><strong>NOT BUILT</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Grep across <code>macos/InstantLink/Features/</code>: every reference to
+<code>BridgeTransport</code> / <code>BridgeHTTPTransport</code> / <code>BridgeAuth</code> /
+<code>BridgeModels</code> is in <code>Core/Bridge*.swift</code> itself or in
+<code>macos/Tests/</code>. Zero feature-layer callers.</p>
+<h3 id="findings">Findings<a class="headerlink" href="#findings" title="Permanent link">&para;</a></h3>
+<p><strong>P0 — Feature paid for but not shipped.</strong> The plan 029 architecture
+(specs + contract + transport + auth + models + tests) is all here.
+The product surface is missing. Single largest UX gap.</p>
+<p><strong>P1 — Power-user-only configuration.</strong> Today's only configuration
+path is SSH + TOML edit. <code>docs/plans/029-bridge-control-panel.md</code>
+non-negotiable: <em>"Do not require users to type SSH usernames, SSH
+passwords, or shell commands."</em> — current state violates its own
+non-negotiable.</p>
+<p><strong>P1 — Discovery is trivial and not wired.</strong> A ~20-line
+<code>URLSession</code> probe of <code>http://192.168.7.1:8742/v1/hello</code> on app
+launch would tell the user "InstantLink Bridge IB-7B4233E7
+connected" and close the largest gap.</p>
+<p><strong>P1 — Pairing security model unused.</strong> Bridge enforces signed
+requests; Mac has the Ed25519 signer; bridge enforces an
+LCD-confirmed pairing window. None of this is reachable.</p>
+<p><strong>P2 — Update flow shipped on bridge, not exposed on Mac.</strong>
+Plan 030 (secure update) added preflight / upload / install /
+mark-good / rollback with full A/B slot semantics. Transport maps
+to it. No user surface.</p>
+<p><strong>P2 — Network mode switching shipped, not exposed.</strong>
+<code>/v1/network/mode</code> accepts HOTSPOT/PEER/WIRED. Either know the
+TOML key or fiddle with the LCD; Mac would be a far better surface.</p>
+<hr />
+<h2 id="scope-user-confirmed-2026-05-30">Scope (user-confirmed 2026-05-30)<a class="headerlink" href="#scope-user-confirmed-2026-05-30" title="Permanent link">&para;</a></h2>
+<p>Full plan 029 phases 2-5: discovery + pairing + settings editor +
+updates + backup + diagnostics + recovery. The transport layer is
+ready; this plan is the missing UI.</p>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<p>The macOS app uses:</p>
+<ul>
+<li><code>@main InstantLinkApp</code> with <code>@StateObject private var viewModel = ViewModel()</code></li>
+<li>Domain coordinators in <code>Core/*Coordinator.swift</code>
+  (<code>@MainActor final class : ObservableObject</code>, callback struct +
+  snapshot struct + status message struct, see
+  <code>PrinterConnectionCoordinator.swift</code> for the canonical shape).</li>
+<li>Feature directories under <code>Features/{Camera,Editor,Main,Settings}/</code>.</li>
+</ul>
+<p>Mirror that for the Bridge surface:</p>
+<ul>
+<li><code>Core/BridgeControlCoordinator.swift</code> — owns discovery loop,
+  pairing state, fetched <code>BridgeStatus</code>, signed-request lifecycle.
+  Drives the visible UI via a published <code>BridgeControlSnapshot</code>.</li>
+<li><code>Features/Bridge/</code> directory with views.</li>
+<li><code>viewModel.bridgeCoordinator</code> published, so the main Print view
+  can show a passive "Bridge connected" banner.</li>
+<li>Status-bar menu item <code>Bridge Control...</code> opens a separate
+  <code>WindowGroup("BridgeControl")</code> window.</li>
+</ul>
+<h3 id="phase-a-foundation-discovery-pairing-status">Phase A — Foundation: discovery + pairing + status<a class="headerlink" href="#phase-a-foundation-discovery-pairing-status" title="Permanent link">&para;</a></h3>
+<p>Goal: when the user plugs the Pi into a Mac running InstantLink,
+within 3 s the app shows "Bridge IB-7B4233E7 — v0.1.16 — connected
+via USB" as a passive banner in the main view, and a new
+<code>Bridge Control...</code> menu item opens a window that shows live
+<code>BridgeStatus</code>. First-run flow walks the user through pairing
+(LCD shows a 6-digit code; Mac enters it; identity saved to
+Keychain).</p>
+<p><strong>Files to create:</strong></p>
+<ul>
+<li><code>macos/InstantLink/Core/BridgeControlCoordinator.swift</code> —
+  the coordinator. Owns:</li>
+<li>Discovery loop (probe <code>192.168.7.1:8742/v1/hello</code> and the
+    Bridge Wi-Fi address on a timer; on hit, hold the device
+    identity).</li>
+<li>Pairing state machine (UNPAIRED → PAIRING_OPEN → AWAITING_CODE
+    → COMPLETING → PAIRED; failures: WINDOW_CLOSED, BAD_CODE,
+    TIMEOUT).</li>
+<li>Live status polling once paired (5 s tick).</li>
+<li>Public published <code>BridgeControlSnapshot { discovery: Discovery,
+    pairing: PairingState, status: BridgeStatus? }</code>.</li>
+<li><code>macos/InstantLink/Features/Bridge/BridgeControlWindow.swift</code> —
+  window shell, hosts the three views.</li>
+<li><code>macos/InstantLink/Features/Bridge/BridgeOverviewView.swift</code> —
+  read-only status panel: device, network labels, paired printer,
+  film count, recent uploads, software version, manager service
+  health.</li>
+<li><code>macos/InstantLink/Features/Bridge/BridgePairingView.swift</code> —
+  pairing wizard.</li>
+<li><code>macos/InstantLink/Features/Bridge/BridgeDiscoveryBanner.swift</code> —
+  the in-Print-view passive banner.</li>
+<li><code>macos/InstantLink/Features/Bridge/BridgeKeychain.swift</code> —
+  thin wrapper around <code>Security.framework</code> for the per-Bridge
+  signing identity. Keyed by <code>device_id</code>.</li>
+</ul>
+<p><strong>Implementation outline:</strong></p>
+<ul>
+<li><code>BridgeControlCoordinator.init(transport: BridgeTransport)</code> —
+  inject so tests use the in-memory mock.</li>
+<li>Discovery probe: parallel <code>URLSession.dataTask</code> to all known
+  fallback addresses (<code>192.168.7.1</code>, <code>192.168.8.1</code>, Bonjour-found).
+  First success wins; cache for 30 s.</li>
+<li>Pairing wizard flow:</li>
+<li>Coordinator polls <code>/v1/pairing/status</code> once.</li>
+<li>If <code>pairing.open == false</code>, instruct user: "Open Bridge LCD
+     → Settings → Network → Authorize Mac (hold KEY3)". The Pi
+     opens a 60 s window and shows a 6-digit code.</li>
+<li>Once <code>open == true</code>, show a 6-digit input field on Mac.</li>
+<li>On submit: generate Ed25519 keypair, call
+     <code>POST /v1/pairing/complete</code> with public key + code +
+     proposed display name.</li>
+<li>On 200, store private key under
+     <code>keychain://bridge/&lt;device_id&gt;/signing_key</code>; persist
+     <code>paired_at</code>, <code>display_name</code>, <code>device_id</code>.</li>
+<li>Status polling: signed <code>GET /v1/status</code> every 5 s while window
+  is foreground; pause when window hides.</li>
+<li>Main-view banner: <code>BridgeDiscoveryBanner</code> reads
+  <code>viewModel.bridgeCoordinator.snapshot.discovery</code> — passive,
+  no input, just a fact.</li>
+<li>Add menu item in <code>InstantLinkApplication.swift</code>:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">CommandMenu</span><span class="p">(</span><span class="s">&quot;Bridge&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="n">Button</span><span class="p">(</span><span class="s">&quot;Open Bridge Control…&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">…</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">        </span><span class="p">.</span><span class="n">keyboardShortcut</span><span class="p">(</span><span class="s">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">modifiers</span><span class="p">:</span><span class="w"> </span><span class="p">[.</span><span class="n">command</span><span class="p">,</span><span class="w"> </span><span class="p">.</span><span class="n">shift</span><span class="p">])</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="p">}</span>
+</code></pre></div>
+  Or add to the status-bar menu (preferred per plan 029).</li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Plug Bridge into Mac, open InstantLink.app: within 3 s the
+  Print view shows a small "Bridge IB-7B4233E7 — connected"
+  banner with discovery details.</li>
+<li><code>⌘⇧B</code> (or status-bar menu) opens the Bridge Control window.</li>
+<li>Window shows the Overview tab populated from <code>/v1/status</code>.</li>
+<li>First-run pairing wizard succeeds end-to-end: LCD code matches,
+  signature stored, subsequent <code>GET /v1/status</code> succeeds.</li>
+<li>Unplugging Bridge: banner fades to "Bridge disconnected" within
+  10 s; Overview switches to a disconnected state.</li>
+<li>Re-plugging: identity is recovered from Keychain; pairing not
+  re-required.</li>
+</ul>
+<p><strong>Tests:</strong></p>
+<ul>
+<li><code>BridgeControlCoordinatorTests</code> — discovery, pairing state
+  machine, status polling, using <code>InMemoryBridgeTransport</code>.</li>
+<li><code>BridgePairingViewModelTests</code> — code validation, retry.</li>
+<li><code>BridgeKeychainTests</code> — round-trip read/write/delete on a
+  test keychain.</li>
+</ul>
+<p><strong>Out of scope (this phase):</strong> settings edit, updates, backup,
+diagnostics, recovery.</p>
+<h3 id="phase-b-settings-editor-typed-apply-to-bridge">Phase B — Settings editor: typed Apply-to-Bridge<a class="headerlink" href="#phase-b-settings-editor-typed-apply-to-bridge" title="Permanent link">&para;</a></h3>
+<p>Goal: user sees the bridge's current sanitized config and edits
+the settings the macOS app legitimately owns
+(printer / network / FTP / power knobs) via typed controls, not
+raw TOML. "Apply to Bridge" submits a diff via <code>PUT /v1/config</code>.</p>
+<p><strong>Files to create:</strong></p>
+<ul>
+<li><code>Features/Bridge/BridgeSettingsView.swift</code> — the settings tab.</li>
+<li><code>Features/Bridge/BridgeSettingsSection.swift</code> — reusable section
+  matching the existing <code>SettingsViews.swift</code> styling.</li>
+<li><code>Core/BridgeSettingsDraft.swift</code> — observable draft model;
+  diffs against last-fetched <code>BridgeStatus.config</code>.</li>
+</ul>
+<p><strong>Implementation outline:</strong></p>
+<ul>
+<li>Coordinator fetches <code>GET /v1/config</code> on settings tab open.</li>
+<li><code>BridgeSettingsDraft</code> holds editable copies; tracks <code>isDirty</code>.</li>
+<li>"Apply to Bridge" button enabled iff dirty; on click, builds
+  the diff payload (<code>{section: {key: value}}</code>), signs, POSTs.</li>
+<li>Show a side-by-side "current / pending" preview before submit
+  (Plan 029's "settings diff/review" requirement).</li>
+<li>On 200, refetch status to confirm; on 4xx with
+  <code>ManagementValidationError</code>, surface the field-level errors
+  inline.</li>
+<li>On 5xx or network error, show <code>Management service unavailable</code>
+  toast (Plan 029 verbatim copy).</li>
+</ul>
+<p><strong>Sections to cover (per <code>manager/contract.py</code> config surface):</strong></p>
+<ul>
+<li>Printer: model, fit mode, JPEG quality, auto-print delay,
+  allow-print-without-film, keepalive interval, search interval.</li>
+<li>Network: FTP receive mode, Bridge Wi-Fi PIN (write-only,
+  masked), Same-Wi-Fi credentials (write-only, masked).</li>
+<li>FTP credentials: username, password (write-only, masked).</li>
+<li>Power: idle poweroff enabled + timeout, battery thresholds.</li>
+<li>UI: appearance, font size, language.</li>
+<li>Adjustments: watermark text, datestamp format (already a real
+  picker on the bridge; mirror).</li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Settings tab populates from <code>GET /v1/config</code> within 1 s.</li>
+<li>Edit a field → "Apply" button activates.</li>
+<li>Apply submits diff; status refresh confirms; toast: "Bridge
+  settings updated".</li>
+<li>Invalid input (e.g. negative keepalive) is blocked client-side
+  with inline error.</li>
+<li>Server-side validation error surfaces with field highlight.</li>
+</ul>
+<p><strong>Tests:</strong></p>
+<ul>
+<li><code>BridgeSettingsDraftTests</code> — dirty tracking, diff generation,
+  field validation.</li>
+<li><code>BridgeSettingsApplyFlowTests</code> — happy path, validation error,
+  network error.</li>
+</ul>
+<p><strong>Out of scope:</strong> updates, backup, diagnostics.</p>
+<h3 id="phase-c-updates-preflight-upload-install-rollback">Phase C — Updates: preflight + upload + install + rollback<a class="headerlink" href="#phase-c-updates-preflight-upload-install-rollback" title="Permanent link">&para;</a></h3>
+<p>Goal: when an InstantLinkBridge update is bundled into
+InstantLink.app, the user sees "Update available" on the Bridge
+Control overview, clicks through preflight, watches install
+progress, and the bridge reconnects with the new version. If
+verification fails, rollback is one click.</p>
+<p><strong>Files to create:</strong></p>
+<ul>
+<li><code>Features/Bridge/BridgeUpdateView.swift</code> — update tab.</li>
+<li><code>Features/Bridge/BridgeUpdatePreflightView.swift</code> — preflight
+  checks list.</li>
+<li><code>Features/Bridge/BridgeUpdateProgressView.swift</code> — live
+  progress feed.</li>
+<li><code>Core/BridgeUpdateCoordinator.swift</code> — separate coordinator for
+  the multi-stage flow; child of <code>BridgeControlCoordinator</code>.</li>
+</ul>
+<p><strong>Implementation outline:</strong></p>
+<ul>
+<li>Read bundled firmware bundle via existing
+  <code>BridgeFirmwareBundle.swift</code> (<code>Resources/BridgeFirmware/*.tar.zst</code>).</li>
+<li>Compare bundled <code>software_version</code> with
+  <code>BridgeStatus.software_version</code>.</li>
+<li>If newer: show "Update available — v0.1.x → v0.1.y".</li>
+<li>Click "Preflight" → <code>POST /v1/update/preflight</code> → list checks
+  (battery, disk space, network mode, BLE state, queue empty).</li>
+<li>Click "Install" → <code>POST /v1/update/upload</code> (multipart stream
+  with progress), then <code>POST /v1/update/start</code> → subscribe to
+  <code>GET /v1/update/events</code> (SSE).</li>
+<li>Display each event (<code>DOWNLOADING_ARCHIVE</code>, <code>VERIFYING_SIGNATURE</code>,
+  <code>STAGING_NEW_SLOT</code>, <code>SWAPPING_ACTIVE_SLOT</code>, <code>RESTARTING_SERVICES</code>,
+  <code>RECONNECTING</code>).</li>
+<li>On <code>RECONNECTING</code>: wait for <code>/v1/hello</code> to return with the new
+  version; on success: "Verifying..." → <code>POST /v1/update/mark-good</code>
+  → "Up to date".</li>
+<li>On health-check failure during reconnect: show "Update failed —
+  bridge rolled back" with the journal excerpt.</li>
+<li>"Rollback to previous version" button on the overview when
+  <code>BridgeStatus.update.previous_slot</code> is populated.</li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Preflight surfaces all checks with pass/fail icons.</li>
+<li>Install progress shows percentage during upload, then named
+  phases during install.</li>
+<li>Reconnect timeout (90 s) shows clear "Bridge didn't come back"
+  state with diagnostics.</li>
+<li>Successful update: version flips on overview, "Up to date" badge.</li>
+<li>Rollback button: visible iff a previous slot exists; one click</li>
+<li>confirm.</li>
+</ul>
+<p><strong>Tests:</strong></p>
+<ul>
+<li><code>BridgeUpdateCoordinatorTests</code> — happy path, preflight fail,
+  upload fail, install fail, reconnect timeout, rollback.</li>
+<li>Script-driven <code>InMemoryBridgeTransport.scheduleUpdateScript([…])</code>
+  for deterministic event sequences.</li>
+</ul>
+<p><strong>Out of scope:</strong> backup, diagnostics.</p>
+<h3 id="phase-d-backup-restore">Phase D — Backup &amp; restore<a class="headerlink" href="#phase-d-backup-restore" title="Permanent link">&para;</a></h3>
+<p>Goal: user can create an encrypted backup of bridge identity +
+credentials + paired printer to a local file and restore from
+that file to the same or another bridge.</p>
+<p><strong>Files to create:</strong></p>
+<ul>
+<li><code>Features/Bridge/BridgeBackupView.swift</code>.</li>
+<li><code>Core/BridgeBackupCoordinator.swift</code>.</li>
+</ul>
+<p><strong>Implementation outline:</strong></p>
+<ul>
+<li>"Back up Bridge..." → <code>POST /v1/backup/create</code> → bridge returns
+  a server-side bundle ID + download URL.</li>
+<li>Mac downloads + saves to user-chosen path; warns that the
+  bundle includes secrets.</li>
+<li>Encryption: server-side encrypts with a user-provided
+  passphrase passed in the create call.</li>
+<li>Restore: user picks a file + enters passphrase → upload via
+  <code>POST /v1/backup/restore</code> → bridge restarts → reconnect.</li>
+<li>Restore-to-different-bridge prompts: "This will overwrite the
+  current bridge identity. Continue?" — extra confirmation.</li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Create: prompts passphrase, downloads <code>.bridgebackup</code> file,
+  succeeds offline-replayable.</li>
+<li>Restore: re-creates the bridge state; pairing identity matches;
+  paired printer survives.</li>
+<li>Cross-bridge restore: overwrites identity with confirmation.</li>
+</ul>
+<p><strong>Tests:</strong> standard happy-path + error-path coverage.</p>
+<p><strong>Out of scope:</strong> diagnostics, recovery.</p>
+<h3 id="phase-e-diagnostics-recovery">Phase E — Diagnostics + recovery<a class="headerlink" href="#phase-e-diagnostics-recovery" title="Permanent link">&para;</a></h3>
+<p>Goal: a "Bridge logs" tab shows the last 200 lines of the journal
+in real time. A "Support bundle..." button packages a redacted
+zip the user can mail to support. A "Recovery" panel handles the
+boot-failure state when the bridge management service is
+unreachable.</p>
+<p><strong>Files to create:</strong></p>
+<ul>
+<li><code>Features/Bridge/BridgeDiagnosticsView.swift</code>.</li>
+<li><code>Features/Bridge/BridgeRecoveryView.swift</code>.</li>
+<li><code>Core/BridgeDiagnosticsCoordinator.swift</code>.</li>
+</ul>
+<p><strong>Implementation outline:</strong></p>
+<ul>
+<li>Live logs: subscribe to <code>GET /v1/logs/stream</code> (SSE) when on the
+  Diagnostics tab; cap to last 200 entries; tail-follow.</li>
+<li>Support bundle: <code>POST /v1/support_bundle/create</code> → download +
+  save. Redacted per the <code>support-bundle.md</code> policy
+  (<code>docs/plans/029-bridge-control-panel.md</code> §"Optional encrypted
+  backup").</li>
+<li>Recovery: when <code>/v1/hello</code> is unreachable but USB carrier is
+  up, show "Bridge management service unavailable. Uploads may
+  still work. Restart the Bridge service or reconnect with USB
+  debug." (verbatim plan 029 copy).</li>
+<li>"Restart management service" attempts a recovery via the
+  USB-debug socket if available; otherwise instructs the user
+  to power-cycle the Bridge.</li>
+</ul>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Logs tab streams in real time; pause/resume works.</li>
+<li>Support bundle downloads; opened bundle contains the redacted
+  set per policy.</li>
+<li>Recovery state triggers when management service is down; copy
+  matches plan 029.</li>
+</ul>
+<p><strong>Tests:</strong> SSE stream parsing; support-bundle redaction;
+recovery-state transitions.</p>
+<h2 id="verification-every-phase">Verification (every phase)<a class="headerlink" href="#verification-every-phase" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>swiftc</code> builds clean (existing <code>bash scripts/build-app.sh</code>).</li>
+<li><code>swift test</code> (or whatever the macOS test runner is) passes.</li>
+<li><code>cargo fmt &amp;&amp; cargo clippy --workspace -- -D warnings &amp;&amp; cargo test --workspace</code>
+  (no Rust changes expected; keep gates green).</li>
+<li><code>/tmp/bridge-verify/bin/python -m pytest bridge/tests/ -q --timeout=10 --timeout-method=thread</code>
+  (no bridge changes expected; keep gates green).</li>
+<li>Manual: plug Pi into Mac, walk the phase's user flow end-to-end.</li>
+</ul>
+<h2 id="out-of-scope">Out of scope<a class="headerlink" href="#out-of-scope" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Bonjour discovery on Same-Wi-Fi (Phase A uses direct probe
+  only; Bonjour is a separate optimization).</li>
+<li>Cross-platform (Windows/Linux InstantLink companion app).</li>
+<li>v1.5 multi-printer pairing.</li>
+<li>Cloud sync of Bridge config (intentionally out per CLAUDE.md
+  non-goals).</li>
+</ul>
+<h2 id="open-questions-deferred">Open questions (deferred)<a class="headerlink" href="#open-questions-deferred" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Whether to expose raw TOML editing for power users (per plan
+  029 "advanced editor" mention) — likely deferred until after
+  Phase B ships and we see if users hit walls.</li>
+<li>Whether the Mac app should bundle a CLI tool (<code>instantlinkctl</code>)
+  for scripting — would extend the audit/automation surface but
+  is its own design.</li>
+<li>Whether status-bar menu vs full window vs both — Phase A
+  proposes both; we may collapse to one based on testing.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.indexes", "navigation.top", "navigation.tracking", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
