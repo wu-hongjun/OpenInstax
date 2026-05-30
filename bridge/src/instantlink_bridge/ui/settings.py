@@ -22,7 +22,6 @@ class SettingKey(StrEnum):
     OPEN_PRINT = "open_print"
     OPEN_NETWORK = "open_network"
     OPEN_SYSTEM = "open_system"
-    OPEN_ACCESSIBILITY = "open_accessibility"
     # Print hub → sub-page openers (phase 1, plan 035).
     OPEN_PRINTER = "open_printer"
     OPEN_ADJUSTMENTS = "open_adjustments"
@@ -92,7 +91,6 @@ class SettingsPage(StrEnum):
     PRINT = "print"
     SYSTEM = "system"
     ABOUT = "about"
-    ACCESSIBILITY = "accessibility"
     # Print sub-pages (plan 035 phase 1).
     PRINTER = "printer"
     ADJUSTMENTS = "adjustments"
@@ -121,7 +119,6 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.OPEN_PRINT,
         SettingKey.OPEN_NETWORK,
         SettingKey.OPEN_SYSTEM,
-        SettingKey.OPEN_ACCESSIBILITY,
     ),
     # PRINT is now a 4-row hub (plan 035 phase 1). Each row opens a
     # dedicated sub-page; BACK from any sub-page returns here.
@@ -185,13 +182,19 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.NETWORK_ETHERNET_INFO,
         SettingKey.RESET_CREDENTIALS,
     ),
+    # SYSTEM holds operational rows AND personalisation knobs after the
+    # Accessibility page was folded in (3 rows on a standalone page was
+    # thin justification for its own MAIN slot). Order: device-state
+    # info → power toggles → manual refresh → personalisation →
+    # versions/about behind a final chevron.
     SettingsPage.SYSTEM: (
-        # Operational rows only. Version info lives behind OPEN_ABOUT.
-        # FONT_SIZE + LANGUAGE moved to the new Accessibility page.
         SettingKey.SYSTEM_BATTERY_INFO,
         SettingKey.SYSTEM_IDLE_INFO,
         SettingKey.SYSTEM_IDLE_POWEROFF,
         SettingKey.REFRESH_STATUS,
+        SettingKey.APPEARANCE,
+        SettingKey.FONT_SIZE,
+        SettingKey.LANGUAGE,
         SettingKey.OPEN_ABOUT,
     ),
     SettingsPage.ABOUT: (
@@ -201,11 +204,6 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.SYSTEM_BLUEZ_VERSION,
         SettingKey.SYSTEM_OS_VERSION,
     ),
-    SettingsPage.ACCESSIBILITY: (
-        SettingKey.APPEARANCE,
-        SettingKey.FONT_SIZE,
-        SettingKey.LANGUAGE,
-    ),
 }
 
 PAGE_TITLES: dict[SettingsPage, str] = {
@@ -214,7 +212,6 @@ PAGE_TITLES: dict[SettingsPage, str] = {
     SettingsPage.PRINT: "Print",
     SettingsPage.SYSTEM: "System",
     SettingsPage.ABOUT: "About",
-    SettingsPage.ACCESSIBILITY: "Accessibility",
     # Print sub-page titles (plan 035 phase 1).
     SettingsPage.PRINTER: "Printer",
     SettingsPage.ADJUSTMENTS: "Adjustments",
@@ -227,7 +224,6 @@ PAGE_FOR_OPEN_KEY: dict[SettingKey, SettingsPage] = {
     SettingKey.OPEN_PRINT: SettingsPage.PRINT,
     SettingKey.OPEN_SYSTEM: SettingsPage.SYSTEM,
     SettingKey.OPEN_ABOUT: SettingsPage.ABOUT,
-    SettingKey.OPEN_ACCESSIBILITY: SettingsPage.ACCESSIBILITY,
     # Print hub → sub-page openers (plan 035 phase 1).
     SettingKey.OPEN_PRINTER: SettingsPage.PRINTER,
     SettingKey.OPEN_ADJUSTMENTS: SettingsPage.ADJUSTMENTS,
@@ -354,9 +350,8 @@ def setting_action_hint(key: SettingKey) -> str:
 SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.OPEN_NETWORK: "Wi-Fi, FTP credentials, Bluetooth, USB",
     SettingKey.OPEN_PRINT: "Pairing and photo/print options",
-    SettingKey.OPEN_SYSTEM: "bridge health and updates",
+    SettingKey.OPEN_SYSTEM: "Bridge health, personalisation, updates",
     SettingKey.OPEN_ABOUT: "Versions and device identity",
-    SettingKey.OPEN_ACCESSIBILITY: "Text size, language, and appearance",
     # Print hub → sub-page opener help strings (plan 035 phase 1).
     SettingKey.OPEN_PRINTER: "Pairing and printer model",
     SettingKey.OPEN_ADJUSTMENTS: "Colour and overlay adjustments",

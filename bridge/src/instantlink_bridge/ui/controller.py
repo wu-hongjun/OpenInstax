@@ -1591,8 +1591,6 @@ class BridgeUi:
             return SettingsRow("Network", "")
         if key is SettingKey.OPEN_SYSTEM:
             return SettingsRow("System", "")
-        if key is SettingKey.OPEN_ACCESSIBILITY:
-            return SettingsRow("Accessibility", "")
         if key is SettingKey.OPEN_ABOUT:
             return SettingsRow("About", "")
         # Print hub → sub-page opener rows (plan 035 phase 1).
@@ -1815,9 +1813,7 @@ class BridgeUi:
         if key is SettingKey.OPEN_PRINT:
             return "Pairing and photo/print options"
         if key is SettingKey.OPEN_SYSTEM:
-            return "Bridge health and updates"
-        if key is SettingKey.OPEN_ACCESSIBILITY:
-            return "Text size, language, and appearance"
+            return "Bridge health, personalisation, updates"
         return setting_help_text(key)
 
     def _system_info_snapshot(self) -> SystemInfo:

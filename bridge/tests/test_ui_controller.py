@@ -1427,12 +1427,13 @@ async def test_settings_ftp_receive_mode_selects_bridge_wifi_from_advanced_mode(
 
     await ui._handle_action(UiAction.SELECT)
 
-    # MAIN: Print (0), Network (1), System (2), Accessibility (3).
+    # MAIN: Print (0), Network (1), System (2). Accessibility folded into
+    # System after plan 035 phase 1 follow-up — Appearance / Text size /
+    # Language now sit under System next to the bridge-state rows.
     assert [row.label for row in display.snapshots[-1].settings_rows] == [
         "Print",
         "Network",
         "System",
-        "Accessibility",
     ]
 
     # 1 DOWN lands on Network; SELECT enters it.
@@ -1922,7 +1923,7 @@ async def test_settings_about_page_shows_device_and_versions() -> None:
         ),
     )
 
-    # MAIN: Print (0), Network (1), System (2), Accessibility (3).
+    # MAIN: Print (0), Network (1), System (2).
     # 2 DOWNs lands on System; SELECT enters the System page.
     await ui._handle_action(UiAction.SELECT)
     for _ in range(2):
@@ -1930,9 +1931,10 @@ async def test_settings_about_page_shows_device_and_versions() -> None:
     await ui._handle_action(UiAction.SELECT)
     assert display.snapshots[-1].settings_title == "System"
 
-    # System rows: 0 Battery  1 Idle  2 Idle poweroff  3 Refresh status  4 About.
-    # 4 DOWNs lands on About; SELECT enters About.
-    for _ in range(4):
+    # System rows after the Accessibility merge: 0 Battery  1 Idle
+    # 2 Idle poweroff  3 Refresh status  4 Appearance  5 Text size
+    # 6 Language  7 About. Seven DOWNs lands on About.
+    for _ in range(7):
         await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.SELECT)
     assert display.snapshots[-1].settings_title == "About"
