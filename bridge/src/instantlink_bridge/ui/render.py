@@ -618,12 +618,14 @@ def draw_settings_row(
         marker_font = font
 
     if selected:
-        # Selected row: flat vibrant accent fill (iOS picker style). The
-        # earlier "pressed into glass" inner highlight + lowlight read as
-        # 1 px scan lines on the LCD rather than glass depth — removed.
+        # Selected row: flat vibrant accent fill (iOS picker style). Radius
+        # matches the outer card (10 px) so the highlight reads as a single
+        # rounded "pebble" rather than a tight ribbon nested inside a
+        # softer container — the previous 4 px corners visibly disagreed
+        # with the card's 10 px corners.
         draw.rounded_rectangle(
             (14, y, 226, y + row_height - 1),
-            radius=4,
+            radius=10,
             fill=theme.accent_blue,
         )
         text_fill = theme.label_inverse
@@ -644,17 +646,25 @@ def draw_settings_row(
     _text(draw, 22, y + 3, _fit_text_to_width(draw, label, font, label_max), font, text_fill)
 
     if marker:
+        # Anchor the chevron at the right edge (x=218) and the row's true
+        # vertical midpoint using PIL's anchor="rm" (right-middle). This
+        # uses the font's actual visual metrics rather than the glyph
+        # bbox, so the chevron sits optically centred no matter the font
+        # scale. The previous formula keyed off `_font_height` which
+        # only measured the chevron glyph itself and consistently parked
+        # it 2-3 px below the row centre.
+        row_cy = y + row_height // 2
         marker_width = _text_width(draw, marker, marker_font)
-        marker_x = 218 - marker_width
-        # Vertically centre the (larger) chevron inside the row; using the
-        # body font's natural ascent would push it 2-3 px above the value
-        # baseline.
-        marker_h = _font_height(draw, marker, marker_font)
-        marker_y = y + (row_height - marker_h) // 2 - 1
-        _text(draw, marker_x, marker_y, marker, marker_font, marker_fill)
+        draw.text(
+            (218, row_cy),
+            marker,
+            font=marker_font,
+            fill=marker_fill,
+            anchor="rm",
+        )
         # Widen gap from chevron to value text: -6 instead of -4 so the value
         # field doesn't crash into the chevron at LARGE font scale (plan 034 item 16).
-        value_right = marker_x - 6
+        value_right = 218 - marker_width - 6
     else:
         value_right = 218
 
