@@ -37,6 +37,7 @@ __all__ = [
     "PRESET_ORDER",
     "USER_PRESETS_PATH",
     "VALID_PRESET_NAMES",
+    "autoname_preset",
     "is_preset_modified",
     "load_user_presets",
     "resolve_preset",
@@ -138,6 +139,85 @@ BUILTIN_PRESET_VALUES: dict[str, dict[str, int]] = {
 
 _MAX_USER_PRESETS = 6
 _USER_PRESET_SLOTS = ("Custom1", "Custom2", "Custom3", "Custom4", "Custom5", "Custom6")
+
+
+# ---------------------------------------------------------------------------
+# Auto-naming for user custom slots (plan 036 audit follow-up, item 2)
+# ---------------------------------------------------------------------------
+
+# Short axis abbreviations used in auto-generated slot labels.
+# These are the English forms; the i18n table maps them for other locales.
+_AUTONAME_AXIS_ABBREV: tuple[tuple[str, str], ...] = (
+    ("saturation", "Sat"),
+    ("exposure", "Exposure"),
+    ("sharpness", "Sharp"),
+    ("hue", "Hue"),
+    ("vignette", "Vignette"),
+)
+
+# Minimum absolute distance from Default that a single axis must exceed for
+# the autoname to reflect it.  Below this threshold the slot is considered
+# "near-default" and the raw slot key is returned instead.
+_AUTONAME_THRESHOLD = 10
+
+
+def autoname_preset(config: AdjustmentsConfig, slot_key: str) -> str:
+    """Return a human-friendly label for a user preset slot.
+
+    ``slot_key`` is the storage key (e.g. ``"Custom3"``).  The display name
+    is generated from the most distinctive axis vs Default.  If a built-in
+    preset name is recorded as the active preset it is used as a prefix
+    (``"Vivid +Sat"``); otherwise the axis label is the full name
+    (``"Sat +75"``).  Falls back to ``slot_key`` when no axis differs from
+    Default by more than ``_AUTONAME_THRESHOLD``.
+
+    The on-disk storage key is never modified — only the display label
+    returned here changes.
+    """
+
+    # Per-axis UI integer values for Default (all zeros).
+    default_vals: dict[str, int] = BUILTIN_PRESET_VALUES["Default"]
+
+    # Current per-axis UI integers from config.
+    axis_vals: dict[str, int] = {
+        "saturation": config.saturation,
+        "exposure": config.exposure,
+        "sharpness": config.sharpness,
+        "hue": config.hue,
+        "vignette": config.vignette,
+    }
+
+    # Find the axis with the largest absolute distance from Default.
+    best_axis: str | None = None
+    best_dist = 0
+    for axis, _ in _AUTONAME_AXIS_ABBREV:
+        dist = abs(axis_vals[axis] - default_vals[axis])
+        if dist > best_dist:
+            best_dist = dist
+            best_axis = axis
+
+    if best_axis is None or best_dist <= _AUTONAME_THRESHOLD:
+        # All axes are near Default — fall back to the raw slot key.
+        return slot_key
+
+    abbrev = next(ab for ax, ab in _AUTONAME_AXIS_ABBREV if ax == best_axis)
+    value = axis_vals[best_axis]
+
+    if best_axis == "vignette":
+        axis_part = f"Vignette {value}"
+    else:
+        sign = "+" if value >= 0 else "−"  # U+2212 MINUS SIGN
+        axis_part = f"{abbrev} {sign}{abs(value)}"
+
+    # If the active preset label is a built-in name, prefix with it so the
+    # user knows what starting template they modified (e.g. "Vivid +Sat").
+    active = config.preset
+    if active in BUILTIN_PRESET_VALUES and active != "Default":
+        # Short prefix: just the axis abbreviation (no value), since the
+        # point is recognising the base style quickly.
+        return f"{active} +{abbrev}"
+
+    return axis_part
 
 
 # ---------------------------------------------------------------------------

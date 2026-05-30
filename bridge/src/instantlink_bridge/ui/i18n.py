@@ -365,6 +365,11 @@ _ZH_HANS: dict[str, str] = {
     "Exposure": "曝光",
     "Sharpness": "锐度",
     "Hue": "色相",
+    # Autoname axis abbreviations (plan 036 audit follow-up, item 2).
+    # "Sat" / "Sharp" are short Latin forms used in dynamic slot labels;
+    # CJK uses the full term since character count is not a concern there.
+    "Sat": "饱和度",
+    "Sharp": "锐度",
     # Help strings — iOS Photos-voice, sentence case, Arabic numerals.
     "Colour intensity. Negative dulls, positive boosts": "色彩强度。负值降低，正值增强",
     "Brightness in EV stops. ±100 = ±1 EV": "亮度（EV 档）。±100 = ±1 EV",
@@ -394,7 +399,7 @@ _ZH_HANS: dict[str, str] = {
     "Custom6": "自定 6",
     "Save current as preset": "将当前值另存为预设",
     "Save current": "另存当前",
-    "6 custom slots full": "自定预设已满（最多 6 个）",
+    "6 custom slots full · K3 hold a slot to overwrite": "自定预设已满 · 长按 K3 覆盖已有预设",
     "Empty — use Save current to fill": "空白 — 请使用「另存当前」填入",
     "Press KEY1 again to overwrite Custom1": "再次按 KEY1 以覆盖 Custom1",
     "Press KEY1 again to overwrite Custom2": "再次按 KEY1 以覆盖 Custom2",
@@ -410,6 +415,10 @@ _ZH_HANS: dict[str, str] = {
     "Custom6 (empty)": "自定 6（空）",
     "Choose a look, or tweak the sliders below": "选择一种风格，或调整下方滑块",
     "Store current values as a custom preset": "将当前数值保存为自定预设",
+    # Preset picker hint — discoverability (plan 036 audit follow-up, item 3).
+    "KEY1 load · K3 hold edit": "KEY1 载入 · 长按 K3 编辑",
+    # Save-preset help text (item 3).
+    "Save as preset. K3 hold a slot to overwrite or delete.": "另存为预设。长按 K3 管理槽位。",
     # --- Misc short LCD copy ---------------------------------------------
     "Advanced Same-Wi-Fi status": "高级同 Wi-Fi 状态",
     "Allow 10 min idle shutdown": "允许 10 分钟空闲关机",

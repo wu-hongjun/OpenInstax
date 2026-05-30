@@ -489,3 +489,81 @@ def test_is_preset_modified_false_for_user_custom_when_axes_match(tmp_path: Path
     # Config with saturation=50 matches the saved factor 1.5.
     cfg = AdjustmentsConfig(preset="Custom1", saturation=50)
     assert is_preset_modified(cfg, presets_path) is False
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 audit follow-up item 2 — autoname_preset
+# ---------------------------------------------------------------------------
+
+
+def test_autoname_picks_largest_axis_delta() -> None:
+    """autoname returns a label containing the axis abbrev and signed value
+    when saturation has the largest absolute delta from Default."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    cfg = AdjustmentsConfig(preset="Custom1", saturation=75, exposure=10)
+    result = autoname_preset(cfg, "Custom1")
+    assert "Sat" in result
+    assert "+75" in result
+
+
+def test_autoname_falls_back_to_slot_key_for_near_default() -> None:
+    """autoname returns the raw slot key when all axes are within the threshold."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    cfg = AdjustmentsConfig(preset="Custom3", saturation=5, exposure=0, sharpness=-5)
+    result = autoname_preset(cfg, "Custom3")
+    assert result == "Custom3"
+
+
+def test_autoname_prefixes_active_builtin() -> None:
+    """When the active preset is a built-in (not Default), autoname prefixes it."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    # config.preset == "Vivid" with saturation differing from Default by +75.
+    cfg = AdjustmentsConfig(preset="Vivid", saturation=75, exposure=0, sharpness=0)
+    result = autoname_preset(cfg, "Custom2")
+    # Should start with the built-in name and include the axis abbreviation.
+    assert result.startswith("Vivid"), f"Expected 'Vivid' prefix, got {result!r}"
+    assert "Sat" in result
+
+
+def test_autoname_exposure_wins_over_smaller_saturation() -> None:
+    """The axis with the largest absolute delta wins regardless of axis order."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    cfg = AdjustmentsConfig(preset="Custom4", saturation=20, exposure=-80)
+    result = autoname_preset(cfg, "Custom4")
+    assert "Exposure" in result
+    assert "80" in result
+
+
+def test_autoname_vignette_format() -> None:
+    """Vignette autoname uses 'Vignette N' format (no sign prefix)."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    cfg = AdjustmentsConfig(preset="Custom5", vignette=50)
+    result = autoname_preset(cfg, "Custom5")
+    assert result == "Vignette 50"
+
+
+def test_autoname_negative_value_uses_unicode_minus() -> None:
+    """Negative axis values use the Unicode minus sign U+2212."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    cfg = AdjustmentsConfig(preset="Custom6", saturation=-75)
+    result = autoname_preset(cfg, "Custom6")
+    # U+2212 MINUS SIGN should appear, not an ASCII hyphen.
+    assert "−" in result
+    assert "75" in result
+
+
+def test_autoname_default_preset_does_not_prefix() -> None:
+    """When config.preset == 'Default' the autoname shows only the axis label."""
+    from instantlink_bridge.imaging.presets import autoname_preset
+
+    cfg = AdjustmentsConfig(preset="Default", saturation=50)
+    result = autoname_preset(cfg, "Custom1")
+    # Should NOT start with "Default" — just the axis part.
+    assert not result.startswith("Default")
+    assert "Sat" in result

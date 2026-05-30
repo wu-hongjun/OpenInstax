@@ -466,7 +466,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.ADJUST_WATERMARK: "Stamp a short label in the top-right corner",
     # Preset picker and save action (plan 035 phase 5; updated plan 036 phase 5).
     SettingKey.ADJUST_PRESET: "Choose a look, or tweak the sliders below",
-    SettingKey.ADJUST_SAVE_CUSTOM: "Store current values as a custom preset",
+    SettingKey.ADJUST_SAVE_CUSTOM: "Save as preset. K3 hold a slot to overwrite or delete.",
     SettingKey.FTP_RECEIVE_MODE: "Hotspot: bridge AP. Client: join existing.",
     SettingKey.PAIR_PRINTER: "Pair an Instax printer, or re-pair to swap",
     SettingKey.RESET_PRINTER_LINK: "Reconnect to the saved printer",

@@ -4134,3 +4134,82 @@ async def test_empty_custom_slot_key1_shows_toast(tmp_path: Path) -> None:
     )
     # Config preset unchanged.
     assert ui._config.adjustments.preset == "Default"
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 audit follow-up — item 2 (autoname) + item 3 (discoverability)
+# ---------------------------------------------------------------------------
+
+
+def test_user_preset_picker_hint_specifies_key3_hold(tmp_path: Path) -> None:
+    """Picker row hint for a saved Custom slot must mention K3 and hold."""
+    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    # Inject a populated custom slot so it gets the populated-slot hint.
+    ui._user_presets = {"Custom1": AdjustmentProfile(saturation=1.5)}
+    options = ui._preset_picker_options()
+    rows = ui._preset_picker_rows(options, "Default")
+    # Custom1 is at index 5 (after 5 built-ins).
+    custom1_hint = rows[5].hint
+    assert "K3" in custom1_hint, f"Hint must mention K3, got: {custom1_hint!r}"
+    assert "hold" in custom1_hint.lower(), f"Hint must mention hold, got: {custom1_hint!r}"
+
+
+@pytest.mark.asyncio
+async def test_slots_full_toast_mentions_overwrite_path(tmp_path: Path) -> None:
+    """When all 6 custom slots are full, the toast mentions K3-hold and overwrite."""
+    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\nsaturation = 30\n', encoding="utf-8")
+    presets_path = tmp_path / "presets.toml"
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    # Fill all 6 custom slots so save is blocked — write to the patched path too.
+    from instantlink_bridge.imaging.presets import save_user_presets
+
+    full_presets = {f"Custom{i}": AdjustmentProfile(saturation=1.0 + i * 0.1) for i in range(1, 7)}
+    save_user_presets(presets_path, full_presets)
+    ui._user_presets = full_presets
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+
+    import unittest.mock as mock
+
+    with mock.patch(
+        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
+    ):
+        # Navigate to "Save current" row (index 8 on the Adjustments page).
+        for _ in range(8):
+            await ui._handle_action(UiAction.DOWN)
+        await ui._handle_action(UiAction.SELECT)
+
+    msg = ui._snapshot.settings_message or ""
+    assert "K3" in msg, f"Slots-full toast must mention K3, got: {msg!r}"
+    assert "overwrite" in msg.lower(), f"Slots-full toast must mention overwrite, got: {msg!r}"
+
+
+def test_save_preset_help_text_mentions_management(tmp_path: Path) -> None:
+    """ADJUST_SAVE_CUSTOM help text must mention K3 and hold (management path)."""
+    from instantlink_bridge.ui.settings import SettingKey, setting_help_text
+
+    text = setting_help_text(SettingKey.ADJUST_SAVE_CUSTOM)
+    assert "K3" in text, f"Help text must mention K3, got: {text!r}"
+    assert "hold" in text.lower(), f"Help text must mention hold, got: {text!r}"

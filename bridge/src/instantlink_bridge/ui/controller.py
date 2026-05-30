@@ -1319,7 +1319,7 @@ class BridgeUi:
             if is_empty:
                 hint = "KEY1 empty"
             elif is_user:
-                hint = "KEY1 load · hold=edit"
+                hint = "KEY1 load · K3 hold edit"
             else:
                 hint = "KEY1 load"
             rows.append(SettingsRow(
@@ -1334,7 +1334,10 @@ class BridgeUi:
 
         Empty custom slots are shown with an '(empty)' label so the
         save-preset flow is discoverable upfront (plan 036 P1 fix 6).
+        Populated custom slots show a descriptive autoname derived from the
+        most distinctive axis vs Default (plan 036 audit follow-up, item 2).
         """
+        from instantlink_bridge.imaging.presets import autoname_preset
         from instantlink_bridge.ui.settings import BUILTIN_PRESET_NAMES
 
         options: list[SettingOption] = [
@@ -1342,7 +1345,23 @@ class BridgeUi:
         ]
         for slot in USER_PRESET_SLOT_NAMES:
             if slot in self._user_presets:
-                options.append(SettingOption(slot, slot))
+                # Reverse-convert the stored AdjustmentProfile to per-axis UI
+                # integers via stamp_preset_into_config, then construct a
+                # temporary AdjustmentsConfig so autoname_preset can read them.
+                from instantlink_bridge.config import AdjustmentsConfig
+                from instantlink_bridge.imaging.presets import stamp_preset_into_config
+
+                axes = stamp_preset_into_config(slot, self._user_presets)
+                slot_adj = AdjustmentsConfig(
+                    preset=slot,
+                    saturation=axes["saturation"],
+                    exposure=axes["exposure"],
+                    sharpness=axes["sharpness"],
+                    hue=axes["hue"],
+                    vignette=axes["vignette"],
+                )
+                display_label = autoname_preset(slot_adj, slot)
+                options.append(SettingOption(display_label, slot))
             else:
                 options.append(SettingOption(f"{slot} (empty)", slot))
         return tuple(options)
@@ -2006,7 +2025,7 @@ class BridgeUi:
                     break
 
             if free_slot is None:
-                self._show_settings("6 custom slots full")
+                self._show_settings("6 custom slots full · K3 hold a slot to overwrite")
                 return
 
             target_slot = free_slot
@@ -2169,9 +2188,13 @@ class BridgeUi:
         if key is SettingKey.ADJUSTMENTS_COMING_SOON:
             return SettingsRow("Coming soon", "")
         if key is SettingKey.ADJUST_PRESET:
-            from instantlink_bridge.imaging.presets import is_preset_modified
+            from instantlink_bridge.imaging.presets import autoname_preset, is_preset_modified
 
-            preset_label = self._config.adjustments.preset
+            preset_name = self._config.adjustments.preset
+            if preset_name in USER_PRESET_SLOT_NAMES:
+                preset_label = autoname_preset(self._config.adjustments, preset_name)
+            else:
+                preset_label = preset_name
             if is_preset_modified(self._config.adjustments):
                 preset_label = f"{preset_label} *"
             return SettingsRow("Preset", preset_label)
