@@ -1,0 +1,2324 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Open-source Rust CLI and macOS 15+ app for Fujifilm Instax Link printers via BLE">
+      
+      
+      
+        <link rel="canonical" href="https://instantlink.hongjunwu.com/plans/035-print-settings-restructure-and-postprocessing-pipeline/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Plan 035 — Print settings restructure + postprocessing pipeline - InstantLink</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-035-print-settings-restructure-postprocessing-pipeline" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="InstantLink" class="md-header__button md-logo" aria-label="InstantLink" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            InstantLink
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plan 035 — Print settings restructure + postprocessing pipeline
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="white" data-md-color-accent="black"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="white"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/wu-hongjun/InstantLink" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wu-hongjun/InstantLink
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/cli/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../development/architecture/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../001-full-stack-scaffold/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Plans
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="InstantLink" class="md-nav__button md-logo" aria-label="InstantLink" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    InstantLink
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/wu-hongjun/InstantLink" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    wu-hongjun/InstantLink
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ffi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FFI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/bridge-firmware-release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bridge Firmware Release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/reverse-engineering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reverse Engineering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plans
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plans
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../001-full-stack-scaffold/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 001 Full-Stack Scaffold
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../002-ci-cd-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 002 CI/CD Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../003-github-pages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 003 GitHub Pages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../004-app-bundle-and-release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 004 App Bundle and Release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../005-mock-transport-device-tests/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 005 Mock Transport Device Tests
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../006-overlay-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 006 Overlay System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../007-ui-ux-pass-1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 007 UI/UX Pass 1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../008-ui-ux-pass-2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 008 UI/UX Pass 2
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../009-repo-simplification-audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 009 Repo Simplification Audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../010-ui-ux-pass-3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 010 UI/UX Pass 3
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../011-macos-coordinator-extraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 011 macOS Coordinator Extraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../012-macos-15-liquid-glass-adoption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 012 macOS 15 Baseline and Liquid Glass Adoption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../013-ffi-connection-stage-callbacks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 013 FFI Connection Stage Callbacks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../014-printer-led-print-feedback/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 014 Printer LED Print Phase Feedback
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../015-ffi-callback-safety/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 015 FFI Callback Safety and Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../016-transport-command-serialization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 016 Transport Command Serialization and Protocol Hardening
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../017-reconnect-fallback-behavior/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 017 Reconnect Fallback and Recovery UX
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../018-auto-update-signature-verification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 018 Auto-Update Signature Verification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../019-packet-assembler-error-surfacing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 019 Packet Assembler Error Surfacing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../020-notification-listener-lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 020 Notification Listener Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../021-print-flow-deduplication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 021 Print Flow Deduplication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../022-ffi-device-guard-concurrency/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 022 FFI Device Guard Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../023-ffi-unsafe-block-discipline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 023 FFI Unsafe Block Discipline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../024-protocol-build-packet-bounds/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 024 Protocol Build Packet Bounds
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../025-rand-dependency-upgrade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 025 Rand Dependency Upgrade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../026-docs-ffi-symbol-count-and-context-variants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 026 Docs FFI Symbol Count and Context Variants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../027-docs-protocol-mini-link-3-flip/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 027 Docs Protocol Mini Link 3 Flip
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../028-sparkle-2-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 028 Sparkle 2 Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../029-bridge-control-panel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 029 Bridge Control Panel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../030-bridge-secure-management-updates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan 030 Bridge Secure Management and Updates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-of-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope of work
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scope of work">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-settings-ia-print-becomes-a-hub" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1 — Settings IA: Print becomes a hub
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-postprocessing-pipeline-scaffolding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2 — Postprocessing pipeline scaffolding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-wire-the-four-colour-adjustments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3 — Wire the four colour adjustments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-watermark-datestamp-overlays" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4 — Watermark + datestamp overlays
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-postprocessing-presets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 — Postprocessing presets
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-vignette-instax-film-preset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6 — Vignette + "Instax Film" preset
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cross-cutting-constraints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-cutting constraints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-design-questions-to-resolve-early" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open design questions to resolve early
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plan-035-print-settings-restructure-postprocessing-pipeline">Plan 035 — Print settings restructure + postprocessing pipeline<a class="headerlink" href="#plan-035-print-settings-restructure-postprocessing-pipeline" title="Permanent link">&para;</a></h1>
+<h2 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h2>
+<p>Today the Print settings page is a flat 11-row list:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Serial · Pair/Re-pair · Reconnect · Forget · Printer type · Auto print ·
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>Image fit · JPEG quality · No-film test · Advanced separator ·
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Keepalive · Search rate
+</code></pre></div>
+<p>After the plan 034 polish pass this list is functional but conceptually
+mixed: pairing actions, printer model selection, behaviour toggles,
+output transform parameters, and BLE polling knobs all sit at the same
+level. Adding image-quality controls (saturation, exposure, sharpness,
+hue, watermark, datestamp) to this flat list would push it past the
+visible card and bury the destructive recovery actions in the middle of
+a long scroll.</p>
+<p>The user wants:</p>
+<ol>
+<li><strong>A grouped Print settings hub</strong> with sub-pages — Printer / Adjustments
+   / Transform / Auto Print — so each surface holds the rows that
+   actually go together.</li>
+<li><strong>A real postprocessing pipeline</strong> where image-quality adjustments
+   (saturation, exposure, sharpness, hue, optional watermark + datestamp)
+   are applied to the source image at full fidelity BEFORE the model-
+   specific transform (crop/zoom/fit/JPEG encode). This way a RAW or HIF
+   source benefits from the high-fidelity space; we only quantise into the
+   model's print-size JPEG at the very end.</li>
+<li><strong>Custom postprocessing presets</strong> so a user who likes
+   "+brightness +saturation +sharpness" can save the combination and
+   apply it with one click rather than re-adjusting every print.</li>
+</ol>
+<p>The current pipeline (<code>bridge/src/instantlink_bridge/imaging/pipeline.py:
+_prepare_for_model</code>) does: decode → <code>Image.draft</code> (JPEG only) →
+<code>exif_transpose</code> → <code>convert("RGB")</code> → <code>_apply_print_edit</code> (rotate / zoom /
+offset only) → <code>_fit_image</code> → <code>_encode_jpeg_with_size_limit</code>. The
+<code>PrintEdit</code> dataclass carries <code>rotate_degrees</code>, <code>zoom</code>, <code>offset_x</code>,
+<code>offset_y</code> — no colour / brightness controls today.</p>
+<h2 id="scope-of-work">Scope of work<a class="headerlink" href="#scope-of-work" title="Permanent link">&para;</a></h2>
+<p>Phased delivery so each phase ships behind a clean test boundary and a
+deployable bridge. Each phase ends with: all gates green, deployed to Pi,
+<code>NRestarts=0</code>, no Traceback in journal.</p>
+<h3 id="phase-1-settings-ia-print-becomes-a-hub">Phase 1 — Settings IA: Print becomes a hub<a class="headerlink" href="#phase-1-settings-ia-print-becomes-a-hub" title="Permanent link">&para;</a></h3>
+<ul>
+<li>New <code>SettingsPage</code> enum values: <code>PRINTER</code> (pairing + model),
+  <code>ADJUSTMENTS</code>, <code>TRANSFORM</code>, <code>AUTO_PRINT</code>.</li>
+<li><code>SETTINGS_BY_PAGE[SettingsPage.PRINT]</code> becomes a 4-row hub:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Printer ›
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Adjustments ›
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Transform ›
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>Auto print ›
+</code></pre></div></li>
+<li><code>SETTINGS_PARENT_PAGE</code> wires each new sub-page back to <code>PRINT</code>.</li>
+<li>New <code>SettingKey.OPEN_PRINTER</code>, <code>OPEN_ADJUSTMENTS</code>, <code>OPEN_TRANSFORM</code>,
+  <code>OPEN_AUTO_PRINT</code> (mirroring <code>OPEN_NETWORK</code> / <code>OPEN_SYSTEM</code> / etc.).</li>
+<li>Move rows into the right sub-pages:</li>
+<li><strong>Printer</strong>: <code>Serial</code>, <code>Pair/Re-pair</code>, <code>Reconnect</code>, <code>Forget</code>,
+    <code>Printer type</code>. Keep the unpaired/paired filtering already done
+    in <code>_visible_keys_for_page</code>.</li>
+<li><strong>Adjustments</strong>: placeholder until phases 3-4 land. For now, a
+    single info row <code>"Coming soon"</code> so the page exists but doesn't
+    pretend to do anything.</li>
+<li><strong>Transform</strong>: <code>Image fit</code>, <code>JPEG quality</code>. (Crop / zoom UI lives
+    in the live preview screen — those don't need settings rows.)</li>
+<li><strong>Auto print</strong>: <code>Auto print</code> (delay), <code>No-film test</code>, then the
+    <code>Advanced</code> divider, then <code>Keepalive</code>, <code>Search rate</code>.</li>
+</ul>
+<p>Tests / commits:
+- Update navigation-step tests for the new hub structure.
+- Preview-render the hub and each sub-page.
+- Single commit: <code>refactor(bridge/ui): split Print settings into
+  Printer/Adjustments/Transform/Auto print sub-pages</code>.</p>
+<h3 id="phase-2-postprocessing-pipeline-scaffolding">Phase 2 — Postprocessing pipeline scaffolding<a class="headerlink" href="#phase-2-postprocessing-pipeline-scaffolding" title="Permanent link">&para;</a></h3>
+<p>Build the <em>order</em> before building the <em>content</em>.</p>
+<ul>
+<li>New module <code>bridge/src/instantlink_bridge/imaging/postprocess.py</code>:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>apply_adjustments(image: Image.Image, profile: AdjustmentProfile) -&gt; Image.Image
+</code></pre></div></li>
+<li><code>AdjustmentProfile</code> is a frozen dataclass of all controllable values
+  (saturation, exposure, sharpness, hue, watermark, datestamp). All
+  defaults are pass-through (saturation=1.0, exposure=0.0, etc.) — an
+  empty/default profile is a no-op.</li>
+<li>Reorder <code>_prepare_for_model</code> so the call order is:</li>
+<li>decode (existing)</li>
+<li><code>Image.draft</code> (JPEG only — existing)</li>
+<li><code>exif_transpose</code> (existing)</li>
+<li><code>convert("RGB")</code> (existing)</li>
+<li><strong><code>apply_adjustments(image, profile)</code> — NEW, in full source resolution</strong></li>
+<li><code>_apply_print_edit</code> (existing — rotate / zoom / offset; this is the
+     interactive edit, not an adjustment)</li>
+<li><code>_fit_image</code> (existing — model-aware crop/contain/stretch)</li>
+<li><code>_encode_jpeg_with_size_limit</code> (existing)</li>
+<li>Tests: empty profile must produce byte-identical output to the
+  pre-refactor <code>_prepare_for_model</code> for the existing fixture images.</li>
+<li>No new user-visible behaviour in this phase; the profile is hard-coded
+  to defaults.</li>
+</ul>
+<p>Single commit: <code>feat(bridge/imaging): introduce postprocess.apply_adjustments
+ahead of model transform</code>.</p>
+<h3 id="phase-3-wire-the-four-colour-adjustments">Phase 3 — Wire the four colour adjustments<a class="headerlink" href="#phase-3-wire-the-four-colour-adjustments" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>AdjustmentProfile</code>:</li>
+<li><code>saturation: float = 1.0</code> — PIL <code>ImageEnhance.Color.enhance(factor)</code>.
+    Range UI: -100…+100 → factor 0.0…2.0 (linear; 0 = greyscale, 1 =
+    unchanged, 2 = double saturation).</li>
+<li><code>exposure: float = 0.0</code> — implemented via <code>ImageEnhance.Brightness</code>
+    with <code>factor = 2 ** (exposure / 2.0)</code> to give EV-stop semantics.
+    UI range -100…+100 → ±2 EV.</li>
+<li><code>sharpness: float = 1.0</code> — <code>ImageEnhance.Sharpness.enhance(factor)</code>.
+    UI range -100…+100 → 0…2.</li>
+<li><code>hue: int = 0</code> — degrees of hue rotation (-180…+180). Implement via
+    HSV channel rotation: <code>rgb_to_hsv → roll H → hsv_to_rgb</code>. Use the
+    pre-allocated NumPy path for speed since rawpy is already a dep.</li>
+<li>New <code>SettingKey</code> values: <code>ADJUST_SATURATION</code>, <code>ADJUST_EXPOSURE</code>,
+  <code>ADJUST_SHARPNESS</code>, <code>ADJUST_HUE</code>. Each is an adjustable picker with
+  a 5- or 9-position range (e.g. <code>−100, −50, 0, +50, +100</code>).</li>
+<li>Adjustments sub-page rows:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>Saturation: 0  ›
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Exposure: 0    ›
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>Sharpness: 0   ›
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>Hue: 0         ›
+</code></pre></div></li>
+<li>Config additions: <code>[adjustments]</code> section with all four fields plus a
+  <code>preset: str = "default"</code> field (presets land in phase 5).</li>
+<li>Render the Adjustments sub-page with the new rows; gated on the
+  <code>current preset == "custom"</code> so built-in presets don't surface
+  individual knobs (only the preset name).</li>
+</ul>
+<p>Tests:
+- <code>apply_adjustments</code> parametric: identity profile → unchanged image
+  (hash check), default profile → unchanged, each axis in isolation →
+  expected pixel-level shift on a synthetic test image.
+- Pipeline integration: end-to-end with a known JPEG, assert the
+  applied profile changes the bytes from the identity output.
+- Performance smoke: 12 MP source × full profile must complete under
+  X seconds on the Pi (set the target after first measurement on
+  device).</p>
+<p>Commit: <code>feat(bridge/imaging): saturation/exposure/sharpness/hue
+adjustments in the Print pipeline</code>.</p>
+<h3 id="phase-4-watermark-datestamp-overlays">Phase 4 — Watermark + datestamp overlays<a class="headerlink" href="#phase-4-watermark-datestamp-overlays" title="Permanent link">&para;</a></h3>
+<p>Both are end-of-adjustment overlays (still before the model transform —
+they live in the high-fidelity space so the watermark gets resampled
+cleanly by <code>_fit_image</code>).</p>
+<ul>
+<li><strong>Datestamp</strong>: read EXIF <code>DateTimeOriginal</code> via <code>Image.getexif()</code>,
+  format per the user's locale (English: <code>MMM d, yyyy</code>, Chinese:
+  <code>yyyy年M月d日</code>), render in bottom-right with a 4 px stroke shadow for
+  legibility on busy photos. Font: same DejaVu/CJK fallback ladder
+  render.py uses.</li>
+<li><strong>Watermark</strong>: text overlay, configurable string (default empty) +
+  position (top-left / top-right / bottom-left / bottom-right /
+  center).</li>
+<li>Settings rows in Adjustments sub-page:
+  <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Datestamp: Off / On   ›
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>Watermark: Off / On   ›
+</code></pre></div></li>
+<li>Two new SettingKey enum values: <code>ADJUST_DATESTAMP</code>,
+  <code>ADJUST_WATERMARK</code>. Both bool toggles for now; configurable text +
+  position can land in a future plan.</li>
+<li>Help text: explain the order — "Stamp the date the photo was taken
+  in the bottom-right corner" / "Stamp a short label on every print".</li>
+</ul>
+<p>Commit: <code>feat(bridge/imaging): datestamp + watermark overlays in the
+post-adjustment stage</code>.</p>
+<h3 id="phase-5-postprocessing-presets">Phase 5 — Postprocessing presets<a class="headerlink" href="#phase-5-postprocessing-presets" title="Permanent link">&para;</a></h3>
+<p>A preset is a named <code>AdjustmentProfile</code>. Built-in presets ship with the
+bridge; custom presets are saved by the user from the current values.</p>
+<ul>
+<li>Module <code>bridge/src/instantlink_bridge/imaging/presets.py</code>:</li>
+<li>Built-ins: <code>Default</code> (all identities), <code>Vivid</code> (sat +30, sharp +20,
+    exposure 0, hue 0), <code>Soft</code> (sat -10, sharp -20), <code>B&amp;W</code> (sat -100).</li>
+<li>User custom presets stored as TOML maps in
+    <code>/etc/InstantLinkBridge/presets.toml</code>. Cap at 4 user presets to
+    keep the picker short.</li>
+<li>Settings flow:</li>
+<li>Open Adjustments sub-page.</li>
+<li>Top row: <code>Preset: Default ›</code> (picker of all built-ins + user
+     presets + <code>"Custom"</code>).</li>
+<li>When <code>Custom</code> is selected, the four colour rows + datestamp /
+     watermark become editable. Otherwise they're displayed read-only
+     and reflect the active preset's values.</li>
+<li>New action row: <code>Save current as preset ›</code> — opens a tiny LCD
+     keyboard for naming. Defer the keyboard UI to a later plan if it's
+     too much surface; phase 5 can land with built-ins only and a
+     <code>"Save"</code> button that auto-names presets <code>Custom1</code> / <code>Custom2</code> /
+     <code>Custom3</code> / <code>Custom4</code>.</li>
+<li>Config: <code>[adjustments].preset = "Default"</code> is the active preset;
+  loader resolves the name to an <code>AdjustmentProfile</code>.</li>
+</ul>
+<p>Commit: <code>feat(bridge/imaging): postprocessing presets with built-in
+Default/Vivid/Soft/B&amp;W</code>.</p>
+<h3 id="phase-6-vignette-instax-film-preset">Phase 6 — Vignette + "Instax Film" preset<a class="headerlink" href="#phase-6-vignette-instax-film-preset" title="Permanent link">&para;</a></h3>
+<p>Real Instax film has darker corners — partly the small-format lens, partly
+the chemistry. Today the bridge's prints look optically <em>flat</em> compared to
+photos that came out of an actual Instax body. A radial corner-darkening
+overlay simulates that look, and a new built-in preset bundles it with the
+matching colour tweaks so users can opt in with one row.</p>
+<ul>
+<li>New <code>AdjustmentProfile</code> field:</li>
+<li><code>vignette: int = 0</code> — strength 0 (off) to 100 (heavy). Range is
+    one-sided (no "bright corners" mode) because the simulation only
+    makes sense as a darkening; "no vignette" is the identity.</li>
+<li>Settings row: new <code>ADJUST_VIGNETTE</code> SettingKey with a 5-position
+  discrete picker <code>{0, 25, 50, 75, 100}</code> — not the symmetric ±100
+  shape the four colour rows use, since negative vignette has no
+  real-world equivalent.</li>
+<li>Implementation in <code>apply_adjustments</code>:</li>
+<li>Runs AFTER sharpness, BEFORE the overlay stage (datestamp +
+    watermark are drawn on top of the vignette so corner stamps stay
+    legible).</li>
+<li>NumPy radial falloff: build a normalised radius map per-pixel
+    <code>r = sqrt((x/w - 0.5)^2 + (y/h - 0.5)^2)</code>, raise to a power that
+    determines how aggressive the rolloff is (<code>gamma ≈ 2.0</code> looks
+    closest to real Instax), then multiply RGB by <code>1 - r^gamma * (v/100)</code>.
+    Clamped at the original colour space so we don't crush blacks below
+    0.</li>
+<li>Lazy NumPy import (same pattern as Phase 3's hue rotation).</li>
+<li>Identity fast-path: <code>vignette == 0</code> skips the calculation entirely.</li>
+<li>New built-in preset <code>Instax Film</code>:</li>
+<li><code>saturation = -10</code> (slight desat for the vintage feel)</li>
+<li><code>sharpness = -10</code> (Instax prints aren't tack-sharp)</li>
+<li><code>vignette = 50</code> (the headline effect — visible but not heavy)</li>
+<li><code>hue = 0</code>, <code>exposure = 0</code>, <code>datestamp = False</code>, <code>watermark = False</code></li>
+<li>Tests:</li>
+<li><code>test_vignette_darkens_corners_more_than_centre</code>: small solid-
+    colour fixture, profile with <code>vignette=100</code>; assert corner pixels
+    are darker than the centre pixel by a measurable delta.</li>
+<li><code>test_vignette_identity_at_zero</code>: byte-identical output for
+    <code>vignette=0</code>.</li>
+<li><code>test_instax_film_preset_applies_vignette_and_desat</code>: preset
+    selection from settings picks up vignette + saturation deltas.</li>
+</ul>
+<p>Commit: <code>feat(bridge/imaging): radial vignette + Instax Film built-in
+preset</code>.</p>
+<p>Phase 6 sits AFTER Phase 5 because the preset system is the right
+surface for "Instax Film" to live on. Phase 5 ships with five built-in
+presets (Default / Vivid / Soft / B&amp;W + the new Instax Film slot stubbed
+out); Phase 6 fills it in once the vignette implementation lands.</p>
+<h2 id="cross-cutting-constraints">Cross-cutting constraints<a class="headerlink" href="#cross-cutting-constraints" title="Permanent link">&para;</a></h2>
+<ul>
+<li>After each phase: <code>pytest -q --timeout=10 --timeout-method=thread</code>,
+  <code>mypy src</code>, <code>ruff check src tests</code> must be clean.</li>
+<li>Deploy after each phase. Bridge must come back active with <code>NRestarts=0</code>.</li>
+<li>Conventional commits. Reference plan 035 + phase number in body.</li>
+<li>No <code>SKIP_HOOK=1</code> — memory file <code>skip-hook-not-needed</code> documents that
+  both lint gates are currently clean.</li>
+<li>Apple iOS 26 voice + sentence-case rules for any new copy. zh-Hans
+  entries added at the same time as their EN source.</li>
+</ul>
+<h2 id="open-design-questions-to-resolve-early">Open design questions to resolve early<a class="headerlink" href="#open-design-questions-to-resolve-early" title="Permanent link">&para;</a></h2>
+<ol>
+<li>
+<p><strong>Where do the <em>interactive</em> edits (rotate / zoom / pan) live now?</strong>
+   The current <code>_apply_print_edit</code> runs on the source. Keep it as
+   "interactive edit" between <code>apply_adjustments</code> and <code>_fit_image</code>, or
+   move it into the Transform sub-page semantics? Probably keep as-is
+   — interactive edits are per-photo, adjustments are persistent
+   defaults. Resolve in phase 1.</p>
+</li>
+<li>
+<p><strong>Pi Zero 2 W has 512 MB RAM and a slow SD card.</strong> Applying 4 colour
+   enhances + 2 overlays to a 24 MP source then resampling to
+   Mini/Square/Wide is non-trivial. Benchmark phase 3 on a real Sony
+   .ARW fixture before phase 4 ships; if we're &gt; 2 s per print at full
+   defaults, consider downsampling to print resolution first and
+   accepting the fidelity hit. Phase 2's identity-profile fast-path
+   makes this only a "user actually changed something" cost.</p>
+</li>
+<li>
+<p><strong>JPEG re-encode cost.</strong> Today the source is decoded once and
+   re-encoded once. The adjustment pipeline keeps this — we don't
+   round-trip to JPEG between adjustment and transform stages.</p>
+</li>
+<li>
+<p><strong>Watermark text length cap.</strong> ST7789 max-resolution font won't help
+   here — the watermark is on the printed image not the LCD. Cap at
+   ~24 chars and ellipsise; let the user know if they exceed.</p>
+</li>
+</ol>
+<h2 id="out-of-scope">Out of scope<a class="headerlink" href="#out-of-scope" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Custom watermark images (file upload over FTP from the camera or via
+  USB) — phase 5+.</li>
+<li>Custom datestamp formats — phase 5+.</li>
+<li>Multi-preset slideshow / time-based preset switching — never.</li>
+<li>Auto Adjustment ("auto white balance", "auto exposure") — not
+  meaningful on a 2-MP Instax print; user-set defaults are clearer.</li>
+<li>ja / ko i18n expansion — separate plan.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.indexes", "navigation.top", "navigation.tracking", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
