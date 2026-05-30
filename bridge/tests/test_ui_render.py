@@ -978,3 +978,76 @@ def test_adjustment_edit_mode_vignette_renders() -> None:
     snapshot = _adj_edit_snapshot(axis_key="adjust_vignette", value=40)
     image = render_snapshot(snapshot)
     assert image.size == (240, 240)
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 P1 fixes — render regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_selected_slider_row_renders_chevron() -> None:
+    """A selected slider row renders differently from a non-selected one (chevron present)."""
+    # Selected saturation row.
+    selected_snap = _adjustments_snapshot(saturation=0, selected_index=1)
+    selected_image = render_snapshot(selected_snap)
+
+    # Non-selected saturation row.
+    non_selected_snap = _adjustments_snapshot(saturation=0, selected_index=0)
+    non_selected_image = render_snapshot(non_selected_snap)
+
+    selected_pixels = selected_image.tobytes()
+    non_selected_pixels = non_selected_image.tobytes()
+    assert selected_pixels != non_selected_pixels, (
+        "Selected slider row should render differently (chevron) from non-selected"
+    )
+
+
+def test_destructive_toast_has_tinted_background() -> None:
+    """A 'Press KEY1 again' toast strip is tinted, not the plain page background."""
+    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
+    from instantlink_bridge.ui.theme import theme_for
+
+    rows = (
+        SettingsRow("Preset", "Custom", hint="Right/KEY1 choose"),
+        SettingsRow("Saturation", "0", hint="Right/KEY1 choose"),
+        SettingsRow("Exposure", "0", hint="Right/KEY1 choose"),
+        SettingsRow("Sharpness", "0", hint="Right/KEY1 choose"),
+        SettingsRow("Hue", "0", hint="Right/KEY1 choose"),
+        SettingsRow("Vignette", "0", hint="Right/KEY1 choose"),
+        SettingsRow("Datestamp", "Off", hint="Right/KEY1 choose"),
+        SettingsRow("Watermark", "Off", hint="Right/KEY1 choose"),
+        SettingsRow("Save current", "", hint="Right/KEY1 run"),
+    )
+    toast_snap = UiSnapshot(
+        mode=UiMode.SETTINGS,
+        ftp_host="192.168.7.1",
+        settings_title="Adjustments",
+        settings_rows=rows,
+        selected_index=0,
+        settings_message="Press KEY1 again to save as Custom1",
+        adjustments_profile=AdjustmentProfile(),
+    )
+    # Snapshot without the toast for comparison.
+    plain_snap = UiSnapshot(
+        mode=UiMode.SETTINGS,
+        ftp_host="192.168.7.1",
+        settings_title="Adjustments",
+        settings_rows=rows,
+        selected_index=0,
+        settings_message=None,
+        adjustments_profile=AdjustmentProfile(),
+    )
+
+    toast_image = render_snapshot(toast_snap)
+    render_snapshot(plain_snap)  # ensure no crash on plain render
+
+    theme = theme_for("light")
+    bg_hex = theme.bg.lstrip("#")
+    bg_rgb = (int(bg_hex[0:2], 16), int(bg_hex[2:4], 16), int(bg_hex[4:6], 16))
+
+    # Sample a pixel in the strip area (y≈210, x=20) from the toasted render.
+    # It must not be plain background colour (the tint must be applied).
+    strip_px = toast_image.getpixel((20, 210))
+    assert strip_px[:3] != bg_rgb, (
+        f"Strip pixel should be tinted, not bg {bg_rgb}; got {strip_px}"
+    )

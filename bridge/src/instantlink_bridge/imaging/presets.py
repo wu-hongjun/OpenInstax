@@ -37,6 +37,7 @@ __all__ = [
     "PRESET_ORDER",
     "USER_PRESETS_PATH",
     "VALID_PRESET_NAMES",
+    "is_preset_modified",
     "load_user_presets",
     "resolve_preset",
     "save_user_presets",
@@ -137,6 +138,64 @@ BUILTIN_PRESET_VALUES: dict[str, dict[str, int]] = {
 
 _MAX_USER_PRESETS = 6
 _USER_PRESET_SLOTS = ("Custom1", "Custom2", "Custom3", "Custom4", "Custom5", "Custom6")
+
+
+# ---------------------------------------------------------------------------
+# Preset modification detection (plan 036 P1 fix 2)
+# ---------------------------------------------------------------------------
+
+
+def is_preset_modified(
+    config: AdjustmentsConfig,
+    user_presets_path: Path = USER_PRESETS_PATH,
+) -> bool:
+    """Return True if the active preset's axes have been changed since loading.
+
+    Compares the five colour/tone axes (saturation, exposure, sharpness, hue,
+    vignette) against the canonical values for ``config.preset``.  Overlay
+    settings (datestamp, watermark) are intentionally excluded — they are
+    orthogonal features and should not trigger the modified marker.
+
+    For built-in presets the canonical values come from ``BUILTIN_PRESET_VALUES``.
+    For user custom slots the canonical values are reverse-converted from the
+    ``AdjustmentProfile`` stored in the presets file.  If the slot is not found
+    in the file (e.g. just allocated but not yet written) returns False.
+    If ``config.preset`` is neither a built-in nor a known user slot, returns
+    False (can't compare against an unknown baseline).
+    """
+
+    preset_name = config.preset
+
+    if preset_name in BUILTIN_PRESET_VALUES:
+        canonical = BUILTIN_PRESET_VALUES[preset_name]
+    else:
+        # User custom slot — load from disk and reverse-convert.
+        try:
+            user_presets = load_user_presets(user_presets_path)
+        except Exception:
+            return False
+        profile = user_presets.get(preset_name)
+        if profile is None:
+            return False
+        sat_ui = _factor_to_ui_int(profile.saturation - 1.0)
+        exp_ui = _factor_to_ui_int_exposure(profile.exposure)
+        shr_ui = _factor_to_ui_int(profile.sharpness - 1.0)
+        hue_ui = round(profile.hue / 1.8) if profile.hue != 0 else 0
+        canonical = {
+            "saturation": max(-100, min(100, sat_ui)),
+            "exposure": max(-100, min(100, exp_ui)),
+            "sharpness": max(-100, min(100, shr_ui)),
+            "hue": max(-100, min(100, hue_ui)),
+            "vignette": max(0, min(100, profile.vignette)),
+        }
+
+    return (
+        config.saturation != canonical["saturation"]
+        or config.exposure != canonical["exposure"]
+        or config.sharpness != canonical["sharpness"]
+        or config.hue != canonical["hue"]
+        or config.vignette != canonical["vignette"]
+    )
 
 
 # ---------------------------------------------------------------------------

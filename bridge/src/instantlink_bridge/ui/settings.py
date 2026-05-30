@@ -458,7 +458,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.ADJUST_SATURATION: "Colour intensity. Negative dulls, positive boosts",
     SettingKey.ADJUST_EXPOSURE: "Brightness in EV stops. ±100 = ±1 EV",
     SettingKey.ADJUST_SHARPNESS: "Edge contrast. Negative softens, positive crisps",
-    SettingKey.ADJUST_HUE: "Colour shift. Negative warms, positive cools",
+    SettingKey.ADJUST_HUE: "Tint. Left toward orange, right toward blue.",
     # Vignette picker (plan 035 phase 6).
     SettingKey.ADJUST_VIGNETTE: "Darken the corners to simulate Instax film",
     # Adjustments overlay toggles (plan 035 phase 4).

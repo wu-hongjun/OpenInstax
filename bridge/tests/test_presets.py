@@ -413,3 +413,79 @@ def test_custom5_and_custom6_valid_slots(tmp_path: Path) -> None:
     assert "Custom6" in loaded
     assert loaded["Custom5"].saturation == pytest.approx(1.1, abs=0.02)
     assert loaded["Custom6"].saturation == pytest.approx(0.8, abs=0.02)
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 P1 fix 2 — is_preset_modified tests
+# ---------------------------------------------------------------------------
+
+
+def test_is_preset_modified_false_when_axes_match_builtin() -> None:
+    """is_preset_modified returns False when all axes match the named built-in preset."""
+    from instantlink_bridge.imaging.presets import is_preset_modified
+
+    # Vivid: saturation=50, exposure=0, sharpness=25, hue=0, vignette=0
+    cfg = AdjustmentsConfig(
+        preset="Vivid", saturation=50, exposure=0, sharpness=25, hue=0, vignette=0
+    )
+    assert is_preset_modified(cfg) is False
+
+
+def test_is_preset_modified_true_when_axis_differs() -> None:
+    """is_preset_modified returns True when any colour axis differs from the preset."""
+    from instantlink_bridge.imaging.presets import is_preset_modified
+
+    # Vivid canonical saturation is 50; using 37 triggers the marker.
+    cfg = AdjustmentsConfig(
+        preset="Vivid", saturation=37, exposure=0, sharpness=25, hue=0, vignette=0
+    )
+    assert is_preset_modified(cfg) is True
+
+
+def test_is_preset_modified_ignores_datestamp_and_watermark() -> None:
+    """Overlay settings (datestamp, watermark) do NOT trigger the modified marker."""
+    from instantlink_bridge.imaging.presets import is_preset_modified
+
+    # Default: all axes = 0.
+    cfg = AdjustmentsConfig(
+        preset="Default",
+        saturation=0, exposure=0, sharpness=0, hue=0, vignette=0,
+        datestamp=True, watermark=True,
+    )
+    assert is_preset_modified(cfg) is False
+
+
+def test_is_preset_modified_false_for_unknown_preset() -> None:
+    """is_preset_modified returns False for an unknown preset name (no baseline)."""
+    from instantlink_bridge.imaging.presets import is_preset_modified
+
+    # Use object.__setattr__ to bypass validation — same pattern as
+    # test_resolve_preset_never_raises_on_unknown_name above.
+    cfg = AdjustmentsConfig(preset="Default", saturation=99)
+    object.__setattr__(cfg, "preset", "NonExistent999")
+    assert is_preset_modified(cfg) is False
+
+
+def test_is_preset_modified_true_for_user_custom_when_axis_differs(tmp_path: Path) -> None:
+    """is_preset_modified returns True for a custom slot when axes differ from saved values."""
+    from instantlink_bridge.imaging.presets import is_preset_modified, save_user_presets
+
+    presets_path = tmp_path / "presets.toml"
+    # Custom1 saved with saturation factor 1.5 (UI=50).
+    save_user_presets(presets_path, {"Custom1": AdjustmentProfile(saturation=1.5)})
+
+    # Config has saturation=30 (differs from saved 50).
+    cfg = AdjustmentsConfig(preset="Custom1", saturation=30)
+    assert is_preset_modified(cfg, presets_path) is True
+
+
+def test_is_preset_modified_false_for_user_custom_when_axes_match(tmp_path: Path) -> None:
+    """is_preset_modified returns False for a custom slot when axes match saved values."""
+    from instantlink_bridge.imaging.presets import is_preset_modified, save_user_presets
+
+    presets_path = tmp_path / "presets.toml"
+    save_user_presets(presets_path, {"Custom1": AdjustmentProfile(saturation=1.5)})
+
+    # Config with saturation=50 matches the saved factor 1.5.
+    cfg = AdjustmentsConfig(preset="Custom1", saturation=50)
+    assert is_preset_modified(cfg, presets_path) is False

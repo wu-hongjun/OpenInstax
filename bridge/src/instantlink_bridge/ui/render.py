@@ -187,6 +187,23 @@ def _darken(colour: str | tuple[int, int, int], amount: int = 30) -> str:
     return f"#{max(0, r - amount):02x}{max(0, g - amount):02x}{max(0, b - amount):02x}"
 
 
+def _destructive_strip_tint(theme: Theme) -> str:
+    """Return a 20 % alpha-blend of accent_destructive over the page background.
+
+    Used to tint the toast strip background for two-press destructive-confirm
+    messages so the affordance is visible at arm's length (plan 036 P1 fix 5).
+    Formula: 0.2 * accent_destructive + 0.8 * bg
+    """
+    ad = theme.accent_destructive.lstrip("#")
+    bg = theme.bg.lstrip("#")
+    ar, ag, ab = int(ad[0:2], 16), int(ad[2:4], 16), int(ad[4:6], 16)
+    br, bg_g, bb = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
+    tr = round(0.2 * ar + 0.8 * br)
+    tg = round(0.2 * ag + 0.8 * bg_g)
+    tb = round(0.2 * ab + 0.8 * bb)
+    return f"#{tr:02x}{tg:02x}{tb:02x}"
+
+
 def draw_pill(
     draw: ImageDraw.ImageDraw,
     x: int,
@@ -1469,6 +1486,11 @@ def _settings(
         bottom_text = t(bottom_text, snapshot.language)
         bottom_y = card_bottom + 2
         max_w = 240 - 32
+        # Destructive-confirm toasts get a tinted strip background so the
+        # affordance is visible at arm's length (plan 036 P1 fix 5).
+        if toast_message is not None and toast_message.startswith("Press KEY1 again"):
+            strip_tint = _destructive_strip_tint(theme)
+            draw.rectangle((0, card_bottom, 239, HINT_BAR_Y - 3), fill=strip_tint)
         lines = _wrap_two_lines(draw, bottom_text, font, max_w)
         for i, line in enumerate(lines):
             _text(draw, 16, bottom_y + i * 12, line, font, bottom_color)
@@ -1697,6 +1719,10 @@ def _adjustments(
         bottom_text = t(bottom_text, snapshot.language)
         bottom_y = card_bottom + 2
         max_w = 240 - 32
+        # Destructive-confirm toasts get a tinted strip background (plan 036 P1 fix 5).
+        if toast_message is not None and toast_message.startswith("Press KEY1 again"):
+            strip_tint = _destructive_strip_tint(theme)
+            draw.rectangle((0, card_bottom, 239, HINT_BAR_Y - 3), fill=strip_tint)
         lines = _wrap_two_lines(draw, bottom_text, font, max_w)
         for i, line in enumerate(lines):
             _text(draw, 16, bottom_y + i * 12, line, font, bottom_color)
@@ -1780,6 +1806,11 @@ def _draw_adjustments_slider_row(
     val_x = max(14, min(val_x, 226 - val_w))
     val_y = slider_y - 10
     _text(draw, val_x, val_y, val_label, font, theme.label_secondary)
+
+    # When selected, show a chevron at the right edge of the label zone to
+    # signal that KEY1 opens something (edit mode) — same affordance as picker rows.
+    if selected:
+        _text(draw, 84, y + 3, "›", font, theme.label_inverse)
 
 
 def _draw_adjustments_toggle_row(
@@ -1894,6 +1925,11 @@ def _draw_adjustments_slider_row_right(
     val_x = max(109, min(val_x, 224 - val_w))
     val_y = slider_y - 10
     _text(draw, val_x, val_y, val_label, font, theme.label_secondary)
+
+    # When selected, show a chevron at the right edge of the label zone to
+    # signal that KEY1 opens edit mode — same affordance as picker rows.
+    if selected:
+        _text(draw, 145, y + 3, "›", font, theme.label_inverse)
 
 
 def _draw_adjustments_picker_row_right(

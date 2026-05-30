@@ -3324,28 +3324,28 @@ async def test_adjustments_slider_row_select_enters_edit_mode(tmp_path: Path) ->
 
 
 @pytest.mark.asyncio
-async def test_adjustment_edit_up_nudges_minus_5(tmp_path: Path) -> None:
-    """UP in ADJUSTMENT_EDIT decrements working value by 5."""
+async def test_adjustment_edit_up_nudges_plus_5(tmp_path: Path) -> None:
+    """UP in ADJUSTMENT_EDIT increments working value by 5 (up = more)."""
     ui = _make_adj_ui(tmp_path, saturation=0)
     await ui._handle_action(UiAction.DOWN)  # Saturation row
     await ui._handle_action(UiAction.SELECT)  # enter edit
 
     await ui._handle_action(UiAction.UP)
 
-    assert ui._snapshot.adjustment_edit_value == -5
-    assert ui._adjustment_edit_value == -5
+    assert ui._snapshot.adjustment_edit_value == 5
+    assert ui._adjustment_edit_value == 5
 
 
 @pytest.mark.asyncio
-async def test_adjustment_edit_down_nudges_plus_5(tmp_path: Path) -> None:
-    """DOWN in ADJUSTMENT_EDIT increments working value by 5."""
+async def test_adjustment_edit_down_nudges_minus_5(tmp_path: Path) -> None:
+    """DOWN in ADJUSTMENT_EDIT decrements working value by 5 (down = less)."""
     ui = _make_adj_ui(tmp_path, saturation=0)
     await ui._handle_action(UiAction.DOWN)  # Saturation row
     await ui._handle_action(UiAction.SELECT)
 
     await ui._handle_action(UiAction.DOWN)
 
-    assert ui._snapshot.adjustment_edit_value == 5
+    assert ui._snapshot.adjustment_edit_value == -5
 
 
 @pytest.mark.asyncio
@@ -3400,7 +3400,7 @@ async def test_adjustment_edit_value_clamped_to_range(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_adjustment_edit_vignette_clamped_at_zero(tmp_path: Path) -> None:
-    """UP (-5) on vignette at 0 stays at 0 (range is [0, 100], not symmetric)."""
+    """DOWN (-5) on vignette at 0 stays at 0 (range is [0, 100], not symmetric)."""
     from instantlink_bridge.ui.settings import SettingsPage
 
     config_path = tmp_path / "config.toml"
@@ -3423,7 +3423,7 @@ async def test_adjustment_edit_vignette_clamped_at_zero(tmp_path: Path) -> None:
     await ui._handle_action(UiAction.SELECT)
 
     assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
-    await ui._handle_action(UiAction.UP)  # -5, but floor is 0
+    await ui._handle_action(UiAction.DOWN)  # -5, but floor is 0
 
     assert ui._snapshot.adjustment_edit_value == 0
 
@@ -3963,3 +3963,174 @@ async def test_selecting_black_and_white_preset_stamps_values(tmp_path: Path) ->
 
     assert ui._config.adjustments.saturation == -100
     assert ui._config.adjustments.preset == "Black & white"
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 P1 fixes — new regression tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_preset_row_shows_modified_marker_when_axis_differs(tmp_path: Path) -> None:
+    """Preset row shows 'Vivid *' when a colour axis differs from Vivid's canonical value."""
+    config_path = tmp_path / "config.toml"
+    # Vivid canonical saturation is 50; set it to 37 to trigger the marker.
+    config_path.write_text(
+        '[adjustments]\npreset = "Vivid"\nsaturation = 37\n', encoding="utf-8"
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    from instantlink_bridge.ui.settings import SettingKey
+    row = ui._settings_row_for_key(SettingKey.ADJUST_PRESET, "")
+    assert row.value == "Vivid *", f"Expected 'Vivid *', got {row.value!r}"
+
+
+@pytest.mark.asyncio
+async def test_preset_row_no_modified_marker_when_axes_match(tmp_path: Path) -> None:
+    """Preset row shows 'Vivid' (no marker) when axes match Vivid's canonical values."""
+    config_path = tmp_path / "config.toml"
+    # Vivid: saturation=50, sharpness=25, others=0.
+    config_path.write_text(
+        '[adjustments]\npreset = "Vivid"\nsaturation = 50\nsharpness = 25\n',
+        encoding="utf-8",
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    from instantlink_bridge.ui.settings import SettingKey
+    row = ui._settings_row_for_key(SettingKey.ADJUST_PRESET, "")
+    assert row.value == "Vivid", f"Expected 'Vivid', got {row.value!r}"
+
+
+@pytest.mark.asyncio
+async def test_save_overwrites_active_custom_slot(tmp_path: Path) -> None:
+    """Save on an active CustomN preset overwrites that slot, not a new one."""
+    import unittest.mock
+
+    presets_path = tmp_path / "presets.toml"
+    # Pre-populate Custom1.
+    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
+    from instantlink_bridge.imaging.presets import save_user_presets
+
+    save_user_presets(presets_path, {"Custom1": AdjustmentProfile(saturation=1.5)})
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[adjustments]\npreset = "Custom1"\nsaturation = 30\n', encoding="utf-8"
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    # Load user presets so the controller knows Custom1 exists.
+    from instantlink_bridge.imaging.presets import load_user_presets
+
+    ui._user_presets = load_user_presets(presets_path)
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+
+    # Navigate to "Save current" row (index 8).
+    for _ in range(8):
+        await ui._handle_action(UiAction.DOWN)
+
+    with unittest.mock.patch(
+        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
+    ):
+        # First press — arms confirm toast referencing Custom1 (overwrite).
+        await ui._handle_action(UiAction.SELECT)
+        msg = ui._snapshot.settings_message or ""
+        assert "overwrite" in msg.lower(), f"Expected overwrite toast, got: {msg!r}"
+        assert "Custom1" in msg, f"Expected Custom1 in toast, got: {msg!r}"
+
+        # Second press — commits.
+        await ui._handle_action(UiAction.SELECT)
+
+    # File written and preset label stays Custom1.
+    assert presets_path.exists()
+    assert ui._config.adjustments.preset == "Custom1"
+    # The saved profile should reflect saturation=30 (factor 1.3).
+    updated_presets = load_user_presets(presets_path)
+    import pytest as _pytest
+    assert updated_presets["Custom1"].saturation == _pytest.approx(1.3, abs=0.02)
+
+
+@pytest.mark.asyncio
+async def test_preset_picker_shows_empty_slots_when_no_user_customs(tmp_path: Path) -> None:
+    """Preset picker always shows all 11 options (5 built-ins + 6 Custom slots)."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    # No user presets loaded.
+    ui._user_presets = {}
+    options = ui._preset_picker_options()
+    assert len(options) == 11, f"Expected 11 options, got {len(options)}"
+    # All 6 custom slots should be present (as empty entries).
+    from instantlink_bridge.ui.settings import USER_PRESET_SLOT_NAMES
+    for slot in USER_PRESET_SLOT_NAMES:
+        values = [opt.value for opt in options]
+        assert slot in values, f"{slot} not in picker options"
+    # Labels for empty slots include '(empty)'.
+    empty_labels = [opt.label for opt in options if "(empty)" in opt.label]
+    assert len(empty_labels) == 6, f"Expected 6 empty-slot labels, got {len(empty_labels)}"
+
+
+@pytest.mark.asyncio
+async def test_empty_custom_slot_key1_shows_toast(tmp_path: Path) -> None:
+    """KEY1 on an empty Custom slot shows a toast instead of loading."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._user_presets = {}
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+
+    # Open preset picker (row 0, SELECT).
+    await ui._handle_action(UiAction.SELECT)
+    assert ui._snapshot.settings_title == "Preset"
+
+    # Navigate to Custom1 (index 5: 0=Default 1=Vivid 2=Soft 3=B&W 4=Instax Film 5=Custom1).
+    for _ in range(5):
+        await ui._handle_action(UiAction.DOWN)
+
+    # KEY1 on empty slot → toast, preset not changed.
+    await ui._handle_action(UiAction.SELECT)
+    msg = ui._snapshot.settings_message or ""
+    assert "empty" in msg.lower() or "save" in msg.lower(), (
+        f"Expected empty-slot toast, got: {msg!r}"
+    )
+    # Config preset unchanged.
+    assert ui._config.adjustments.preset == "Default"

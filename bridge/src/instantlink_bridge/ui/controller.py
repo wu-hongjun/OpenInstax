@@ -77,7 +77,6 @@ from instantlink_bridge.ui.settings import (
     ftp_receive_mode_label,
     language_label,
     model_label,
-    preset_options,
     seconds_label,
     selected_option_index,
     setting_action_hint,
@@ -1283,12 +1282,13 @@ class BridgeUi:
         self._render()
 
     def _show_preset_picker(self, message: str | None = None) -> None:
-        """Open the preset picker with live user-custom names merged in."""
+        """Open the preset picker with all 6 Custom slots always visible.
 
-        user_names = tuple(
-            slot for slot in USER_PRESET_SLOT_NAMES if slot in self._user_presets
-        )
-        options = preset_options(user_names)
+        Populated slots show normally; empty slots are dimmed with an
+        '(empty)' label so the save-preset flow is discoverable.
+        """
+
+        options = self._preset_picker_options()
         current_preset = self._config.adjustments.preset
         selected_index = next(
             (i for i, opt in enumerate(options) if opt.value == current_preset),
@@ -1315,7 +1315,13 @@ class BridgeUi:
         rows = []
         for opt in options:
             is_user = opt.value in USER_PRESET_SLOT_NAMES
-            hint = "KEY1 load · hold=edit" if is_user else "KEY1 load"
+            is_empty = is_user and opt.value not in self._user_presets
+            if is_empty:
+                hint = "KEY1 empty"
+            elif is_user:
+                hint = "KEY1 load · hold=edit"
+            else:
+                hint = "KEY1 load"
             rows.append(SettingsRow(
                 opt.label,
                 "active" if opt.value == current_preset else "",
@@ -1324,12 +1330,22 @@ class BridgeUi:
         return tuple(rows)
 
     def _preset_picker_options(self) -> tuple[SettingOption, ...]:
-        """Return live preset options including any loaded user custom slots."""
+        """Return preset options: all 5 built-ins + all 6 Custom slots always.
 
-        user_names = tuple(
-            slot for slot in USER_PRESET_SLOT_NAMES if slot in self._user_presets
-        )
-        return preset_options(user_names)
+        Empty custom slots are shown with an '(empty)' label so the
+        save-preset flow is discoverable upfront (plan 036 P1 fix 6).
+        """
+        from instantlink_bridge.ui.settings import BUILTIN_PRESET_NAMES
+
+        options: list[SettingOption] = [
+            SettingOption(name, name) for name in BUILTIN_PRESET_NAMES
+        ]
+        for slot in USER_PRESET_SLOT_NAMES:
+            if slot in self._user_presets:
+                options.append(SettingOption(slot, slot))
+            else:
+                options.append(SettingOption(f"{slot} (empty)", slot))
+        return tuple(options)
 
     # -----------------------------------------------------------------------
     # Focused adjustment-edit mode (plan 036 phase 4)
@@ -1444,9 +1460,9 @@ class BridgeUi:
             self._show_settings(page=SettingsPage.ADJUSTMENTS)
             return
         if action is UiAction.UP:
-            self._update_adjustment_edit_value(-5)
-        elif action is UiAction.DOWN:
             self._update_adjustment_edit_value(5)
+        elif action is UiAction.DOWN:
+            self._update_adjustment_edit_value(-5)
         elif action is UiAction.LEFT:
             self._update_adjustment_edit_value(-25)
         elif action is UiAction.RIGHT:
@@ -1523,9 +1539,19 @@ class BridgeUi:
             return
         option = options[self._snapshot.selected_index]
         if key is SettingKey.ADJUST_PRESET:
+            slot_name = str(option.value)
+            # Empty custom slots (shown as "CustomN (empty)") are not loadable.
+            # KEY1 shows a toast pointing the user to the Save flow instead.
+            if slot_name in USER_PRESET_SLOT_NAMES and slot_name not in self._user_presets:
+                self._snapshot = replace(
+                    self._snapshot,
+                    settings_message="Empty — use Save current to fill",
+                )
+                self._render()
+                return
             # Selecting a preset stamps its per-axis values into config (plan 036
             # phase 5).  The preset field updates to the chosen name as a label.
-            await self._stamp_preset(str(option.value))
+            await self._stamp_preset(slot_name)
             return
         updated = config_with_setting_value(self._config, key, option.value)
         if updated == self._config:
@@ -1961,26 +1987,40 @@ class BridgeUi:
         except Exception:
             current_saved = dict(self._user_presets)
 
-        # Find the first free slot.
-        free_slot: str | None = None
-        for slot in USER_PRESET_SLOT_NAMES:
-            if slot not in current_saved:
-                free_slot = slot
-                break
+        # Determine target slot: if the active preset is already a CustomN slot
+        # that exists in the saved file, default to overwriting it in place.
+        active_preset = self._config.adjustments.preset
+        overwrite_slot: str | None = None
+        if active_preset in USER_PRESET_SLOT_NAMES and active_preset in current_saved:
+            overwrite_slot = active_preset
 
-        if free_slot is None:
-            self._show_settings("6 custom slots full")
-            return
+        if overwrite_slot is not None:
+            target_slot = overwrite_slot
+            toast = f"Press KEY1 again to overwrite {target_slot}"
+        else:
+            # Find the first free slot.
+            free_slot: str | None = None
+            for slot in USER_PRESET_SLOT_NAMES:
+                if slot not in current_saved:
+                    free_slot = slot
+                    break
+
+            if free_slot is None:
+                self._show_settings("6 custom slots full")
+                return
+
+            target_slot = free_slot
+            toast = f"Press KEY1 again to save as {target_slot}"
 
         if not self._pending_save_preset:
             # First press — arm the confirm and show the destructive toast.
             self._pending_save_preset = True
-            self._show_settings(f"Press KEY1 again to save as {free_slot}")
+            self._show_settings(toast)
             return
 
         # Second press — commit.
         self._pending_save_preset = False
-        await self._write_preset_slot(free_slot, current_saved)
+        await self._write_preset_slot(target_slot, current_saved)
 
     async def _write_preset_slot(
         self,
@@ -2129,7 +2169,12 @@ class BridgeUi:
         if key is SettingKey.ADJUSTMENTS_COMING_SOON:
             return SettingsRow("Coming soon", "")
         if key is SettingKey.ADJUST_PRESET:
-            return SettingsRow("Preset", self._config.adjustments.preset)
+            from instantlink_bridge.imaging.presets import is_preset_modified
+
+            preset_label = self._config.adjustments.preset
+            if is_preset_modified(self._config.adjustments):
+                preset_label = f"{preset_label} *"
+            return SettingsRow("Preset", preset_label)
         if key is SettingKey.ADJUST_SAVE_CUSTOM:
             return SettingsRow("Save current", "")
         # Colour-axis rows are always editable (plan 036 phase 5: Custom gate removed).
