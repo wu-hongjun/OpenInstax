@@ -53,6 +53,7 @@ class StatusSignal(StrEnum):
     SEARCHING = "searching"
     ERROR = "error"
     WARNING = "warning"
+    NEUTRAL = "neutral"  # Informational overlay (e.g. SETTINGS) — rendered blue
 
 
 class StatusPattern(StrEnum):
@@ -67,6 +68,7 @@ class StatusPattern(StrEnum):
 _GREEN_RGB: tuple[int, int, int] = (0, 166, 118)  # #00a676
 _YELLOW_RGB: tuple[int, int, int] = (242, 193, 78)  # #f2c14e
 _RED_RGB: tuple[int, int, int] = (225, 85, 84)  # #e15554
+_BLUE_RGB: tuple[int, int, int] = (10, 132, 255)  # #0A84FF (iOS systemBlue dark)
 
 
 # Breath curve: 2 s cycle, intensity scaled 60 % → 100 %. Gentle enough to read
@@ -128,6 +130,7 @@ _NOT_READY_SOLID = StatusState(StatusSignal.NOT_READY, StatusPattern.SOLID, _YEL
 _SEARCHING_BREATH = StatusState(StatusSignal.SEARCHING, StatusPattern.BREATHING, _YELLOW_RGB)
 _ERROR_SOLID = StatusState(StatusSignal.ERROR, StatusPattern.SOLID, _RED_RGB)
 _WARNING_BREATH = StatusState(StatusSignal.WARNING, StatusPattern.BREATHING, _RED_RGB)
+_SETTINGS_SOLID = StatusState(StatusSignal.NEUTRAL, StatusPattern.SOLID, _BLUE_RGB)
 
 
 def derive_status(snapshot: UiSnapshot) -> StatusState:
@@ -142,7 +145,11 @@ def derive_status(snapshot: UiSnapshot) -> StatusState:
     mode = snapshot.mode
 
     if mode is UiMode.SETTINGS:
-        return _settings_inherit(snapshot)
+        # SETTINGS is an informational overlay — always render the pill blue
+        # (plan 034 item 1a). Yellow ≡ warning in the signal vocabulary, so
+        # inheriting the underlying bridge health caused the pill to turn
+        # yellow/red whenever the user opened settings from a non-ready state.
+        return _SETTINGS_SOLID
 
     if mode is UiMode.READY:
         # Ready solid only when the readiness backing is fresh; otherwise the

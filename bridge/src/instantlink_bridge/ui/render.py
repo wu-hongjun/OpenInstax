@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 from instantlink_bridge.ble.models import PrinterModel
 from instantlink_bridge.ui.i18n import t
 from instantlink_bridge.ui.models import UiMode, UiSnapshot
-from instantlink_bridge.ui.status_indicator import StatusState, derive_status
+from instantlink_bridge.ui.status_indicator import StatusSignal, StatusState, derive_status
 from instantlink_bridge.ui.theme import Theme, theme_for
 
 LCD_SIZE = (240, 240)
@@ -292,18 +292,24 @@ def draw_status_bar(
     fg = state.foreground()
     fg_hex = _rgb_to_hex(fg)
 
-    # Measure pill width: max(60, text_width + 24). PIL's textbbox is typed
-    # as returning floats; coerce here so downstream pixel coords stay int.
+    # Measure pill width. CJK glyphs are wider and need more horizontal
+    # padding so "设置" doesn't look cramped (plan 034 item 13).
+    # Latin: max(60, word_w + 24); CJK: max(76, word_w + 32).
     word_bbox = draw.textbbox((0, 0), word, font=font_body)
     word_w = int(word_bbox[2] - word_bbox[0])
-    pill_w = max(60, word_w + 24)
+    if _has_cjk(word):
+        pill_w = max(76, word_w + 32)
+    else:
+        pill_w = max(60, word_w + 24)
     pill_h = 22
 
     # Pill always centred on x=120 regardless of mode. In SETTINGS mode the
     # page counter ("2/4") anchors to the top-right of the bar so it never
     # nudges the pill off-centre.
     pill_x = 120 - pill_w // 2
-    pill_y = (STATUS_BAR_H - pill_h) // 2
+    # Optical centring: +1 px shift so pill sits with 8 px above / 6 px below
+    # rather than equal 7/7 margins (plan 034 item 6).
+    pill_y = (STATUS_BAR_H - pill_h) // 2 + 1
 
     draw_pill(draw, pill_x, pill_y, pill_w, pill_h, pill_bg_hex, fg_hex, word, font_body)
 
@@ -325,7 +331,15 @@ def _state_pill_bg(
     state: StatusState,
     theme: Theme,
 ) -> tuple[int, int, int]:
-    """Return the full-intensity pill background RGB for a StatusState."""
+    """Return the full-intensity pill background RGB for a StatusState.
+
+    NEUTRAL (SETTINGS overlay) uses the theme's blue pill token so the pill
+    reads as a calm informational indicator, not a warning (plan 034 item 1a).
+    All other signals fall back to the state's base_color.
+    """
+    if state.signal is StatusSignal.NEUTRAL:
+        h = theme.pill_bg_blue.lstrip("#")
+        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
     return state.base_color
 
 
@@ -379,6 +393,11 @@ def status_bar_word(snapshot: UiSnapshot) -> str:
     """
 
     mode = snapshot.mode
+    if mode is UiMode.SETTINGS:
+        # Use the sub-page name populated by the controller (Print, Network,
+        # System, About, Accessibility). Fall back to "Settings" when absent
+        # so the bare root-menu view still gets a readable pill (plan 034 item 1b).
+        return snapshot.settings_title if snapshot.settings_title else "Settings"
     if mode is UiMode.READY:
         return "Connected" if can_accept_images(snapshot) else "Waiting"
     if mode is UiMode.PRINTER_SEARCHING and _is_waiting_for_user_message(
@@ -497,7 +516,10 @@ def draw_hint_bar(
             line2_y = line1_y + line_h + gap
             tx1 = cx - tw1 // 2 - bbox1[0]
             tx2 = cx - tw2 // 2 - draw.textbbox((0, 0), fitted2, font=font)[0]
-            draw.text((tx1, line1_y), fitted1, fill=theme.hint_fg, font=font)
+            # Line 1 = key label (KEY1/KEY2/KEY3): promote to label_primary so
+            # the eye can scan key → action at arm's length (plan 034 item 11).
+            # Line 2 = action word: stays in hint_fg (muted).
+            draw.text((tx1, line1_y), fitted1, fill=theme.label_primary, font=font)
             draw.text((tx2, line2_y), fitted2, fill=theme.hint_fg, font=font)
         else:
             line1_y = pill_y + (pill_h - line_h) // 2 - bbox1[1]
@@ -571,11 +593,19 @@ def draw_settings_row(
         marker_h = _font_height(draw, marker, marker_font)
         marker_y = y + (row_height - marker_h) // 2 - 1
         _text(draw, marker_x, marker_y, marker, marker_font, marker_fill)
-        value_right = marker_x - 4
+        # Widen gap from chevron to value text: -6 instead of -4 so the value
+        # field doesn't crash into the chevron at LARGE font scale (plan 034 item 16).
+        value_right = marker_x - 6
     else:
         value_right = 218
 
-    value_text = _fit_text_to_width(draw, value, font, max(0, value_right - 122))
+    # Guarantee a minimum 40 px value field before truncating. If the available
+    # space is narrower (can happen at LARGE scale with a wide chevron) fall back
+    # to rendering nothing — the chevron alone signals that the row is actionable.
+    value_field_w = value_right - 122
+    if value_field_w < 40:
+        return
+    value_text = _fit_text_to_width(draw, value, font, value_field_w)
     value_width = _text_width(draw, value_text, font)
     _text(draw, max(122, value_right - value_width), y + 3, value_text, font, value_fill)
 

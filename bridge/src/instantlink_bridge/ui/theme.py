@@ -99,6 +99,7 @@ class Theme:
     pill_bg_green: str
     pill_bg_yellow: str
     pill_bg_red: str
+    pill_bg_blue: str
 
     # Hint bar
     hint_bg: str  # bar background
@@ -127,6 +128,7 @@ LIGHT_THEME = Theme(
     pill_bg_green="#65D87C",   # #34C759 * 0.70 + #FFF * 0.30 → #65D87C
     pill_bg_yellow="#FFD833",  # #FFCC00 * 0.70 + #FFF * 0.30 → #FFD833
     pill_bg_red="#FF6D65",     # #FF3B30 * 0.70 + #FFF * 0.30 → #FF6D65
+    pill_bg_blue="#57A8FF",    # #007AFF * 0.70 + #FFF * 0.30 → #57A8FF
     hint_bg="#E5E5EA",
     hint_fg="#6B6B70",
 )
@@ -139,7 +141,7 @@ DARK_THEME = Theme(
     bg="#000000",  # systemBackground (dark)
     surface="#1C1C1E",  # systemGray6 (dark)
     surface_elevated="#2C2C2E",  # systemGray5 (dark)
-    separator="#38383A",
+    separator="#48484A",  # Apple dark separator token (bumped from #38383A — plan 034 item 5b)
     label_primary="#FFFFFF",
     label_secondary="#A1A1A6",
     label_inverse="#000000",
@@ -153,8 +155,9 @@ DARK_THEME = Theme(
     # the accent vibrant but adds the frosted-glass tonal shift.
     # Formula: round(accent * 0.82 + surface * 0.18)
     pill_bg_green="#2DB44E",   # #30D158 * 0.82 + #1C1C1E * 0.18 → #2DB44E
-    pill_bg_yellow="#D4B20D",  # #FFD60A * 0.82 + #1C1C1E * 0.18 → #D4B20D
+    pill_bg_yellow="#E6B800",  # bumped from #D4B20D — plan 034 item 5a; warm yellow, not ochre
     pill_bg_red="#D43A30",     # #FF453A * 0.82 + #1C1C1E * 0.18 → #D43A30
+    pill_bg_blue="#0E74E8",    # #0A84FF * 0.82 + #1C1C1E * 0.18 → #0E74E8
     hint_bg="#1C1C1E",
     hint_fg="#A1A1A6",
 )

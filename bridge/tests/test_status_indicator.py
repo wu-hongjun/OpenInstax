@@ -157,36 +157,25 @@ def test_printer_searching_while_probing_stays_breathing() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SETTINGS overlay inheritance
+# SETTINGS overlay — always blue/neutral (plan 034 item 1a)
 # ---------------------------------------------------------------------------
 
 
-def test_settings_overlay_inherits_ready_when_status_is_fresh() -> None:
-    state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS))
-
-    assert state.signal is StatusSignal.READY
-
-
-def test_settings_overlay_shows_not_ready_when_no_printer_paired() -> None:
-    state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS, paired_printer=None))
-
-    assert state.signal is StatusSignal.NOT_READY
-
-
-def test_settings_overlay_shows_warning_when_film_exhausted() -> None:
-    state = derive_status(
-        _ready_snapshot(mode=UiMode.SETTINGS, film_remaining=0)
-    )
-
-    assert state.signal is StatusSignal.WARNING
-
-
-def test_settings_overlay_shows_searching_when_status_stale() -> None:
-    state = derive_status(
-        _ready_snapshot(mode=UiMode.SETTINGS, printer_status_fresh=False)
-    )
-
-    assert state.signal is StatusSignal.SEARCHING
+def test_settings_overlay_always_returns_neutral_solid() -> None:
+    """SETTINGS always renders the pill blue (NEUTRAL solid) regardless of
+    underlying bridge health. Yellow ≡ warning in the signal vocabulary, so
+    the pill must not turn yellow/red just because the user opened settings
+    from a non-ready state (plan 034 item 1a).
+    """
+    for overrides in (
+        {},
+        {"paired_printer": None},
+        {"film_remaining": 0},
+        {"printer_status_fresh": False},
+    ):
+        state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS, **overrides))
+        assert state.signal is StatusSignal.NEUTRAL, f"overrides={overrides}"
+        assert state.pattern is StatusPattern.SOLID, f"overrides={overrides}"
 
 
 # ---------------------------------------------------------------------------
