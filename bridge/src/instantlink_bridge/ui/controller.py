@@ -1043,6 +1043,26 @@ class BridgeUi:
             else:
                 self._show_settings()
 
+    def _visible_keys_for_page(self, page: SettingsPage) -> tuple[SettingKey, ...]:
+        """Return the settings rows actually shown for ``page``.
+
+        The static SETTINGS_BY_PAGE table is the canonical order. The PRINT
+        page additionally hides RESET_PRINTER_LINK and FORGET_PRINTER when
+        no printer is saved — there's nothing to reconnect to or forget,
+        and surfacing them just clutters the menu for first-time users.
+        PAIR_PRINTER stays in both states (it's state-aware: shows "Pair"
+        when unpaired, "Re-pair" when paired).
+        """
+
+        keys = SETTINGS_BY_PAGE[page]
+        if page is not SettingsPage.PRINT or self._snapshot.paired_printer is not None:
+            return keys
+        return tuple(
+            k
+            for k in keys
+            if k not in (SettingKey.RESET_PRINTER_LINK, SettingKey.FORGET_PRINTER)
+        )
+
     def _show_settings(
         self,
         message: str | None = None,
@@ -1053,7 +1073,7 @@ class BridgeUi:
         self._settings_picker_key = None
         if page is not None:
             self._settings_page = page
-        keys = SETTINGS_BY_PAGE[self._settings_page]
+        keys = self._visible_keys_for_page(self._settings_page)
         selected_index = min(self._settings_indices[self._settings_page], len(keys) - 1)
         self._settings_indices[self._settings_page] = selected_index
         self._snapshot = replace(
@@ -1092,7 +1112,7 @@ class BridgeUi:
             if self._settings_page is SettingsPage.MAIN:
                 self._show_settings("KEY1 opens category")
                 return
-            keys = SETTINGS_BY_PAGE[self._settings_page]
+            keys = self._visible_keys_for_page(self._settings_page)
             self._show_settings(self._settings_row_help(keys[self._snapshot.selected_index]))
             return
         if action in {UiAction.BACK, UiAction.LEFT}:
@@ -1110,7 +1130,7 @@ class BridgeUi:
         if action in {UiAction.UP, UiAction.DOWN}:
             self._clear_pending_confirms()
             direction = -1 if action is UiAction.UP else 1
-            keys = SETTINGS_BY_PAGE[self._settings_page]
+            keys = self._visible_keys_for_page(self._settings_page)
             selected_index = (self._snapshot.selected_index + direction) % len(keys)
             self._settings_indices[self._settings_page] = selected_index
             self._snapshot = replace(
@@ -1122,7 +1142,7 @@ class BridgeUi:
             self._render()
             return
         if action in {UiAction.RIGHT, UiAction.SELECT}:
-            keys = SETTINGS_BY_PAGE[self._settings_page]
+            keys = self._visible_keys_for_page(self._settings_page)
             await self._activate_setting(keys[self._snapshot.selected_index])
 
     async def _activate_setting(self, key: SettingKey) -> None:
@@ -1137,15 +1157,20 @@ class BridgeUi:
             self._show_settings(page=PAGE_FOR_OPEN_KEY[key])
             return
         if key is SettingKey.PAIR_PRINTER:
+            # State-aware: unpaired → scan immediately ("Pair"). Paired →
+            # the destructive "Re-pair" flow (two-press confirm that wipes
+            # the saved printer + BlueZ bond, then enters the picker). This
+            # subsumes the old standalone FORGET_AND_REPAIR row so the user
+            # has one place to start pairing regardless of state.
+            if self._snapshot.paired_printer is not None:
+                await self._confirm_or_forget_and_repair()
+                return
             self._clear_pending_confirms()
             self._pair_return_page = self._settings_page
             await self._start_pairing()
             return
         if key is SettingKey.RESET_PRINTER_LINK:
             await self._confirm_or_reset_ble_link()
-            return
-        if key is SettingKey.FORGET_AND_REPAIR:
-            await self._confirm_or_forget_and_repair()
             return
         if key is SettingKey.FORGET_PRINTER:
             await self._confirm_or_forget_selected_printer()
@@ -1538,7 +1563,7 @@ class BridgeUi:
                 hint=setting_action_hint(key),
                 help=self._settings_row_help(key),
             )
-            for key in SETTINGS_BY_PAGE[self._settings_page]
+            for key in self._visible_keys_for_page(self._settings_page)
         )
 
     def _current_settings_rows(self) -> tuple[SettingsRow, ...]:
@@ -1572,23 +1597,23 @@ class BridgeUi:
                 return SettingsRow("Serial", "none")
             return SettingsRow("Serial", paired.name.removeprefix("INSTAX-"))
         if key is SettingKey.PAIR_PRINTER:
-            # Value is now a short action label; the saved serial lives on the
-            # PRINTER_SERIAL_INFO row above so this row stays unambiguous.
-            return SettingsRow("Find printer", "scan")
+            # State-aware. Unpaired → "Pair" to start a scan. Paired →
+            # "Re-pair" which routes through the destructive Forget+scan
+            # confirm (the old FORGET_AND_REPAIR semantics). The saved
+            # serial lives on the PRINTER_SERIAL_INFO row above, so this
+            # row stays a single short action verb.
+            if self._snapshot.paired_printer is not None:
+                return SettingsRow("Re-pair", "")
+            return SettingsRow("Pair", "")
         if key is SettingKey.RESET_PRINTER_LINK:
-            return SettingsRow("Reset BLE link", "run")
-        if key is SettingKey.FORGET_AND_REPAIR:
-            # Two-press confirm (KEY1 again) — not a hold. The actual
-            # instruction lives in the toast after the first press.
-            return SettingsRow(
-                "Forget & re-pair",
-                "saved" if self._snapshot.paired_printer else "none",
-            )
+            # Renamed "Reset BLE link" → "Reconnect" (iOS verb). The row
+            # is hidden when unpaired by _visible_keys_for_page, so this
+            # only ever renders with a printer to reconnect to.
+            return SettingsRow("Reconnect", "")
         if key is SettingKey.FORGET_PRINTER:
-            return SettingsRow(
-                "Forget printer",
-                "saved" if self._snapshot.paired_printer else "none",
-            )
+            # Renamed "Forget printer" → "Forget" (matches Apple's
+            # Bluetooth-Settings vocabulary). Hidden when unpaired too.
+            return SettingsRow("Forget", "")
         if key is SettingKey.PRINTER_MODEL:
             return SettingsRow("Printer type", model_label(self._config.printer.model))
         if key is SettingKey.KEEPALIVE:
@@ -1747,11 +1772,16 @@ class BridgeUi:
         if key is SettingKey.SYSTEM_IDLE_INFO:
             return "Dim and screen-off timing"
         if key is SettingKey.PAIR_PRINTER:
+            # Help text mirrors the row label: paired → destructive re-pair
+            # warning so the user knows KEY1 will wipe before scanning;
+            # unpaired → the simple "scan and remember" call-to-action.
+            if self._snapshot.paired_printer is not None:
+                return "Forget the saved printer, then scan"
             return "Scan and remember one Instax printer"
         if key is SettingKey.RESET_PRINTER_LINK:
-            return "Reconnect to the saved printer"
+            return "Quick BLE reconnect, no re-pair"
         if key is SettingKey.FORGET_PRINTER:
-            return "Remove the saved printer"
+            return "Forget the saved printer"
         if key is SettingKey.REFRESH_STATUS:
             return "Re-check printer and FTP now"
         if key is SettingKey.OPEN_NETWORK:

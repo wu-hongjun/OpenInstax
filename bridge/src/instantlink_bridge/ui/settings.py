@@ -105,15 +105,21 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.OPEN_ACCESSIBILITY,
     ),
     # PRINT subsumes the old Printer page. Printer-pairing rows come first
-    # (Serial, Find printer, Reset BLE, Forget & re-pair, Forget, Printer
-    # type) so the user can confirm/recover the bonded printer before
-    # tweaking print-time options. Keepalive and Search rate are advanced
-    # knobs at the bottom.
+    # (Serial, Pair, Reconnect, Forget, Printer type) so the user can
+    # confirm/recover the bonded printer before tweaking print-time options.
+    # Keepalive and Search rate are advanced knobs at the bottom.
+    #
+    # PAIR_PRINTER is the single pair/re-pair surface: when no printer is
+    # saved it shows "Pair" and starts a scan; when one is saved it shows
+    # "Re-pair" and routes through the destructive Forget+scan confirm
+    # (formerly the standalone FORGET_AND_REPAIR row). RESET_PRINTER_LINK
+    # and FORGET_PRINTER are only useful when there's something to operate
+    # on, so the controller filters them out when nothing is paired —
+    # they stay listed here as the canonical paired-state row order.
     SettingsPage.PRINT: (
         SettingKey.PRINTER_SERIAL_INFO,
         SettingKey.PAIR_PRINTER,
         SettingKey.RESET_PRINTER_LINK,
-        SettingKey.FORGET_AND_REPAIR,
         SettingKey.FORGET_PRINTER,
         SettingKey.PRINTER_MODEL,
         SettingKey.AUTO_PRINT_DELAY,
@@ -294,10 +300,13 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.OPEN_ABOUT: "Versions and device identity",
     SettingKey.OPEN_ACCESSIBILITY: "Text size, language, and appearance",
     SettingKey.FTP_RECEIVE_MODE: "Hotspot: bridge AP. Client: join existing.",
-    SettingKey.PAIR_PRINTER: "Scan and remember one Instax printer",
+    SettingKey.PAIR_PRINTER: "Pair an Instax printer, or re-pair to swap",
     SettingKey.RESET_PRINTER_LINK: "Reconnect to the saved printer",
-    SettingKey.FORGET_PRINTER: "Remove the saved printer (no re-pair)",
+    SettingKey.FORGET_PRINTER: "Forget the saved printer",
     SettingKey.PRINTER_SERIAL_INFO: "Serial of the saved Instax printer",
+    # FORGET_AND_REPAIR's help text is retained here for callers that look
+    # it up via SETTING_HELP_TEXT (kept for back-compat in the dynamic
+    # _settings_row_help branches); the row itself is no longer surfaced.
     SettingKey.FORGET_AND_REPAIR: "Wipe pairing, then start a fresh scan",
     SettingKey.FTP_MODE_INFO: "Path the camera actually used",
     SettingKey.FTP_HOST_INFO: "Enter as FTP server in camera",
