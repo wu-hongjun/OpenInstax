@@ -686,14 +686,27 @@ def _ready(
     elif battery_cell is not None:
         row_groups.append([battery_cell])
 
-    if snapshot.paired_printer is not None:
-        bare_id = snapshot.paired_printer.name.removeprefix("INSTAX-")
-        row_groups.append([(t("Printer", lang), bare_id)])
-
-    # SSID row removed from READY body: the READY card is the *printer*
-    # info section (type, film, battery, serial). The bridge hotspot SSID
-    # lives on Settings → Network → SSID for camera-side setup; it does
-    # not belong on the run-time print readiness card.
+    # Bare-serial Printer row removed: the serial is already in
+    # Settings → Print → Serial and duplicates nothing useful at print
+    # time. Replace with FTP host + SSID the user actually needs during
+    # camera setup (plan 034 item 7).
+    #
+    # Layout: Host gets a dedicated full-width row (camera's FTP server
+    # field — the most critical value). SSID gets a second full-width row
+    # when known. A split row was tried but neither value fits in the 92 px
+    # half-card at body font; the plan says "prioritise Host and full-line
+    # the SSID below it" when both don't fit.
+    ftp_host_addr: str
+    if snapshot.hotspot_host is not None:
+        ftp_host_addr = snapshot.hotspot_host
+    elif snapshot.wifi_host is not None:
+        ftp_host_addr = snapshot.wifi_host
+    else:
+        ftp_host_addr = _ready_ftp_line(snapshot)
+    row_groups.append([(t("Host", lang), ftp_host_addr)])
+    ssid = snapshot.hotspot_ssid
+    if ssid is not None:
+        row_groups.append([(t("Wi-Fi", lang), ssid)])
 
     depth = snapshot.image_queue_depth
     if depth == 1:
@@ -737,12 +750,17 @@ def _ready(
             # Split row: each cell takes a half-card with a vertical
             # hairline divider between them. Labels keep the trailing
             # ":" so the eye can still bind label↔value across the gap.
+            # Value is promoted to fonts["body"] (14 pt) so the hierarchy
+            # "small grey label → big black value" survives at LCD viewing
+            # distance — the colour delta alone collapses at 10 pt
+            # (plan 034 item 12).
+            font_body = fonts["body"]
             for cell_idx, (label, value) in enumerate(group):
                 cx = label_x_full + cell_idx * cell_w
                 prefix = f"{label}: "
                 lw = _text_width(draw, prefix, font_small)
                 _text(draw, cx, label_y, prefix, font_small, theme.label_secondary)
-                _text(draw, cx + lw, label_y, value, font_small, theme.label_primary)
+                _text(draw, cx + lw, label_y, value, font_body, theme.label_primary)
             # Vertical divider — 1 px hairline in the same secondary
             # tint as the row hairlines, inset from the row top/bottom
             # so it reads as a slim "·" between the cells, not a frame.
@@ -1371,7 +1389,11 @@ def _footer_label_lines(snapshot: UiSnapshot) -> tuple[tuple[str, str, str], ...
             ("KEY1 OK", "KEY2 Back", "KEY3 Help"),
         )
     if snapshot.mode is UiMode.NEEDS_PAIRING:
-        return (("Up/Dn", "KEY1 Select", "Hold KEY3"),)
+        # Chip reads "KEY3 Pair" because short-press KEY3 now also starts
+        # pairing (controller routes HELP → _start_pairing in NEEDS_PAIRING).
+        # The old "Hold KEY3" text was misleading — short-press was a silent
+        # no-op and the hold target was unstated (plan 034 item 2).
+        return (("Up/Dn", "KEY1 Select", "KEY3 Pair"),)
     if snapshot.mode is UiMode.PAIR_FAILED:
         return (("KEY1 Retry", "KEY2 Back", "KEY3 Retry"),)
     if snapshot.mode is UiMode.PAIRING:
@@ -1975,7 +1997,9 @@ def _status_bar_printer_name(snapshot: UiSnapshot) -> str:
         name = model_names.get(snapshot.paired_printer.model)
         if name is not None:
             return name
-    return snapshot.paired_printer.name
+    # Never leak the raw BLE name (INSTAX-XXXXXXXX) — it contains hardware
+    # vocabulary the user should not have to decode (plan 034 item 7).
+    return "Instax printer"
 
 
 def _status_bar_printer_chip(snapshot: UiSnapshot) -> str | None:

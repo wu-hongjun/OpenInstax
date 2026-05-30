@@ -999,6 +999,13 @@ class BridgeUi:
             if self._snapshot.mode is UiMode.PAIR_FAILED:
                 await self._start_pairing()
                 return
+            if self._snapshot.mode is UiMode.NEEDS_PAIRING:
+                # Short KEY3 in NEEDS_PAIRING now also starts pairing so a
+                # first-boot user pressing KEY3 gets the same result as the
+                # hold action. Previously HELP was a silent no-op when
+                # paired_printer is None (plan 034 item 2 — Option A).
+                await self._start_pairing()
+                return
             if self._snapshot.paired_printer is not None:
                 self._show_settings("Wi-Fi + FTP credentials", page=SettingsPage.NETWORK)
                 return
@@ -1686,7 +1693,9 @@ class BridgeUi:
                 bool_label(self._config.power.idle_poweroff_enabled),
             )
         if key is SettingKey.REFRESH_STATUS:
-            return SettingsRow("Refresh status", "run")
+            # Value is empty to match every other action row (Pair, Reconnect,
+            # Forget). The chevron already signals "actionable" (plan 034 item 3).
+            return SettingsRow("Refresh status", "")
         if key is SettingKey.FONT_SIZE:
             return SettingsRow("Text size", self._config.ui.font_size.value.capitalize())
         if key is SettingKey.LANGUAGE:
