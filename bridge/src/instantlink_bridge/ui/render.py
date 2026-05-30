@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from collections.abc import Iterable
@@ -18,6 +19,74 @@ from instantlink_bridge.ui.theme import Theme, theme_for
 
 LCD_SIZE = (240, 240)
 Font = ImageFont.ImageFont | ImageFont.FreeTypeFont
+
+_log = logging.getLogger(__name__)
+_preview_failure_logged = False
+
+
+def _log_preview_failure_once() -> None:
+    """Log a one-shot WARNING when the adjustments preview render crashes.
+
+    The render loop runs at 16 fps; without the once-per-process gate a
+    failure would spam the journal at >60 lines/s. The state flips after
+    the first hit and never resets — restart the service to re-arm the
+    warning if you fixed the underlying preview asset (plan 037 polish #7).
+    """
+
+    global _preview_failure_logged
+    if _preview_failure_logged:
+        return
+    _preview_failure_logged = True
+    _log.warning(
+        "Adjustments preview render failed; rendering placeholder. "
+        "Subsequent failures will be suppressed.",
+        exc_info=True,
+    )
+
+
+def _draw_preview_unavailable(
+    draw: ImageDraw.ImageDraw,
+    tile_x: int,
+    tile_y: int,
+    tile_w: int,
+    tile_h: int,
+    font: Font,
+    label: str,
+    theme: Theme,
+) -> None:
+    """Render a diagonal cross-hatch + label inside a preview tile area.
+
+    Signals "preview is broken here" rather than blending into the card,
+    so the user can tell their slider has no effect vs the preview being
+    unavailable (plan 037 polish #7).
+    """
+
+    # Sparse diagonal hatching at ~8 px intervals — visible but not noisy.
+    step = 8
+    x0 = tile_x
+    y0 = tile_y
+    x1 = tile_x + tile_w
+    y1 = tile_y + tile_h
+    # Top-left to bottom-right diagonals.
+    for offset in range(-tile_h, tile_w, step):
+        p0 = (max(x0, x0 + offset), max(y0, y0 - offset))
+        p1 = (min(x1, x0 + offset + tile_h), min(y1, y0 - offset + tile_h))
+        draw.line([p0, p1], fill=theme.label_secondary, width=1)
+    # Centred label so the user reads what's wrong.
+    bbox = draw.textbbox((0, 0), label, font=font)
+    label_w = bbox[2] - bbox[0]
+    label_h = bbox[3] - bbox[1]
+    label_x = tile_x + (tile_w - label_w) // 2
+    label_y = tile_y + (tile_h - label_h) // 2
+    # Knock out a small background patch so the diagonal hatch doesn't
+    # cut through the label text.
+    pad = 4
+    draw.rectangle(
+        (label_x - pad, label_y - pad, label_x + label_w + pad, label_y + label_h + pad),
+        fill=theme.bg,
+    )
+    draw.text((label_x, label_y), label, font=font, fill=theme.label_secondary)
+
 
 # SettingKey values whose ADJUSTMENT_EDIT mode renders Off/On pills instead of
 # a slider (plan 037 phase 3). Kept as raw strings here so render.py does not
@@ -425,9 +494,7 @@ def draw_status_bar(
     draw.rectangle((0, 0, 239, STATUS_BAR_H - 1), fill=theme.bg)
 
     if snapshot.mode is UiMode.SETTINGS:
-        _draw_status_bar_settings(
-            draw, snapshot, state, font_body, font_small, now, theme
-        )
+        _draw_status_bar_settings(draw, snapshot, state, font_body, font_small, now, theme)
     else:
         _draw_status_bar_pill(draw, snapshot, state, font_body, now, theme)
 
@@ -500,8 +567,7 @@ def _draw_status_bar_settings(
     dot_cx = 120
     dot_cy = STATUS_BAR_H // 2 + 1  # mirrors title's +1 optical centring
     draw.ellipse(
-        (dot_cx - dot_radius, dot_cy - dot_radius,
-         dot_cx + dot_radius, dot_cy + dot_radius),
+        (dot_cx - dot_radius, dot_cy - dot_radius, dot_cx + dot_radius, dot_cy + dot_radius),
         fill=dot_hex,
     )
 
@@ -717,6 +783,30 @@ def draw_hint_bar(
             draw.text((tx1, line1_y), fitted1, fill=theme.hint_fg, font=font)
 
 
+# Destructive run-action row labels (English source). Render layer tints
+# these in ``theme.accent_destructive`` so the user sees the two-press
+# confirm semantics before pressing KEY1 (plan 037 polish #5). Translated
+# labels are mapped via t() at the controller layer, but the source-string
+# match is reliable because the renderer receives already-translated text;
+# the t() lookup degrades to the source on a miss so a label like "Forget"
+# (English) and "忘记此设备" (zh-Hans) both pattern-match against this set
+# at draw time when the source string is the row's ``label`` argument.
+# Render layer receives ``label`` after t() — so include both forms.
+_DESTRUCTIVE_ACTION_LABELS: frozenset[str] = frozenset(
+    {
+        "Forget",
+        "Re-pair",
+        "Reset credentials",
+        "Reset BLE link",
+        # zh-Hans variants (matches i18n.py table).
+        "忘记此设备",
+        "重新配对",
+        "还原凭据",
+        "BLE 连接已还原",
+    }
+)
+
+
 def draw_settings_row(
     draw: ImageDraw.ImageDraw,
     y: int,
@@ -729,6 +819,8 @@ def draw_settings_row(
     marker_font: Font | None = None,
     theme: Theme | None = None,
     row_height: int = 19,
+    is_header: bool = False,
+    header_font: Font | None = None,
 ) -> None:
     """Draw a settings row in iOS picker style.
 
@@ -741,6 +833,13 @@ def draw_settings_row(
     than the surrounding label; we mirror that by passing ``fonts["body"]``
     (≈1.4× the row font) so the chevron reads as an affordance, not as a
     stray punctuation glyph.
+
+    ``is_header=True`` renders the row as an iOS-style section header:
+    smaller font, secondary tint, no chevron, no selection highlight, no
+    trailing hairline (the caller is responsible for suppressing the
+    separator below header rows). Header rows take precedence over the
+    legacy ``hint == "" and value == ""`` heuristic — pass ``is_header``
+    explicitly when the caller knows the row's role.
     """
 
     if theme is None:
@@ -748,22 +847,31 @@ def draw_settings_row(
     if marker_font is None:
         marker_font = font
 
-    # Section header rows: hint == "" and value == "" signals a non-actionable
-    # divider (e.g. "Advanced", "Personalisation", "Diagnostics"). Render them
-    # as muted section headers — no highlight, no chevron, slightly indented —
-    # so they read as labels rather than selectable rows (plan 036 audit item 5).
-    if hint == "" and value == "":
+    # Section header rows: render as muted dividers — no highlight, no
+    # chevron, smaller font — so they read as labels rather than selectable
+    # rows (plan 037 polish #1, building on plan 036 audit item 5). The
+    # ``is_header`` flag is the cleanest signal; we also retain the legacy
+    # ``hint == "" and value == ""`` heuristic so callers that haven't been
+    # migrated still get correct rendering.
+    if is_header or (hint == "" and value == ""):
         # Never draw a selection highlight: the row is not actionable.
-        label_max = 88
+        # Use a slightly smaller font when available (header_font), and add
+        # 2 px leading whitespace above so the header floats above the
+        # following row instead of sharing its baseline.
+        font_to_use = header_font if header_font is not None else font
+        label_max = 200  # plenty of width — no value column
         _text(
             draw,
-            28,
-            y + 3,
-            _fit_text_to_width(draw, label, font, label_max),
-            font,
+            22,
+            y + 4,
+            _fit_text_to_width(draw, label, font_to_use, label_max),
+            font_to_use,
             theme.label_secondary,
         )
         return
+
+    kind = _settings_row_kind(hint)
+    marker, _marker_fill = _settings_row_marker(kind, selected)
 
     if selected:
         # Selected row: flat vibrant accent fill (iOS picker style). Radius
@@ -778,12 +886,19 @@ def draw_settings_row(
         )
         text_fill = theme.label_inverse
         value_fill = theme.label_inverse
+    elif kind == "run":
+        # Action rows (Pair, Reconnect, Forget, Reset credentials,
+        # Save current, Refresh status, Re-pair) — tint the label so the
+        # row reads as actionable rather than informational. Destructive
+        # actions (Re-pair, Forget, Reset credentials) get the red accent;
+        # everything else gets the iOS blue (plan 037 polish #5).
+        text_fill = (
+            theme.accent_destructive if label in _DESTRUCTIVE_ACTION_LABELS else theme.accent_blue
+        )
+        value_fill = theme.label_secondary
     else:
         text_fill = theme.label_primary
         value_fill = theme.label_secondary
-
-    kind = _settings_row_kind(hint)
-    marker, _marker_fill = _settings_row_marker(kind, selected)
     # iOS chevron tint: secondary grey on normal rows, inverse on selected.
     # Always tracks the row's text colour so it disappears into the active-
     # row glow rather than fighting it with a competing accent (the previous
@@ -1134,45 +1249,32 @@ def _printer_searching(
             theme.accent_yellow,
         )
     elif message in {"Scanning: 0 printers", "No printer signal"}:
-        # No BLE signal yet — title names the active state, body gives the
-        # action so a power-cycle is the obvious next step.
-        _center_lines(
-            draw, [t("Searching", snapshot.language)], 75, fonts["large"], theme.label_primary
-        )
+        # No BLE signal yet — promote the action to the title slot since
+        # the status pill already shows "Searching" (plan 037 polish #9
+        # drops the duplicate "Searching" body title).
         _center_lines(
             draw,
-            [t("Turn printer on and keep awake", snapshot.language)],
-            128,
-            fonts["small"],
-            theme.label_primary,
-        )
-        _center_lines(
-            draw,
-            [t("Phone Bluetooth may grab it", snapshot.language)],
-            146,
-            fonts["small"],
-            theme.label_secondary,
-        )
-    else:
-        # Title states the active state ("Searching"); body (status_message)
-        # carries the live retry copy (e.g. "Looking for printer"). The
-        # message is set by the controller in English; translate at the
-        # render boundary so 中文 mode picks up the i18n entry.
-        # Title + live retry message both centred so the screen reads as
-        # a vertically-stacked status block instead of a centred title
-        # over a left-aligned body string.
-        _center_lines(
-            draw,
-            [t("Searching", snapshot.language)],
+            [t("Turn printer on", snapshot.language)],
             75,
             fonts["large"],
             theme.label_primary,
         )
         _center_lines(
             draw,
-            [_ellipsize(t(message, snapshot.language), 31)],
+            [t("Bridge keeps trying", snapshot.language)],
             128,
-            fonts["body"],
+            fonts["small"],
+            theme.label_secondary,
+        )
+    else:
+        # Status pill at the top already shows "Searching"; promote the
+        # live retry message into the title slot so the body says what's
+        # actually happening (plan 037 polish #9).
+        _center_lines(
+            draw,
+            [_ellipsize(t(message, snapshot.language), 22)],
+            75,
+            fonts["large"],
             theme.label_primary,
         )
 
@@ -1419,6 +1521,10 @@ def _settings(
     # for the marker so the chevron lands cleanly in every language.
     font_scale, row_scale = _scale_for_snapshot(snapshot)
     marker_font = _font(max(1, round(_BASE_FONTS["body"] * font_scale)), prefer_cjk=False)
+    # Section-header rows render in a 9 pt font (smaller than the 10 pt small
+    # body) so they read as labels rather than greyed-out picker rows
+    # (plan 037 polish #1).
+    header_font = _font(max(1, round(9 * font_scale)), prefer_cjk=(lang == "zh-Hans"))
     if not rows:
         _text(draw, 18, 58, t("No settings available", lang), fonts["body"], theme.label_primary)
         draw_hint_bar(draw, _mode_hints(snapshot), fonts["hint"], theme)
@@ -1472,16 +1578,24 @@ def _settings(
     for offset, row in enumerate(rows[start : start + visible_count]):
         index = start + offset
         y = card_top + 4 + offset * row_height
-        # Translate both label and value. Values are mixed: some are
-        # registered option labels ("Dark", "Large", "Hotspot", "saved"),
-        # others are dynamic data (printer serial, IP, film count). t()
-        # falls back to the source string on a miss, so dynamic data
-        # passes through unchanged while option labels pick up i18n.
+        # Compose the row's value string. ``i18n_value_prefix`` lets the
+        # controller emit a translatable prefix (e.g. "On") plus a raw
+        # user-typed suffix (e.g. ` · "Hello"`); we translate just the
+        # prefix and concatenate (plan 037 polish #4).
+        if row.i18n_value_prefix:
+            value_str = t(row.i18n_value_prefix, lang) + row.value
+        else:
+            # Translate both label and value. Values are mixed: some are
+            # registered option labels ("Dark", "Large", "Hotspot", "saved"),
+            # others are dynamic data (printer serial, IP, film count). t()
+            # falls back to the source string on a miss, so dynamic data
+            # passes through unchanged while option labels pick up i18n.
+            value_str = t(row.value, lang)
         draw_settings_row(
             draw,
             y,
             t(row.label, lang),
-            t(row.value, lang),
+            value_str,
             row.hint,
             selected=index == selected,
             font=font,
@@ -1492,9 +1606,13 @@ def _settings(
             marker_font=marker_font,
             theme=theme,
             row_height=row_height,
+            is_header=row.is_header,
+            header_font=header_font,
         )
-        # Hairline between rows (not after last visible row)
-        if offset < visible_count - 1:
+        # Hairline between rows (not after last visible row). Suppress the
+        # hairline directly below a header row so the divider reads as a
+        # group label rather than a sectioned row (plan 037 polish #1).
+        if offset < visible_count - 1 and not row.is_header:
             separator_y = y + row_height
             draw_hairline(draw, 16, separator_y, 210, theme)
 
@@ -1551,7 +1669,7 @@ _SLIDER_RANGE: dict[str, tuple[int, int]] = {
 # Chevron     : x=216      (always visible on slider/picker rows).
 _ADJ_SLIDER_X = 104
 _ADJ_SLIDER_W = 80
-_ADJ_VALUE_X = 188   # left edge of value column
+_ADJ_VALUE_X = 188  # left edge of value column
 _ADJ_CHEVRON_X = 216  # chevron anchor (left edge)
 
 
@@ -1627,13 +1745,16 @@ def _adjustments(
         row_y = card_top + 4 + offset * row_height
         is_selected = index == selected
         label_str = t(row.label, lang)
-        # Preset row uses a trailing " *" to mark "modified from preset".
-        # The composite string ("Black & white *") has no i18n entry, so a
-        # naive t() falls through to English. Split + translate + re-append
-        # so the prefix picks up the locale (Black & white → 黑白) but the
-        # universal "*" marker still survives.
-        if row.value.endswith(" *"):
-            value_str = t(row.value[:-2], lang) + " *"
+        # Preset row uses a trailing " · edited" badge to mark "modified
+        # from preset" (plan 037 polish #6, replaces the cryptic " *"). The
+        # composite string ("Black & white · edited") has no i18n entry, so
+        # a naive t() falls through to English. Split + translate + re-append
+        # so the prefix picks up the locale (Black & white → 黑白) and the
+        # " · edited" badge itself is translated independently.
+        _EDITED_SUFFIX = " · edited"
+        if row.value.endswith(_EDITED_SUFFIX):
+            preset_name = row.value[: -len(_EDITED_SUFFIX)]
+            value_str = t(preset_name, lang) + " · " + t("edited", lang)
         else:
             value_str = t(row.value, lang)
 
@@ -1679,6 +1800,21 @@ def _adjustments(
         if offset < visible_count - 1:
             separator_y = row_y + row_height
             draw_hairline(draw, 16, separator_y, 210, theme)
+
+    # Scroll-indicator strip on the right edge of the card when not all rows
+    # fit. With 10 rows on Adjustments only 7-8 fit at MEDIUM scale; the
+    # bottom rows ("Save current", etc.) would otherwise be permanently
+    # below the fold for first-time users (plan 037 polish #2).
+    if len(rows) > visible_count:
+        _draw_scrollbar(
+            draw,
+            card_top=card_top,
+            card_h=card_h,
+            start=start,
+            visible_count=visible_count,
+            total=len(rows),
+            theme=theme,
+        )
 
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"], theme)
@@ -1820,7 +1956,6 @@ def _draw_adjustments_toggle_row(
     _text(draw, 218 - val_w, y + 3, value_str, font, value_fill)
 
 
-
 def _adjustment_edit(
     image: Image.Image,
     draw: ImageDraw.ImageDraw,
@@ -1862,7 +1997,22 @@ def _adjustment_edit(
         preview_img = render_adjustments_preview(profile, size=(_ADJ_EDIT_W, _ADJ_EDIT_H))
         image.paste(preview_img, (tile_x, tile_y))
     except Exception:
-        pass  # preview failure must never crash the renderer
+        # Preview failure must never crash the renderer. Draw a
+        # diagonal cross-hatch + "Preview unavailable" label so the
+        # tile area is visibly broken rather than blending into the
+        # card (plan 037 polish #7). Log once per process at WARNING
+        # so the failure surfaces in journalctl.
+        _log_preview_failure_once()
+        _draw_preview_unavailable(
+            draw,
+            tile_x,
+            tile_y,
+            _ADJ_EDIT_W,
+            _ADJ_EDIT_H,
+            font_small,
+            t("Preview unavailable", lang),
+            theme,
+        )
 
     # Thin border around preview
     draw.rounded_rectangle(
@@ -1945,7 +2095,7 @@ def _adjustment_edit(
         slider_y = 164
         slider_w = 196
         slider_track_h = 8
-        lo, hi = ((-100, 100) if symmetric else (0, 100))
+        lo, hi = (-100, 100) if symmetric else (0, 100)
         draw_slider(
             draw,
             slider_x,
@@ -2470,6 +2620,47 @@ def _sentence_case(text: str) -> str:
     return " ".join(cased)
 
 
+def _draw_scrollbar(
+    draw: ImageDraw.ImageDraw,
+    *,
+    card_top: int,
+    card_h: int,
+    start: int,
+    visible_count: int,
+    total: int,
+    theme: Theme,
+) -> None:
+    """Draw a 2 px scrollbar on the right edge of the rows card.
+
+    Used on Adjustments + Settings when rows overflow the visible area.
+    The thumb height maps the visible range proportional to the total row
+    count with a 12 px floor so it stays clickable / visible (plan 037
+    polish #2). The track sits at ``x=224`` so it hugs the card's inner
+    right edge (the standard card spans x=12..228 with a 2 px inset).
+    """
+
+    if total <= visible_count:
+        return
+    track_x = 224
+    track_y0 = card_top + 4
+    track_y1 = card_top + card_h - 4
+    track_h = track_y1 - track_y0
+    if track_h <= 0:
+        return
+    thumb_h = max(12, round(track_h * visible_count / total))
+    # Clamp the thumb so it never overshoots the track.
+    max_top_offset = track_h - thumb_h
+    if total - visible_count <= 0:
+        thumb_top = track_y0
+    else:
+        thumb_top = track_y0 + round(max_top_offset * start / (total - visible_count))
+    thumb_bottom = thumb_top + thumb_h
+    draw.rectangle(
+        (track_x, thumb_top, track_x + 2, thumb_bottom),
+        fill=theme.label_secondary,
+    )
+
+
 def _settings_row_kind(hint: str) -> str:
     hint_lower = hint.lower()
     if "choose" in hint_lower or "set" in hint_lower:
@@ -2488,24 +2679,24 @@ def _settings_row_kind(hint: str) -> str:
 def _settings_row_marker(kind: str, selected: bool) -> tuple[str, str]:
     """Pick the trailing affordance glyph for a settings row.
 
-    Matches iOS Settings vocabulary: read-only rows have no trailing icon at
-    all; rows that open a sub-page, picker, action, or toggle show a single
-    right chevron. The previous mix of "<>", "!", and "i" introduced four
-    different end-of-row glyphs that the user had to learn — that's gone.
+    Matches iOS Settings vocabulary: the chevron is the "navigates to a
+    new view" affordance — only sub-page openers get it. Pickers, actions,
+    and toggles bounce the user back to the same screen and so do not get
+    a chevron (plan 037 polish #5).
 
     The returned colour is unused (the draw site picks the theme-aware
     secondary/inverse tint to match label colour); it's kept in the tuple
     only to preserve the call signature.
     """
 
-    if kind in ("open", "choose", "change", "run"):
+    if kind == "open":
         # U+203A "›" (single right-pointing angle quotation mark) is a
         # proper narrow chevron — matches iOS' grouped-list disclosure
         # affordance. We draw it in `fonts["body"]` at the call site so
         # it sits visibly larger than the row label, mirroring iOS where
         # the chevron is heavier than the surrounding text.
         return "›", ""
-    # "info" and "plain" rows are read-only — no trailing icon.
+    # All other kinds (choose, change, run, info, plain) get no chevron.
     return "", ""
 
 

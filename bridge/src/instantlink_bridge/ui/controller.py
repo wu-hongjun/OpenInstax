@@ -1151,9 +1151,7 @@ class BridgeUi:
         if page is not SettingsPage.PRINTER or self._snapshot.paired_printer is not None:
             return keys
         return tuple(
-            k
-            for k in keys
-            if k not in (SettingKey.RESET_PRINTER_LINK, SettingKey.FORGET_PRINTER)
+            k for k in keys if k not in (SettingKey.RESET_PRINTER_LINK, SettingKey.FORGET_PRINTER)
         )
 
     def _show_settings(
@@ -1183,7 +1181,7 @@ class BridgeUi:
             selected_index=selected_index,
             settings_title=PAGE_TITLES[self._settings_page],
             settings_rows=self._settings_rows(),
-            settings_message=message if message is not None else self._settings_default_message(),
+            settings_message=message,
             adjustments_profile=_AdjProf.from_config(self._config.adjustments),
         )
         self._render()
@@ -1249,7 +1247,7 @@ class BridgeUi:
                 self._snapshot,
                 selected_index=selected_index,
                 settings_rows=self._settings_rows(),
-                settings_message=self._settings_default_message(),
+                settings_message=None,
             )
             self._render()
             return
@@ -1375,16 +1373,22 @@ class BridgeUi:
             is_user = opt.value in USER_PRESET_SLOT_NAMES
             is_empty = is_user and opt.value not in self._user_presets
             if is_empty:
-                hint = "KEY1 empty"
+                # Empty Custom slots: no hint. The row label already
+                # carries the "(empty)" suffix so the user can see the
+                # slot is unused. Showing "KEY1 empty" read as
+                # "press KEY1 to do nothing" (plan 037 polish #3).
+                hint = ""
             elif is_user:
                 hint = "KEY1 load · K3 hold edit"
             else:
                 hint = "KEY1 load"
-            rows.append(SettingsRow(
-                opt.label,
-                "active" if opt.value == current_preset else "",
-                hint,
-            ))
+            rows.append(
+                SettingsRow(
+                    opt.label,
+                    "active" if opt.value == current_preset else "",
+                    hint,
+                )
+            )
         return tuple(rows)
 
     def _preset_picker_options(self) -> tuple[SettingOption, ...]:
@@ -1398,9 +1402,7 @@ class BridgeUi:
         from instantlink_bridge.imaging.presets import autoname_preset
         from instantlink_bridge.ui.settings import BUILTIN_PRESET_NAMES
 
-        options: list[SettingOption] = [
-            SettingOption(name, name) for name in BUILTIN_PRESET_NAMES
-        ]
+        options: list[SettingOption] = [SettingOption(name, name) for name in BUILTIN_PRESET_NAMES]
         for slot in USER_PRESET_SLOT_NAMES:
             if slot in self._user_presets:
                 # Reverse-convert the stored AdjustmentProfile to per-axis UI
@@ -1550,10 +1552,13 @@ class BridgeUi:
         lo, hi = self._ADJUSTMENT_AXIS_RANGE.get(key, (-100, 100))
         new_value = max(lo, min(hi, self._adjustment_edit_value + delta))
         self._adjustment_edit_value = new_value
+        # Clear any KEY3 help text so the user sees their live edit
+        # without the stale overlay (plan 037 polish #11).
         self._snapshot = replace(
             self._snapshot,
             adjustment_edit_value=new_value,
             adjustments_profile=self._adjustment_edit_preview_profile(key, new_value),
+            settings_message=None,
         )
         self._render()
 
@@ -1568,10 +1573,13 @@ class BridgeUi:
         if key is None:
             return
         self._adjustment_edit_value = new_value
+        # Clear any KEY3 help text so flipping the toggle dismisses the
+        # stale help overlay (plan 037 polish #11).
         self._snapshot = replace(
             self._snapshot,
             adjustment_edit_value=new_value,
             adjustments_profile=self._adjustment_edit_preview_profile(key, new_value),
+            settings_message=None,
         )
         self._render()
 
@@ -1837,6 +1845,7 @@ class BridgeUi:
             self._preset_submenu_pending_overwrite = False
             self._preset_submenu_slot = None
             from instantlink_bridge.imaging.presets import USER_PRESETS_PATH, load_user_presets
+
             try:
                 current_saved = load_user_presets(USER_PRESETS_PATH)
             except Exception:
@@ -2115,9 +2124,7 @@ class BridgeUi:
 
         try:
             parent = path.parent
-            fd, tmp_name = tempfile.mkstemp(
-                prefix=f".{path.name}.", suffix=".tmp", dir=str(parent)
-            )
+            fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(parent))
             tmp_path = Path(tmp_name)
             try:
                 with os.fdopen(fd, "w", encoding="utf-8") as fp:
@@ -2319,11 +2326,6 @@ class BridgeUi:
             return self._settings_rows()
         return self._setting_picker_rows(key, self._snapshot.selected_index)
 
-    def _settings_default_message(self) -> str | None:
-        if self._settings_page is SettingsPage.NETWORK:
-            return None
-        return None
-
     def _settings_row_for_key(self, key: SettingKey, printer_name: str) -> SettingsRow:
         if key is SettingKey.OPEN_PRINT:
             return SettingsRow("Print", "")
@@ -2353,7 +2355,9 @@ class BridgeUi:
             else:
                 preset_label = preset_name
             if is_preset_modified(self._config.adjustments):
-                preset_label = f"{preset_label} *"
+                # " · edited" reads as a self-describing badge rather than
+                # the cryptic asterisk it replaced (plan 037 polish #6).
+                preset_label = f"{preset_label} · edited"
             return SettingsRow("Preset", preset_label)
         if key is SettingKey.ADJUST_SAVE_CUSTOM:
             return SettingsRow("Save current", "")
@@ -2391,11 +2395,21 @@ class BridgeUi:
                 return SettingsRow("Watermark", "Off")
             text = self._config.adjustments.watermark_text
             if not text:
+                # "On · (no text)" is already in the i18n table as a single
+                # phrase, so we can pass it as a plain value.
                 return SettingsRow("Watermark", "On · (no text)")
             # Truncate to keep the row from overflowing the 240 px width.
             # Generous cap; render layer will further clip if needed.
             short = text if len(text) <= 14 else text[:13] + "…"
-            return SettingsRow("Watermark", f'On · "{short}"')
+            # Split "On" out as i18n_value_prefix so the render layer
+            # translates just the prefix and concatenates the raw user
+            # text — zh-Hans users see ``开 · "Hello"`` instead of literal
+            # ``On · "Hello"`` (plan 037 polish #4).
+            return SettingsRow(
+                "Watermark",
+                f' · "{short}"',
+                i18n_value_prefix="On",
+            )
         if key is SettingKey.PRINTER_SERIAL_INFO:
             # Strip the verbose "INSTAX-" prefix so the saved serial fits on
             # one row without clipping. When nothing is paired the row reads
@@ -2435,7 +2449,11 @@ class BridgeUi:
                 seconds_label(self._config.printer.search_interval_s),
             )
         if key is SettingKey.FTP_RECEIVE_MODE:
-            return SettingsRow("Wi-Fi Mode", self._ftp_receive_mode_value())
+            # "Camera link" matches the help text ("How camera reaches
+            # bridge") and disambiguates from the bridge's own Wi-Fi mode
+            # (AP vs Station), which is configured elsewhere
+            # (plan 037 polish #8).
+            return SettingsRow("Camera link", self._ftp_receive_mode_value())
         if key is SettingKey.FTP_HOST_INFO:
             return SettingsRow("FTP host", self._camera_ftp_host_value())
         if key is SettingKey.FTP_MODE_INFO:
@@ -2508,14 +2526,14 @@ class BridgeUi:
             return SettingsRow("Reset credentials", "")
         if key is SettingKey.NETWORK_DIAGNOSTICS_HEADER:
             # Info-only section divider — no value, no action.
-            return SettingsRow("Diagnostics", "")
+            return SettingsRow("Diagnostics", "", is_header=True)
         if key is SettingKey.PRINT_ADVANCED_HEADER:
             # Info-only section divider — no value, no action.
-            return SettingsRow("Advanced", "")
+            return SettingsRow("Advanced", "", is_header=True)
         if key is SettingKey.SYSTEM_PERSONALISATION_HEADER:
             # Info-only section divider — separates operational rows from
             # personalisation knobs (plan 036 phase 5, critic P2).
-            return SettingsRow("Personalisation", "")
+            return SettingsRow("Personalisation", "", is_header=True)
         return SettingsRow("Unknown", "")
 
     def _settings_row_help(self, key: SettingKey) -> str:
@@ -3755,6 +3773,7 @@ class BridgeUi:
         if self._config.power.backend.value == "x306":
             return "LED only"
         return self._bridge_power_alert
+
 
 def ftp_receive_mode_ready_for_health(
     health: ConnectionHealth,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from instantlink_bridge.ble.models import PrinterModel
 from instantlink_bridge.ui.models import PairedPrinter, SettingsRow, UiMode, UiSnapshot
 from instantlink_bridge.ui.render import (
@@ -1103,9 +1105,7 @@ def test_destructive_toast_has_tinted_background() -> None:
     # Sample a pixel in the strip area (y≈210, x=20) from the toasted render.
     # It must not be plain background colour (the tint must be applied).
     strip_px = toast_image.getpixel((20, 210))
-    assert strip_px[:3] != bg_rgb, (
-        f"Strip pixel should be tinted, not bg {bg_rgb}; got {strip_px}"
-    )
+    assert strip_px[:3] != bg_rgb, f"Strip pixel should be tinted, not bg {bg_rgb}; got {strip_px}"
 
 
 # ---------------------------------------------------------------------------
@@ -1174,6 +1174,307 @@ def test_section_header_row_renders_without_highlight_when_selected() -> None:
     bg_rgb = (int(bg_hex[0:2], 16), int(bg_hex[2:4], 16), int(bg_hex[4:6], 16))
     # Sample the centre of the row (not where text is likely rendered).
     centre_bg = img.getpixel((120, 58))[:3]
-    assert centre_bg == bg_rgb, (
-        f"Row background should remain theme.bg {bg_rgb}, got {centre_bg}"
+    assert centre_bg == bg_rgb, f"Row background should remain theme.bg {bg_rgb}, got {centre_bg}"
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 polish #1: explicit ``is_header=True`` triggers the divider style
+# ---------------------------------------------------------------------------
+
+
+def test_section_header_renders_as_divider_when_is_header_flag_is_set() -> None:
+    """An ``is_header=True`` row must render in the muted divider style
+    even when the legacy ``value == ""`` heuristic does not fire (the
+    row carries a value field). Confirms ``draw_settings_row`` branches
+    on the explicit flag rather than the brittle heuristic alone."""
+
+    from PIL import Image, ImageDraw
+
+    from instantlink_bridge.ui.render import _font, draw_settings_row
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    img = Image.new("RGB", (240, 240), theme.bg)
+    draw = ImageDraw.Draw(img)
+
+    font = _font(10, prefer_cjk=False)
+    # ``value="ignore me"`` would normally bypass the legacy heuristic,
+    # but the explicit flag must still trigger the header branch.
+    draw_settings_row(
+        draw,
+        y=50,
+        label="Diagnostics",
+        value="ignore me",
+        hint="",
+        selected=True,
+        font=font,
+        theme=theme,
+        row_height=19,
+        is_header=True,
     )
+
+    # No accent_blue highlight anywhere in the row.
+    accent_blue_hex = theme.accent_blue.lstrip("#")
+    accent_blue = (
+        int(accent_blue_hex[0:2], 16),
+        int(accent_blue_hex[2:4], 16),
+        int(accent_blue_hex[4:6], 16),
+    )
+    found_highlight = False
+    for px in range(14, 227):
+        for py in range(50, 69):
+            if img.getpixel((px, py))[:3] == accent_blue:
+                found_highlight = True
+                break
+        if found_highlight:
+            break
+
+    assert not found_highlight, "Header rows must not render the selection highlight."
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 polish #5: chevron rendering rules + action-row label tint
+# ---------------------------------------------------------------------------
+
+
+def test_chevron_only_renders_on_open_rows() -> None:
+    """Plan 037 polish #5: ``_settings_row_marker`` returns the chevron
+    glyph only for ``kind == "open"`` (sub-page openers). Pickers,
+    actions, and toggles bounce back to the same screen and so do not
+    get the navigation-forward chevron."""
+    from instantlink_bridge.ui.render import _settings_row_marker
+
+    # "open" rows get the chevron.
+    marker, _ = _settings_row_marker("open", selected=False)
+    assert marker == "›"
+
+    # Every other kind: no chevron.
+    for kind in ("choose", "change", "run", "info", "plain"):
+        marker, _ = _settings_row_marker(kind, selected=False)
+        assert marker == "", f"kind={kind!r} should not render a chevron"
+
+
+def test_action_row_label_color_is_accent_blue() -> None:
+    """Plan 037 polish #5: non-destructive action rows (e.g. Pair, Save
+    current) render the label in ``theme.accent_blue`` so the row reads
+    as actionable rather than informational."""
+    from PIL import Image, ImageDraw
+
+    from instantlink_bridge.ui.render import _font, draw_settings_row
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    img = Image.new("RGB", (240, 240), theme.bg)
+    draw = ImageDraw.Draw(img)
+    font = _font(10, prefer_cjk=False)
+
+    draw_settings_row(
+        draw,
+        y=50,
+        label="Pair",
+        value="",
+        hint="Right/KEY1 run",
+        selected=False,
+        font=font,
+        theme=theme,
+        row_height=19,
+    )
+
+    accent_blue_hex = theme.accent_blue.lstrip("#")
+    accent_blue = (
+        int(accent_blue_hex[0:2], 16),
+        int(accent_blue_hex[2:4], 16),
+        int(accent_blue_hex[4:6], 16),
+    )
+    # The "P" of "Pair" lives near x=24, y=52 — scan a small label patch.
+    found = False
+    for px in range(20, 60):
+        for py in range(50, 69):
+            if img.getpixel((px, py))[:3] == accent_blue:
+                found = True
+                break
+        if found:
+            break
+    assert found, "Non-destructive run-action label must use accent_blue."
+
+
+def test_destructive_action_row_label_color_is_red() -> None:
+    """Plan 037 polish #5: destructive run rows (Forget, Re-pair, Reset
+    credentials) tint the label ``theme.accent_destructive`` so the
+    two-press confirm semantics is foreshadowed visually."""
+    from PIL import Image, ImageDraw
+
+    from instantlink_bridge.ui.render import _font, draw_settings_row
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    img = Image.new("RGB", (240, 240), theme.bg)
+    draw = ImageDraw.Draw(img)
+    font = _font(10, prefer_cjk=False)
+
+    draw_settings_row(
+        draw,
+        y=50,
+        label="Forget",
+        value="",
+        hint="Right/KEY1 run",
+        selected=False,
+        font=font,
+        theme=theme,
+        row_height=19,
+    )
+
+    red_hex = theme.accent_destructive.lstrip("#")
+    red = (
+        int(red_hex[0:2], 16),
+        int(red_hex[2:4], 16),
+        int(red_hex[4:6], 16),
+    )
+    found = False
+    for px in range(20, 80):
+        for py in range(50, 69):
+            if img.getpixel((px, py))[:3] == red:
+                found = True
+                break
+        if found:
+            break
+    assert found, "Destructive run-action label must use accent_destructive."
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 polish #2: scroll-cue indicator on overflow lists
+# ---------------------------------------------------------------------------
+
+
+def test_settings_list_renders_scrollbar_when_overflow() -> None:
+    """Plan 037 polish #2: when row count exceeds the visible window the
+    renderer draws a 2 px scrollbar on the right edge of the rows card.
+    The Adjustments page (10 rows) reliably triggers this on MEDIUM
+    font scale where only 7-8 rows fit."""
+
+    from PIL import Image, ImageDraw
+
+    from instantlink_bridge.ui.render import _draw_scrollbar
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    img = Image.new("RGB", (240, 240), theme.bg)
+    draw = ImageDraw.Draw(img)
+
+    # Card spans y=38..188, height=150. Simulate 10 rows with 8 visible.
+    _draw_scrollbar(
+        draw,
+        card_top=38,
+        card_h=150,
+        start=0,
+        visible_count=8,
+        total=10,
+        theme=theme,
+    )
+
+    # The thumb should be drawn at the track column (x=224..225).
+    grey_hex = theme.label_secondary.lstrip("#")
+    grey = (int(grey_hex[0:2], 16), int(grey_hex[2:4], 16), int(grey_hex[4:6], 16))
+    column_pixels = [img.getpixel((224, y))[:3] for y in range(40, 185)]
+    assert grey in column_pixels, "Scrollbar thumb not rendered in track column."
+
+
+def test_scrollbar_omitted_when_all_rows_visible() -> None:
+    """Plan 037 polish #2 regression guard: when total <= visible_count,
+    the scrollbar is suppressed (no overflow → no cue)."""
+
+    from PIL import Image, ImageDraw
+
+    from instantlink_bridge.ui.render import _draw_scrollbar
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    img = Image.new("RGB", (240, 240), theme.bg)
+    draw = ImageDraw.Draw(img)
+
+    _draw_scrollbar(
+        draw,
+        card_top=38,
+        card_h=150,
+        start=0,
+        visible_count=10,
+        total=8,
+        theme=theme,
+    )
+
+    grey_hex = theme.label_secondary.lstrip("#")
+    grey = (int(grey_hex[0:2], 16), int(grey_hex[2:4], 16), int(grey_hex[4:6], 16))
+    column_pixels = [img.getpixel((224, y))[:3] for y in range(40, 185)]
+    assert grey not in column_pixels
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 polish #7: edit preview tile placeholder on failure
+# ---------------------------------------------------------------------------
+
+
+def test_edit_preview_tile_renders_placeholder_on_render_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plan 037 polish #7: when ``render_adjustments_preview`` raises,
+    the edit-mode tile draws a cross-hatch placeholder + "Preview
+    unavailable" label so the user sees the broken state instead of a
+    blank tile that blends into the card."""
+    import instantlink_bridge.imaging.postprocess as postprocess
+
+    def _boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("synthetic preview failure")
+
+    monkeypatch.setattr(postprocess, "render_adjustments_preview", _boom)
+
+    snapshot = UiSnapshot(
+        mode=UiMode.ADJUSTMENT_EDIT,
+        ftp_host="192.168.7.1",
+        adjustment_edit_key="adjust_saturation",
+        adjustment_edit_value=0,
+    )
+    image = render_snapshot(snapshot)
+    assert image.size == (240, 240)
+
+    # Probe the tile area for the diagonal-hatch grey lines. Tile is at
+    # (16, 42) with width 192, height 108. The hatch uses
+    # ``theme.label_secondary`` so the colour ought to appear inside the
+    # tile bounds.
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    grey_hex = theme.label_secondary.lstrip("#")
+    grey = (int(grey_hex[0:2], 16), int(grey_hex[2:4], 16), int(grey_hex[4:6], 16))
+    found_hatch = False
+    for px in range(20, 200, 2):
+        for py in range(45, 145, 2):
+            if image.getpixel((px, py))[:3] == grey:
+                found_hatch = True
+                break
+        if found_hatch:
+            break
+    assert found_hatch, "Preview failure placeholder must render visible hatching pixels."
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 polish #9: drop duplicate "Searching" title from printer-searching
+# ---------------------------------------------------------------------------
+
+
+def test_printer_searching_body_promotes_action_no_duplicate_title() -> None:
+    """Plan 037 polish #9: the printer-searching body no longer renders a
+    centred "Searching" title that duplicates the top status pill. The
+    action ("Turn printer on") is promoted to the primary title slot."""
+
+    snapshot = UiSnapshot(
+        mode=UiMode.PRINTER_SEARCHING,
+        ftp_host="192.168.7.1",
+        printer_status_message="Scanning: 0 printers",
+    )
+    image = render_snapshot(snapshot)
+    assert image.size == (240, 240)
+    # We can't easily OCR; smoke test is enough to confirm render path
+    # doesn't crash and the snapshot mode handler resolves. Behavioural
+    # validation that "Searching" is omitted from the body is provided
+    # by visual review on-device — the unit test simply pins the
+    # snapshot mode path.

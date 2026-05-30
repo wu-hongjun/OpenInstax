@@ -138,6 +138,8 @@ _ZH_HANS: dict[str, str] = {
     "Upload note": "上传说明",
     "Wi-Fi Mode": "Wi-Fi 模式",
     "Wi-Fi PIN": "Wi-Fi 密码",
+    # Plan 037 polish #8: row label disambiguates from bridge Wi-Fi mode.
+    "Camera link": "相机链路",
     # --- Hint-bar labels --------------------------------------------------
     "4-way Pan": "四向平移",
     "Hold KEY3": "长按 KEY3",
@@ -221,6 +223,8 @@ _ZH_HANS: dict[str, str] = {
     "Then press K1": "然后请按 K1",
     "Turn on printer first": "请先打开打印机",
     "Turn printer on": "请打开打印机",
+    # Plan 037 polish #9: secondary line that replaces duplicate "Searching".
+    "Bridge keeps trying": "桥接将持续尝试",
     "Turn printer on and keep awake": "请打开打印机并保持唤醒",
     "Turn printer on first": "请先打开打印机",
     "Turn selected printer on": "请打开所选打印机",
@@ -258,6 +262,8 @@ _ZH_HANS: dict[str, str] = {
     "Pairing cancelled": "配对已取消",
     "Please wait": "请稍候",
     "Preview failed": "预览失败",
+    # Plan 037 polish #7: edit-preview tile placeholder when render crashes.
+    "Preview unavailable": "预览不可用",
     "Press K1 again to FORGET and re-pair": "再按 K1 忘记并重新配对",
     "Press K1 again to FORGET printer": "再按 K1 忘记打印机",
     "Press K1 again to RESET BLE link": "再按 K1 还原 BLE 连接",
@@ -376,7 +382,7 @@ _ZH_HANS: dict[str, str] = {
     "Colour intensity. Negative dulls, positive boosts": "色彩强度。负值降低，正值增强",
     "Brightness in EV stops. ±100 = ±1 EV": "亮度（EV 档）。±100 = ±1 EV",
     "Edge contrast. Negative softens, positive crisps": "边缘对比度。负值柔化，正值锐化",
-    "Tint. Left toward orange, right toward blue.": "色调。左偏橙色，右偏蓝色。",
+    "Tint. Left toward orange, right toward blue": "色调。左偏橙色，右偏蓝色",
     # --- Vignette picker (plan 035 phase 6) --------------------------------
     "Vignette": "暗角",
     "Darken the corners to simulate Instax film": "将四角变暗以模拟 Instax 胶片",
@@ -386,12 +392,18 @@ _ZH_HANS: dict[str, str] = {
     "Stamp the photo's date in the bottom-right corner": "在照片右下角加盖拍摄日期",
     "Stamp a short label in the bottom-left corner": "在照片左下角加盖短标签",
     # --- Datestamp format picker (plan 037 phase 4) ----------------------
-    # Preset names (Quartz Date / Olympus / Contax / Modern / Lab Print)
-    # stay in Latin like other macOS / brand identifiers.
+    # Descriptive English names get translated. Real product brands
+    # (Olympus, Contax) stay in Latin like other brand identifiers.
     "Datestamp format": "日期格式",
     "Date layout — borrows macOS preset names": "日期布局 — 借用 macOS 预设名称",
+    # Plan 037 polish #15: descriptive preset names translate; brand names stay.
+    "Quartz Date": "石英日期",
+    "Modern": "现代",
+    "Lab Print": "冲印店",
     # Watermark row dynamic value states.
     "On · (no text)": "开 · （无文字）",
+    # Plan 037 polish #6: preset "modified" badge replaces cryptic "*".
+    "edited": "已编辑",
     # --- Preset picker labels and actions (plan 035 phase 5) ------------
     # "Instax" stays in Latin (brand name) per the i18n doctrine.
     "Preset": "预设",
@@ -416,6 +428,13 @@ _ZH_HANS: dict[str, str] = {
     "Press KEY1 again to overwrite Custom4": "再次按 KEY1 以覆盖 Custom4",
     "Press KEY1 again to overwrite Custom5": "再次按 KEY1 以覆盖 Custom5",
     "Press KEY1 again to overwrite Custom6": "再次按 KEY1 以覆盖 Custom6",
+    # Plan 037 polish #10: zh-Hans variants for the delete-confirm toast.
+    "Press KEY1 again to delete Custom1": "再次按 KEY1 以删除 Custom1",
+    "Press KEY1 again to delete Custom2": "再次按 KEY1 以删除 Custom2",
+    "Press KEY1 again to delete Custom3": "再次按 KEY1 以删除 Custom3",
+    "Press KEY1 again to delete Custom4": "再次按 KEY1 以删除 Custom4",
+    "Press KEY1 again to delete Custom5": "再次按 KEY1 以删除 Custom5",
+    "Press KEY1 again to delete Custom6": "再次按 KEY1 以删除 Custom6",
     "Custom1 (empty)": "自定 1（空）",
     "Custom2 (empty)": "自定 2（空）",
     "Custom3 (empty)": "自定 3（空）",

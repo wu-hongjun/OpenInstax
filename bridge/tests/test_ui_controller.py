@@ -1443,18 +1443,18 @@ async def test_settings_ftp_receive_mode_selects_bridge_wifi_from_advanced_mode(
     # 1 DOWN lands on Network; SELECT enters it.
     await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.SELECT)
-    # NETWORK page row order: 0 Wi-Fi Mode  1 SSID  2 Wi-Fi PIN  3 FTP host
+    # NETWORK page row order: 0 Camera link  1 SSID  2 Wi-Fi PIN  3 FTP host
     #   4 FTP user  5 FTP PIN  6 Bluetooth  7 Same Wi-Fi adv  8 USB IP
     #   9 Reset credentials.
-    # Wi-Fi Mode is at row 0; RIGHT opens the picker immediately.
+    # Camera link is at row 0; RIGHT opens the picker immediately.
     await ui._handle_action(UiAction.RIGHT)
 
     assert calls == []
     assert _ftp_mode(ui) is FtpReceiveMode.WIRED
-    # Picker title now matches the row label ("Wi-Fi Mode"), and the options
-    # use the shorter mode names so the user doesn't read both "Bridge Wi-Fi"
-    # AND a hotspot/client distinction.
-    assert display.snapshots[-1].settings_title == "Wi-Fi Mode"
+    # Picker title now matches the row label ("Camera link", per plan 037
+    # polish #8), and the options use the shorter mode names so the user
+    # doesn't read both "Bridge Wi-Fi" AND a hotspot/client distinction.
+    assert display.snapshots[-1].settings_title == "Camera link"
     assert [row.label for row in display.snapshots[-1].settings_rows] == [
         "Hotspot",
         "Client",
@@ -1469,7 +1469,7 @@ async def test_settings_ftp_receive_mode_selects_bridge_wifi_from_advanced_mode(
     assert display.snapshots[-1].settings_rows[3].value == "192.168.8.1"
     assert display.snapshots[-1].settings_rows[4].label == "FTP user"
     assert display.snapshots[-1].settings_rows[5].label == "FTP PIN"
-    assert display.snapshots[-1].settings_rows[0].label == "Wi-Fi Mode"
+    assert display.snapshots[-1].settings_rows[0].label == "Camera link"
     # The "Bridge Wi-Fi ready" status string lives in the runtime-health
     # transport-message channel and is intentionally NOT renamed alongside
     # the picker/row labels — it describes a network state, not the menu.
@@ -3411,9 +3411,7 @@ async def test_adjustment_edit_right_nudges_plus_25(tmp_path: Path) -> None:
 async def test_adjustment_edit_value_clamped_to_range(tmp_path: Path) -> None:
     """Nudging past the max is clamped at the axis max (100 for saturation)."""
     config_path = tmp_path / "config.toml"
-    config_path.write_text(
-        '[adjustments]\npreset = "Custom"\nsaturation = 100\n', encoding="utf-8"
-    )
+    config_path.write_text('[adjustments]\npreset = "Custom"\nsaturation = 100\n', encoding="utf-8")
     display = _FakeDisplay()
     ui = BridgeUi(
         load_config(config_path),
@@ -3439,9 +3437,7 @@ async def test_adjustment_edit_vignette_clamped_at_zero(tmp_path: Path) -> None:
     from instantlink_bridge.ui.settings import SettingsPage
 
     config_path = tmp_path / "config.toml"
-    config_path.write_text(
-        '[adjustments]\npreset = "Custom"\nvignette = 0\n', encoding="utf-8"
-    )
+    config_path.write_text('[adjustments]\npreset = "Custom"\nvignette = 0\n', encoding="utf-8")
     display = _FakeDisplay()
     ui = BridgeUi(
         load_config(config_path),
@@ -3784,6 +3780,7 @@ def _make_adj_ui_phase5(
 async def test_adjustments_slider_editable_without_custom_preset(tmp_path: Path) -> None:
     """KEY1 on a slider row enters edit mode regardless of preset name (no Custom gate)."""
     from instantlink_bridge.ui.settings import SettingKey
+
     ui = _make_adj_ui_phase5(tmp_path, preset="Vivid", saturation=50)
     # Navigate to Saturation row (index 1).
     await ui._handle_action(UiAction.DOWN)
@@ -3838,9 +3835,7 @@ async def test_save_preset_requires_two_presses(tmp_path: Path) -> None:
     # First KEY1 → destructive toast, no file write.
     import unittest.mock
 
-    with unittest.mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+    with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         await ui._handle_action(UiAction.SELECT)
 
     assert ui._pending_save_preset is True
@@ -3874,9 +3869,7 @@ async def test_save_preset_second_press_writes_file(tmp_path: Path) -> None:
     for _ in range(9):
         await ui._handle_action(UiAction.DOWN)
 
-    with unittest.mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+    with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         await ui._handle_action(UiAction.SELECT)  # first press — arms confirm
         await ui._handle_action(UiAction.SELECT)  # second press — commits
 
@@ -3908,9 +3901,7 @@ async def test_save_preset_cancel_between_presses(tmp_path: Path) -> None:
     for _ in range(9):
         await ui._handle_action(UiAction.DOWN)
 
-    with unittest.mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+    with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         await ui._handle_action(UiAction.SELECT)  # first press
         assert ui._pending_save_preset is True
         await ui._handle_action(UiAction.BACK)  # cancel
@@ -4015,9 +4006,8 @@ async def test_overwrite_preset_two_press_confirm(tmp_path: Path) -> None:
     assert ui._preset_submenu_slot == "Custom1"
 
     import unittest.mock
-    with unittest.mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+
+    with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         # First SELECT on Overwrite row → arms confirm, no write yet.
         await ui._handle_action(UiAction.SELECT)
         assert ui._preset_submenu_pending_overwrite is True
@@ -4062,9 +4052,7 @@ async def test_delete_preset_two_press_confirm(tmp_path: Path) -> None:
     # Navigate to Delete row (index 1).
     await ui._handle_action(UiAction.DOWN)
 
-    with unittest.mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+    with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         # First SELECT → arms confirm.
         await ui._handle_action(UiAction.SELECT)
         assert ui._preset_submenu_pending_delete is True
@@ -4138,12 +4126,14 @@ async def test_selecting_black_and_white_preset_stamps_values(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_preset_row_shows_modified_marker_when_axis_differs(tmp_path: Path) -> None:
-    """Preset row shows 'Vivid *' when a colour axis differs from Vivid's canonical value."""
+    """Preset row shows 'Vivid · edited' when an axis differs from canonical.
+
+    Plan 037 polish #6: the cryptic " *" badge was replaced with the
+    self-describing " · edited" suffix.
+    """
     config_path = tmp_path / "config.toml"
     # Vivid canonical saturation is 50; set it to 37 to trigger the marker.
-    config_path.write_text(
-        '[adjustments]\npreset = "Vivid"\nsaturation = 37\n', encoding="utf-8"
-    )
+    config_path.write_text('[adjustments]\npreset = "Vivid"\nsaturation = 37\n', encoding="utf-8")
     display = _FakeDisplay()
     ui = BridgeUi(
         load_config(config_path),
@@ -4155,8 +4145,9 @@ async def test_preset_row_shows_modified_marker_when_axis_differs(tmp_path: Path
     )
     ui._show_settings(page=SettingsPage.ADJUSTMENTS)
     from instantlink_bridge.ui.settings import SettingKey
+
     row = ui._settings_row_for_key(SettingKey.ADJUST_PRESET, "")
-    assert row.value == "Vivid *", f"Expected 'Vivid *', got {row.value!r}"
+    assert row.value == "Vivid · edited", f"Expected 'Vivid · edited', got {row.value!r}"
 
 
 @pytest.mark.asyncio
@@ -4179,6 +4170,7 @@ async def test_preset_row_no_modified_marker_when_axes_match(tmp_path: Path) -> 
     )
     ui._show_settings(page=SettingsPage.ADJUSTMENTS)
     from instantlink_bridge.ui.settings import SettingKey
+
     row = ui._settings_row_for_key(SettingKey.ADJUST_PRESET, "")
     assert row.value == "Vivid", f"Expected 'Vivid', got {row.value!r}"
 
@@ -4196,9 +4188,7 @@ async def test_save_overwrites_active_custom_slot(tmp_path: Path) -> None:
     save_user_presets(presets_path, {"Custom1": AdjustmentProfile(saturation=1.5)})
 
     config_path = tmp_path / "config.toml"
-    config_path.write_text(
-        '[adjustments]\npreset = "Custom1"\nsaturation = 30\n', encoding="utf-8"
-    )
+    config_path.write_text('[adjustments]\npreset = "Custom1"\nsaturation = 30\n', encoding="utf-8")
     display = _FakeDisplay()
     ui = BridgeUi(
         load_config(config_path),
@@ -4218,9 +4208,7 @@ async def test_save_overwrites_active_custom_slot(tmp_path: Path) -> None:
     for _ in range(9):
         await ui._handle_action(UiAction.DOWN)
 
-    with unittest.mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+    with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         # First press — arms confirm toast referencing Custom1 (overwrite).
         await ui._handle_action(UiAction.SELECT)
         msg = ui._snapshot.settings_message or ""
@@ -4236,6 +4224,7 @@ async def test_save_overwrites_active_custom_slot(tmp_path: Path) -> None:
     # The saved profile should reflect saturation=30 (factor 1.3).
     updated_presets = load_user_presets(presets_path)
     import pytest as _pytest
+
     assert updated_presets["Custom1"].saturation == _pytest.approx(1.3, abs=0.02)
 
 
@@ -4259,6 +4248,7 @@ async def test_preset_picker_shows_empty_slots_when_no_user_customs(tmp_path: Pa
     assert len(options) == 11, f"Expected 11 options, got {len(options)}"
     # All 6 custom slots should be present (as empty entries).
     from instantlink_bridge.ui.settings import USER_PRESET_SLOT_NAMES
+
     for slot in USER_PRESET_SLOT_NAMES:
         values = [opt.value for opt in options]
         assert slot in values, f"{slot} not in picker options"
@@ -4359,9 +4349,7 @@ async def test_slots_full_toast_mentions_overwrite_path(tmp_path: Path) -> None:
 
     import unittest.mock as mock
 
-    with mock.patch(
-        "instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path
-    ):
+    with mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         # Navigate to "Save current" row (index 9 on the Adjustments page;
         # plan 037 phase 4 inserted Datestamp format between Datestamp/Watermark).
         for _ in range(9):
@@ -4458,10 +4446,15 @@ def test_idle_poweroff_row_value_after_10_min() -> None:
     assert row.value == "After 10 min"
 
 
-def test_system_page_no_longer_includes_idle_info_row() -> None:
-    """Plan 037 #2: SYSTEM_IDLE_INFO is dropped from the SYSTEM page."""
+def test_system_idle_info_enum_removed() -> None:
+    """Plan 037 polish #12: SYSTEM_IDLE_INFO enum value is gone for good.
 
-    assert SettingKey.SYSTEM_IDLE_INFO not in SETTINGS_BY_PAGE[SettingsPage.SYSTEM]
+    The enum was marked deprecated in plan 037 phase 1 with a "keep for
+    one release" comment. The release shipped and no in-memory or
+    persisted reference can resurrect it, so we remove it cleanly.
+    """
+
+    assert not hasattr(SettingKey, "SYSTEM_IDLE_INFO")
 
 
 def test_section_header_keys_cover_all_three_dividers() -> None:
@@ -4559,10 +4552,7 @@ async def test_initial_selection_skips_persisted_header() -> None:
 def test_adjustments_page_includes_datestamp_format_row() -> None:
     """The Datestamp format picker row is registered on the Adjustments page."""
 
-    assert (
-        SettingKey.ADJUST_DATESTAMP_FORMAT
-        in SETTINGS_BY_PAGE[SettingsPage.ADJUSTMENTS]
-    )
+    assert SettingKey.ADJUST_DATESTAMP_FORMAT in SETTINGS_BY_PAGE[SettingsPage.ADJUSTMENTS]
 
 
 def test_datestamp_format_picker_options() -> None:
@@ -4594,56 +4584,50 @@ def test_datestamp_format_selected_option_index_reflects_config() -> None:
         selected_option_index,
     )
 
-    config = BridgeConfig(
-        adjustments=AdjustmentsConfig(datestamp_format=DatestampFormat.OLYMPUS)
-    )
+    config = BridgeConfig(adjustments=AdjustmentsConfig(datestamp_format=DatestampFormat.OLYMPUS))
     index = selected_option_index(config, SettingKey.ADJUST_DATESTAMP_FORMAT)
     assert DATESTAMP_FORMAT_OPTIONS[index].value is DatestampFormat.OLYMPUS
 
     # And Contax → Contax round-trip.
     config = _replace(
         config,
-        adjustments=_replace(
-            config.adjustments, datestamp_format=DatestampFormat.CONTAX
-        ),
+        adjustments=_replace(config.adjustments, datestamp_format=DatestampFormat.CONTAX),
     )
     index = selected_option_index(config, SettingKey.ADJUST_DATESTAMP_FORMAT)
     assert DATESTAMP_FORMAT_OPTIONS[index].value is DatestampFormat.CONTAX
 
 
 def test_watermark_row_shows_current_text_when_set() -> None:
-    """Plan 037 phase 4: enabled watermark with text shows 'On · "Text"' in the row."""
+    """Plan 037 phase 4: enabled watermark with text shows 'On · "Text"' in the row.
+
+    Plan 037 polish #4: the "On" prefix moves to ``i18n_value_prefix`` so
+    zh-Hans translates it; ``value`` carries only the raw user suffix.
+    """
     from instantlink_bridge.config import AdjustmentsConfig
 
-    config = BridgeConfig(
-        adjustments=AdjustmentsConfig(watermark=True, watermark_text="Hello")
-    )
+    config = BridgeConfig(adjustments=AdjustmentsConfig(watermark=True, watermark_text="Hello"))
     ui, _ = _make_settings_ui(config)
     row = ui._settings_row_for_key(SettingKey.ADJUST_WATERMARK, printer_name="none")
     assert "Hello" in row.value
-    assert row.value.startswith("On")
+    assert row.i18n_value_prefix == "On"
 
 
 def test_watermark_row_shows_no_text_hint_when_empty() -> None:
     """Enabled watermark with empty text shows the explicit '(no text)' hint."""
     from instantlink_bridge.config import AdjustmentsConfig
 
-    config = BridgeConfig(
-        adjustments=AdjustmentsConfig(watermark=True, watermark_text="")
-    )
+    config = BridgeConfig(adjustments=AdjustmentsConfig(watermark=True, watermark_text=""))
     ui, _ = _make_settings_ui(config)
     row = ui._settings_row_for_key(SettingKey.ADJUST_WATERMARK, printer_name="none")
-    assert "no text" in row.value
-    assert row.value.startswith("On")
+    # "On · (no text)" remains a single phrase in i18n; no prefix split.
+    assert row.value == "On · (no text)"
 
 
 def test_watermark_row_off_when_disabled() -> None:
     """A disabled watermark still reads 'Off' regardless of stored text."""
     from instantlink_bridge.config import AdjustmentsConfig
 
-    config = BridgeConfig(
-        adjustments=AdjustmentsConfig(watermark=False, watermark_text="Hello")
-    )
+    config = BridgeConfig(adjustments=AdjustmentsConfig(watermark=False, watermark_text="Hello"))
     ui, _ = _make_settings_ui(config)
     row = ui._settings_row_for_key(SettingKey.ADJUST_WATERMARK, printer_name="none")
     assert row.value == "Off"
@@ -4654,9 +4638,7 @@ def test_watermark_row_truncates_long_text() -> None:
     from instantlink_bridge.config import AdjustmentsConfig
 
     long_text = "Hongjun and the Watermark"
-    config = BridgeConfig(
-        adjustments=AdjustmentsConfig(watermark=True, watermark_text=long_text)
-    )
+    config = BridgeConfig(adjustments=AdjustmentsConfig(watermark=True, watermark_text=long_text))
     ui, _ = _make_settings_ui(config)
     row = ui._settings_row_for_key(SettingKey.ADJUST_WATERMARK, printer_name="none")
     assert "…" in row.value
@@ -4680,11 +4662,158 @@ def test_datestamp_format_row_value_shows_current_preset_name() -> None:
     """The Datestamp format row value matches the picker label for the active enum."""
     from instantlink_bridge.config import AdjustmentsConfig, DatestampFormat
 
-    config = BridgeConfig(
-        adjustments=AdjustmentsConfig(datestamp_format=DatestampFormat.CONTAX)
-    )
+    config = BridgeConfig(adjustments=AdjustmentsConfig(datestamp_format=DatestampFormat.CONTAX))
     ui, _ = _make_settings_ui(config)
-    row = ui._settings_row_for_key(
-        SettingKey.ADJUST_DATESTAMP_FORMAT, printer_name="none"
-    )
+    row = ui._settings_row_for_key(SettingKey.ADJUST_DATESTAMP_FORMAT, printer_name="none")
     assert row.value == "Contax"
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 polish: 15-fix audit batch
+# ---------------------------------------------------------------------------
+
+
+def test_section_header_row_carries_is_header_flag() -> None:
+    """Plan 037 polish #1: section divider rows are tagged with
+    ``is_header=True`` so the renderer can style them as labels rather
+    than greyed-out picker rows."""
+
+    ui, _ = _make_settings_ui(BridgeConfig())
+    for key in (
+        SettingKey.NETWORK_DIAGNOSTICS_HEADER,
+        SettingKey.PRINT_ADVANCED_HEADER,
+        SettingKey.SYSTEM_PERSONALISATION_HEADER,
+    ):
+        row = ui._settings_row_for_key(key, printer_name="none")
+        assert row.is_header, f"{key} should be flagged is_header=True"
+        assert row.value == ""
+
+
+def test_non_header_rows_have_is_header_false() -> None:
+    """Plan 037 polish #1 regression guard: ordinary rows must not be
+    flagged as headers even when their value happens to be blank."""
+
+    ui, _ = _make_settings_ui(BridgeConfig())
+    row = ui._settings_row_for_key(SettingKey.OPEN_NETWORK, printer_name="none")
+    assert row.is_header is False
+
+
+def test_camera_link_label_replaces_wifi_mode() -> None:
+    """Plan 037 polish #8: FTP_RECEIVE_MODE row label renamed from
+    "Wi-Fi Mode" to "Camera link" (matches the help-text vocabulary)."""
+
+    ui, _ = _make_settings_ui(BridgeConfig())
+    row = ui._settings_row_for_key(SettingKey.FTP_RECEIVE_MODE, printer_name="none")
+    assert row.label == "Camera link"
+
+
+def test_hue_help_text_no_trailing_period() -> None:
+    """Plan 037 polish #14: Hue help string no longer ends with a period
+    so it matches sibling Saturation/Exposure/Sharpness help strings."""
+    from instantlink_bridge.ui.settings import SettingKey, setting_help_text
+
+    help_text = setting_help_text(SettingKey.ADJUST_HUE)
+    assert help_text == "Tint. Left toward orange, right toward blue"
+    assert not help_text.endswith(".")
+
+
+def test_preset_modified_marker_is_edited_text_not_asterisk(tmp_path: Path) -> None:
+    """Plan 037 polish #6: the trailing modified marker is the
+    self-describing " · edited" badge, not the cryptic " *"."""
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Vivid"\nsaturation = 7\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    row = ui._settings_row_for_key(SettingKey.ADJUST_PRESET, printer_name="none")
+    assert " · edited" in row.value
+    assert " *" not in row.value
+
+
+def test_watermark_row_on_with_text_translates_prefix_in_zh_hans() -> None:
+    """Plan 037 polish #4: watermark row's "On" prefix moves into
+    ``i18n_value_prefix`` so zh-Hans translates the prefix while the
+    user text passes through unchanged."""
+    from instantlink_bridge.config import AdjustmentsConfig
+    from instantlink_bridge.ui.i18n import Language, t
+
+    config = BridgeConfig(adjustments=AdjustmentsConfig(watermark=True, watermark_text="Hello"))
+    ui, _ = _make_settings_ui(config)
+    row = ui._settings_row_for_key(SettingKey.ADJUST_WATERMARK, printer_name="none")
+    assert row.i18n_value_prefix == "On"
+    # Simulate the render-layer compose: prefix translates, suffix stays raw.
+    composed = t(row.i18n_value_prefix, Language.ZH_HANS) + row.value
+    assert composed == '开 · "Hello"'
+
+
+def test_empty_preset_slot_picker_has_no_hint(tmp_path: Path) -> None:
+    """Plan 037 polish #3: empty Custom slots in the preset picker carry
+    an empty hint (the row label already says "(empty)") instead of the
+    nonsense "KEY1 empty"."""
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    options = ui._preset_picker_options()
+    rows = ui._preset_picker_rows(options, "Default")
+    empty_rows = [r for r in rows if "(empty)" in r.label]
+    assert len(empty_rows) == 6, "expected 6 empty Custom slots in a fresh config"
+    for r in empty_rows:
+        assert r.hint == ""
+
+
+async def _enter_adjustments_edit_mode(ui: BridgeUi, key: SettingKey) -> None:
+    """Pump the UI into the focused-edit mode for ``key`` by selecting it."""
+
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    # Walk the cursor to the target row.
+    keys = ui._visible_keys_for_page(SettingsPage.ADJUSTMENTS)
+    index = keys.index(key)
+    ui._snapshot = replace(ui._snapshot, selected_index=index)
+    ui._settings_indices[SettingsPage.ADJUSTMENTS] = index
+    await ui._activate_setting(key)
+
+
+@pytest.mark.asyncio
+async def test_toggle_edit_message_clears_on_up_down() -> None:
+    """Plan 037 polish #11: KEY3 help text shown in toggle-edit mode
+    clears as soon as UP/DOWN flips the toggle, so the user's live edit
+    isn't visually masked by a stale help overlay."""
+
+    ui, _ = _make_settings_ui(BridgeConfig())
+    await _enter_adjustments_edit_mode(ui, SettingKey.ADJUST_WATERMARK)
+    # Show KEY3 help (simulates the user pressing KEY3 in edit mode).
+    await ui._handle_adjustment_edit_action(UiAction.HELP)
+    assert ui._snapshot.settings_message is not None
+    # A UP press flips the toggle; the help message must clear at the
+    # same time so the live edit is visible.
+    await ui._handle_adjustment_edit_action(UiAction.UP)
+    assert ui._snapshot.settings_message is None
+
+
+@pytest.mark.asyncio
+async def test_slider_edit_message_clears_on_up_down() -> None:
+    """Plan 037 polish #11 (sibling): KEY3 help text shown in slider-edit
+    mode clears when the user nudges the slider with UP/DOWN."""
+
+    ui, _ = _make_settings_ui(BridgeConfig())
+    await _enter_adjustments_edit_mode(ui, SettingKey.ADJUST_SATURATION)
+    await ui._handle_adjustment_edit_action(UiAction.HELP)
+    assert ui._snapshot.settings_message is not None
+    await ui._handle_adjustment_edit_action(UiAction.UP)
+    assert ui._snapshot.settings_message is None

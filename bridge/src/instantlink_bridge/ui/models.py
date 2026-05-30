@@ -56,12 +56,24 @@ class PairedPrinter:
 
 @dataclass(frozen=True, slots=True)
 class SettingsRow:
-    """A single LCD settings menu row."""
+    """A single LCD settings menu row.
+
+    ``is_header`` marks visual section dividers (e.g. "Diagnostics",
+    "Advanced", "Personalisation"). The render layer styles header rows
+    with a smaller font, secondary tint, no row hairline, and reduced
+    height so they read as labels rather than greyed-out selectable rows.
+
+    ``i18n_value_prefix`` is a translatable prefix that the render layer
+    composes with ``value`` at draw time (e.g. ``"On"`` + ``" · \"Hello\""``).
+    Useful for composite values where only the leading word needs i18n.
+    """
 
     label: str
     value: str
     hint: str = ""
     help: str = ""
+    is_header: bool = False
+    i18n_value_prefix: str = ""
 
 
 @dataclass(frozen=True, slots=True)

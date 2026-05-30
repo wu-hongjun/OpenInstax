@@ -81,10 +81,6 @@ class SettingKey(StrEnum):
     SYSTEM_OS_VERSION = "system_os_version"
     SYSTEM_POWER_INFO = "system_power_info"
     SYSTEM_BATTERY_INFO = "system_battery_info"
-    # Deprecated since plan 037 phase 1 — kept as an unused enum value for one
-    # release so any in-flight TOML/state references don't crash. No row
-    # surfaces this key anywhere; remove in a follow-up release.
-    SYSTEM_IDLE_INFO = "system_idle_info"
     SYSTEM_IDLE_POWEROFF = "system_idle_poweroff"
     FONT_SIZE = "font_size"
     LANGUAGE = "language"
@@ -494,7 +490,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.ADJUST_SATURATION: "Colour intensity. Negative dulls, positive boosts",
     SettingKey.ADJUST_EXPOSURE: "Brightness in EV stops. ±100 = ±1 EV",
     SettingKey.ADJUST_SHARPNESS: "Edge contrast. Negative softens, positive crisps",
-    SettingKey.ADJUST_HUE: "Tint. Left toward orange, right toward blue.",
+    SettingKey.ADJUST_HUE: "Tint. Left toward orange, right toward blue",
     # Vignette picker (plan 035 phase 6).
     SettingKey.ADJUST_VIGNETTE: "Darken the corners to simulate Instax film",
     # Adjustments overlay toggles (plan 035 phase 4).
