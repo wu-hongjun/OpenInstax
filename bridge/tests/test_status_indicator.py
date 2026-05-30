@@ -157,25 +157,47 @@ def test_printer_searching_while_probing_stays_breathing() -> None:
 
 
 # ---------------------------------------------------------------------------
-# SETTINGS overlay — always blue/neutral (plan 034 item 1a)
+# SETTINGS overlay — dot inherits underlying device health
 # ---------------------------------------------------------------------------
+#
+# Going into Settings collapses the status pill into a circle, but the
+# circle keeps reporting the device's actual health (green if ready,
+# yellow if searching, red if error). The earlier NEUTRAL/blue routing
+# was abandoned per user feedback — a blue dot in Settings doesn't tell
+# the user whether their printer is OK, and that information matters
+# while they're configuring.
 
 
-def test_settings_overlay_always_returns_neutral_solid() -> None:
-    """SETTINGS always renders the pill blue (NEUTRAL solid) regardless of
-    underlying bridge health. Yellow ≡ warning in the signal vocabulary, so
-    the pill must not turn yellow/red just because the user opened settings
-    from a non-ready state (plan 034 item 1a).
-    """
-    for overrides in (
-        {},
-        {"paired_printer": None},
-        {"film_remaining": 0},
-        {"printer_status_fresh": False},
-    ):
-        state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS, **overrides))
-        assert state.signal is StatusSignal.NEUTRAL, f"overrides={overrides}"
-        assert state.pattern is StatusPattern.SOLID, f"overrides={overrides}"
+def test_settings_inherits_ready_when_device_healthy() -> None:
+    """A healthy bridge stays green in the Settings dot."""
+
+    state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS))
+    assert state.signal is StatusSignal.READY
+    assert state.pattern is StatusPattern.SOLID
+
+
+def test_settings_inherits_not_ready_when_unpaired() -> None:
+    """No printer paired → not-ready (yellow solid) even inside Settings."""
+
+    state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS, paired_printer=None))
+    assert state.signal is StatusSignal.NOT_READY
+
+
+def test_settings_inherits_warning_when_no_film() -> None:
+    """Film exhausted while not in test mode → warning red breathing."""
+
+    state = derive_status(_ready_snapshot(mode=UiMode.SETTINGS, film_remaining=0))
+    assert state.signal is StatusSignal.WARNING
+    assert state.pattern is StatusPattern.BREATHING
+
+
+def test_settings_inherits_searching_when_status_stale() -> None:
+    """Status hasn't refreshed → searching yellow breathing in Settings too."""
+
+    state = derive_status(
+        _ready_snapshot(mode=UiMode.SETTINGS, printer_status_fresh=False)
+    )
+    assert state.signal is StatusSignal.SEARCHING
 
 
 # ---------------------------------------------------------------------------

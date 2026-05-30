@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 from instantlink_bridge.ble.models import PrinterModel
 from instantlink_bridge.ui.i18n import t
 from instantlink_bridge.ui.models import UiMode, UiSnapshot
-from instantlink_bridge.ui.status_indicator import StatusSignal, StatusState, derive_status
+from instantlink_bridge.ui.status_indicator import StatusState, derive_status
 from instantlink_bridge.ui.theme import Theme, theme_for
 
 LCD_SIZE = (240, 240)
@@ -260,26 +260,28 @@ def draw_status_bar(
     *,
     theme: Theme | None = None,
 ) -> None:
-    """Draw the 36 px status bar — title left, status dot center, counter right.
+    """Draw the 36 px status bar.
 
-    Two separable affordances replaced the old single text pill:
+    Two surface modes depending on what the user is doing:
 
-    - **Title** (top-left): a short noun naming the screen — "Print" on a
-      Settings sub-page, "Ready" on the main READY screen, "Searching"
-      while scanning, etc. Rendered in body font, ``theme.label_primary``,
-      no chip. Tells the user *where they are*.
-    - **Status dot** (top-center, 12 px diameter): a filled circle whose
-      colour is the same green/yellow/red/blue the old pill carried. The
-      breath envelope animates the dot's fill during breathing states.
-      No text on the dot — its colour and pulse already carry the signal,
-      and the body content describes specifics for non-OK states. Tells
-      the user *whether things are OK*.
-    - **Settings counter** (top-right): unchanged. Shows "2/6" on Settings
-      sub-pages so the user knows their position in the list.
+    - **Non-Settings modes** (READY, PRINTING, SEARCHING, …): a centered
+      vibrant pill carries the live status word ("Connected" / "Searching"
+      / "Printing" / "Ejecting" / …). The pill colour + breath modulation
+      tell the user *whether things are OK*; the word inside tells them
+      *what the device is doing*. This is the resting / operational
+      surface — the user mostly sees this.
+    - **Settings mode**: the pill collapses to its essence. The title
+      text ("Print" / "Network" / "System" / …) takes over top-left,
+      naming *where you are* in the menu. A small filled circle stays at
+      top-center carrying the *same* status colour the pill would have
+      shown — green if the printer's ready, yellow if it's searching,
+      red on error. The dot keeps reporting reality so the user can see
+      the device's health while they configure. Top-right shows a page
+      counter ("2/6").
 
-    Splitting "where you are" (text) from "is it OK?" (dot) removes the
-    semantic overload the pill carried — yellow on a Settings pill used
-    to read as "warning" even though it just meant "you're in a menu".
+    Going into Settings is "collapsing the pill into a circle" — the
+    status semantics are preserved, only the surface shrinks to make
+    room for the menu's title text.
     """
 
     if theme is None:
@@ -292,6 +294,63 @@ def draw_status_bar(
     # Bar background — neutral, no tint
     draw.rectangle((0, 0, 239, STATUS_BAR_H - 1), fill=theme.bg)
 
+    if snapshot.mode is UiMode.SETTINGS:
+        _draw_status_bar_settings(
+            draw, snapshot, state, font_body, font_small, now, theme
+        )
+    else:
+        _draw_status_bar_pill(draw, snapshot, state, font_body, now, theme)
+
+
+def _draw_status_bar_pill(
+    draw: ImageDraw.ImageDraw,
+    snapshot: UiSnapshot,
+    state: StatusState,
+    font_body: Font,
+    now: float,
+    theme: Theme,
+) -> None:
+    """Operational status bar: centered pill with the live status word."""
+
+    word = t(status_bar_word(snapshot), snapshot.language)
+
+    pill_bg_rgb = _state_pill_bg(state)
+    pill_bg_tinted = _apply_breath(state, pill_bg_rgb, now)
+    pill_bg_hex = _rgb_to_hex(pill_bg_tinted)
+
+    fg = state.foreground()
+    fg_hex = _rgb_to_hex(fg)
+
+    # Pill width: tighter for Latin (24 px horizontal padding), looser for
+    # CJK glyphs which sit wider and look cramped at the Latin floor.
+    word_bbox = draw.textbbox((0, 0), word, font=font_body)
+    word_w = int(word_bbox[2] - word_bbox[0])
+    if _has_cjk(word):
+        pill_w = max(76, word_w + 32)
+    else:
+        pill_w = max(60, word_w + 24)
+    pill_h = 22
+
+    pill_x = 120 - pill_w // 2
+    # Optical centring: +1 px so the pill floats with 8 px above / 6 px
+    # below rather than equal 7/7 margins (plan 034 item 6).
+    pill_y = (STATUS_BAR_H - pill_h) // 2 + 1
+
+    draw_pill(draw, pill_x, pill_y, pill_w, pill_h, pill_bg_hex, fg_hex, word, font_body)
+
+
+def _draw_status_bar_settings(
+    draw: ImageDraw.ImageDraw,
+    snapshot: UiSnapshot,
+    state: StatusState,
+    font_body: Font,
+    font_small: Font,
+    now: float,
+    theme: Theme,
+) -> None:
+    """Settings status bar: page title (left) + status dot (center) +
+    page counter (right)."""
+
     # --- Title (top-left) -------------------------------------------------
     title = t(status_bar_word(snapshot), snapshot.language)
     title_bbox = draw.textbbox((0, 0), title, font=font_body)
@@ -303,9 +362,9 @@ def draw_status_bar(
     _text(draw, 12, title_y, title, font_body, theme.label_primary)
 
     # --- Status dot (top-center) ------------------------------------------
-    # Same colour the pill used; same breath modulation. A small filled
-    # circle conveys live status without competing with the title text.
-    dot_rgb = _apply_breath(state, _state_pill_bg(state, theme), now)
+    # Inherits the underlying device health (status_indicator._settings_inherit).
+    # Same colour + breath the pill would have shown if Settings weren't open.
+    dot_rgb = _apply_breath(state, _state_pill_bg(state), now)
     dot_hex = _rgb_to_hex(dot_rgb)
     dot_radius = 6  # 12 px diameter — visible at arm's length, not loud
     dot_cx = 120
@@ -316,8 +375,8 @@ def draw_status_bar(
         fill=dot_hex,
     )
 
-    # --- Settings counter (top-right) -------------------------------------
-    if snapshot.mode is UiMode.SETTINGS and snapshot.settings_rows:
+    # --- Page counter (top-right) -----------------------------------------
+    if snapshot.settings_rows:
         selected = min(snapshot.selected_index, len(snapshot.settings_rows) - 1)
         counter = f"{selected + 1}/{len(snapshot.settings_rows)}"
         counter_bbox = draw.textbbox((0, 0), counter, font=font_small)
@@ -331,19 +390,15 @@ def draw_status_bar(
         _text(draw, counter_x, counter_y, counter, font_small, theme.label_secondary)
 
 
-def _state_pill_bg(
-    state: StatusState,
-    theme: Theme,
-) -> tuple[int, int, int]:
+def _state_pill_bg(state: StatusState) -> tuple[int, int, int]:
     """Return the full-intensity pill background RGB for a StatusState.
 
-    NEUTRAL (SETTINGS overlay) uses the theme's blue pill token so the pill
-    reads as a calm informational indicator, not a warning (plan 034 item 1a).
-    All other signals fall back to the state's base_color.
+    The status-bar pill / dot colour is the state's `base_color` — green
+    for READY/PRINTING, yellow for SEARCHING/NOT_READY, red for ERROR/
+    WARNING. The earlier theme-aware blue routing for SETTINGS was
+    reverted; the Settings dot now inherits the underlying device
+    health.
     """
-    if state.signal is StatusSignal.NEUTRAL:
-        h = theme.pill_bg_blue.lstrip("#")
-        return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
     return state.base_color
 
 

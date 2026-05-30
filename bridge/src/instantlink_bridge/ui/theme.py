@@ -99,7 +99,6 @@ class Theme:
     pill_bg_green: str
     pill_bg_yellow: str
     pill_bg_red: str
-    pill_bg_blue: str
 
     # Hint bar
     hint_bg: str  # bar background
@@ -128,7 +127,6 @@ LIGHT_THEME = Theme(
     pill_bg_green="#65D87C",   # #34C759 * 0.70 + #FFF * 0.30 → #65D87C
     pill_bg_yellow="#FFD833",  # #FFCC00 * 0.70 + #FFF * 0.30 → #FFD833
     pill_bg_red="#FF6D65",     # #FF3B30 * 0.70 + #FFF * 0.30 → #FF6D65
-    pill_bg_blue="#57A8FF",    # #007AFF * 0.70 + #FFF * 0.30 → #57A8FF
     hint_bg="#E5E5EA",
     hint_fg="#6B6B70",
 )
@@ -157,7 +155,6 @@ DARK_THEME = Theme(
     pill_bg_green="#2DB44E",   # #30D158 * 0.82 + #1C1C1E * 0.18 → #2DB44E
     pill_bg_yellow="#E6B800",  # bumped from #D4B20D — plan 034 item 5a; warm yellow, not ochre
     pill_bg_red="#D43A30",     # #FF453A * 0.82 + #1C1C1E * 0.18 → #D43A30
-    pill_bg_blue="#0E74E8",    # #0A84FF * 0.82 + #1C1C1E * 0.18 → #0E74E8
     hint_bg="#1C1C1E",
     hint_fg="#A1A1A6",
 )
