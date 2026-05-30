@@ -141,6 +141,71 @@ final class BridgeHTTPTransportTests {
         }
     }
 
+    func testUSBAutoTrustSendsExpectedPayloadAndDoesNotSignRequest() async throws {
+        let identity = try makeIdentity()
+        let keyStore = FakeBridgeClientKeyStore(createdIdentity: identity)
+        let session = makeSession { request in
+            try expectEqual(request.url?.path, "/v1/pairing/usb_auto_trust")
+            try expectEqual(request.httpMethod, "POST")
+            // Auto-trust must NOT include the signing headers — the bridge
+            // authorizes by listening-interface IP, not by signed request.
+            try expectNil(request.value(forHTTPHeaderField: BridgeManagementAuth.clientIDHeader))
+            try expectNil(request.value(forHTTPHeaderField: BridgeManagementAuth.timestampHeader))
+            try expectNil(request.value(forHTTPHeaderField: BridgeManagementAuth.nonceHeader))
+            try expectNil(request.value(forHTTPHeaderField: BridgeManagementAuth.signatureHeader))
+
+            let body = requestBody(from: request)
+            let parsed = try JSONDecoder().decode(BridgeUSBAutoTrustRequest.self, from: body)
+            try expectEqual(parsed.clientID, "macbook")
+            try expectEqual(parsed.clientName, "Test Mac")
+            try expectEqual(parsed.publicKey, identity.publicKey)
+            try expectEqual(parsed.publicKeyAlgorithm, .ed25519)
+            try expectEqual(parsed.expectedDeviceID, "IB-1234ABCD")
+            return .json(200, Self.pairingCompleteEnvelope)
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://192.168.7.1:8742")!,
+            session: session,
+            keyStore: keyStore
+        )
+
+        let completion = try await transport.usbAutoTrust(
+            device: makeDevice(),
+            clientName: "Test Mac"
+        )
+        try expectTrue(completion.paired)
+        try expectEqual(completion.clientID, "macbook")
+        try expectEqual(keyStore.savedIdentity?.clientID, "macbook")
+        try expectEqual(keyStore.savedBridgeID, "IB-1234ABCD")
+    }
+
+    func testUSBAutoTrustSurfacesRejectionError() async throws {
+        let keyStore = FakeBridgeClientKeyStore(createdIdentity: try makeIdentity())
+        let session = makeSession { _ in
+            .json(403, Self.errorEnvelope(code: "not_usb_interface"))
+        }
+        let transport = BridgeHTTPTransport(
+            baseURL: URL(string: "http://192.168.8.1:8742")!,
+            session: session,
+            keyStore: keyStore
+        )
+
+        do {
+            _ = try await transport.usbAutoTrust(
+                device: makeDevice(),
+                clientName: "Test Mac"
+            )
+            throw MacTestFailure(
+                file: #filePath,
+                line: #line,
+                message: "Expected rejected auto-trust to throw"
+            )
+        } catch let error as BridgeAPIError {
+            try expectEqual(error.code, "not_usb_interface")
+            try expectNil(keyStore.savedIdentity)
+        }
+    }
+
     func testForgetLocalAuthDeletesOnlyLocalIdentity() async throws {
         let keyStore = FakeBridgeClientKeyStore(identity: try makeIdentity())
         let transport = BridgeHTTPTransport(

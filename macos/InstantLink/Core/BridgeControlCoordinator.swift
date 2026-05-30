@@ -4,10 +4,35 @@ import Foundation
 
 // MARK: - Public state
 
+/// Which physical/transport medium a Bridge discovery hit arrived on.
+///
+/// The medium is inferred from the discovered device's endpoint URL host:
+///   * `192.168.7.1` — USB gadget (`usb0`) point-to-point link.
+///   * `192.168.8.1` — Bridge Wi-Fi (the Pi's hotspot).
+///   * anything else (e.g. `bridge.local` over Same-Wi-Fi) — Wi-Fi advertised
+///     on the user's existing network.
+///
+/// The medium drives the pairing UX. USB hits trigger silent auto-trust
+/// because physical USB presence on the user's own Mac is the approval
+/// signal; Wi-Fi hits keep the LCD-code wizard.
+enum BridgeTransportMedium: String, Equatable {
+    case usb
+    case bridgeWiFi
+    case sameWiFi
+    case unknown
+
+    static func from(endpoint: URL?) -> BridgeTransportMedium {
+        guard let host = endpoint?.host else { return .unknown }
+        if host == "192.168.7.1" { return .usb }
+        if host == "192.168.8.1" { return .bridgeWiFi }
+        return .sameWiFi
+    }
+}
+
 /// What discovery currently thinks about the Bridge attached to USB / Wi-Fi.
 enum BridgeDiscoveryState: Equatable {
     case searching
-    case found(BridgeDevice)
+    case found(BridgeDevice, medium: BridgeTransportMedium)
     case lost(lastDevice: BridgeDevice?, lostAt: Date)
 }
 
@@ -48,6 +73,10 @@ struct BridgeControlSnapshot: Equatable {
     var lastError: BridgeErrorPayload?
     var lastUpdated: Date?
     var pairingStatus: BridgePairingStatus?
+    /// Set when USB-physical auto-trust most recently succeeded. The discovery
+    /// banner watches this to render a brief "Bridge connected and authorized"
+    /// toast that fades after 5 s.
+    var lastAutoTrustEvent: Date?
 
     static let empty = BridgeControlSnapshot(
         discovery: .searching,
@@ -55,7 +84,8 @@ struct BridgeControlSnapshot: Equatable {
         status: nil,
         lastError: nil,
         lastUpdated: nil,
-        pairingStatus: nil
+        pairingStatus: nil,
+        lastAutoTrustEvent: nil
     )
 }
 
@@ -274,8 +304,9 @@ final class BridgeControlCoordinator: ObservableObject {
             currentTransportEndpoint = endpoint
         }
 
+        let medium = BridgeTransportMedium.from(endpoint: device.endpointURL)
         var mutated = snapshot
-        mutated.discovery = .found(device)
+        mutated.discovery = .found(device, medium: medium)
         mutated.lastUpdated = nowDate
         snapshot = mutated
 
@@ -288,10 +319,78 @@ final class BridgeControlCoordinator: ObservableObject {
                 snapshot.pairing = .paired(restored.0)
             }
             startStatusPolling()
+        } else if medium == .usb {
+            // Plan 038 phase A.1: USB physical presence on the user's own Mac IS
+            // the approval signal. Skip the LCD-code wizard, call the bridge's
+            // auto-trust route silently, and persist the identity ourselves.
+            startUSBAutoTrust(device: device)
         } else {
-            // No identity yet — start polling the pairing status so we can react
-            // when the user opens the window on the LCD.
+            // Wi-Fi paths still require LCD-code confirmation. Start polling the
+            // pairing status so we can react when the user opens the window on
+            // the LCD.
             startPairingPolling(device: device)
+        }
+    }
+
+    private func startUSBAutoTrust(device: BridgeDevice) {
+        // Cancel any in-flight pairing polling: USB auto-trust supersedes it.
+        pairingPollTask?.cancel()
+        pairingPollTask = nil
+        Task { [weak self] in
+            await self?.runUSBAutoTrust(device: device)
+        }
+    }
+
+    private func runUSBAutoTrust(device: BridgeDevice) async {
+        // If a different branch already paired us in the meantime, skip.
+        if case .paired = snapshot.pairing { return }
+        let clientName = clientNameProvider()
+        do {
+            let completion = try await transport.usbAutoTrust(
+                device: device,
+                clientName: clientName
+            )
+            guard completion.paired else {
+                mutateSnapshot { snapshot in
+                    snapshot.pairing = .failed(reason: .other(completion.message ?? "auto_trust_rejected"))
+                }
+                return
+            }
+            let identity = BridgeIdentity(
+                deviceID: device.deviceID,
+                displayName: device.displayName,
+                pairedAt: now(),
+                clientID: completion.clientID,
+                clientName: clientName
+            )
+            do {
+                let privateKey = Curve25519.Signing.PrivateKey()
+                try keychain.saveIdentity(identity, privateKey: privateKey)
+            } catch {
+                // Metadata save failure is non-fatal; the transport keystore
+                // already holds the signing material we need.
+                mutateSnapshot { snapshot in
+                    snapshot.lastError = BridgeErrorPayload(
+                        message: "Failed to cache identity metadata: \(error)"
+                    )
+                }
+            }
+            mutateSnapshot { snapshot in
+                snapshot.pairing = .paired(identity)
+                snapshot.lastError = nil
+                snapshot.lastAutoTrustEvent = self.now()
+            }
+            startStatusPolling()
+        } catch let error as BridgeAPIError {
+            mutateSnapshot { snapshot in
+                snapshot.lastError = error.payload
+                snapshot.pairing = .unpaired
+            }
+        } catch {
+            mutateSnapshot { snapshot in
+                snapshot.lastError = BridgeErrorPayload(message: "\(error)")
+                snapshot.pairing = .unpaired
+            }
         }
     }
 
@@ -307,7 +406,7 @@ final class BridgeControlCoordinator: ObservableObject {
 
         var lastDevice: BridgeDevice?
         switch snapshot.discovery {
-        case .found(let device):
+        case .found(let device, _):
             lastDevice = device
         case .lost(let device, _):
             lastDevice = device
@@ -531,7 +630,7 @@ final class BridgeControlCoordinator: ObservableObject {
 
     private func currentDevice() -> BridgeDevice? {
         switch snapshot.discovery {
-        case .found(let device): return device
+        case .found(let device, _): return device
         case .lost(let device, _): return device
         case .searching: return nil
         }

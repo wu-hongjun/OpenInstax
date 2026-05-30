@@ -59,6 +59,12 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeHTTPTransportTests.testCompletePairingDoesNotSaveIdentityWhenServerRouteIsNotReady", {
                 try await BridgeHTTPTransportTests().testCompletePairingDoesNotSaveIdentityWhenServerRouteIsNotReady()
             }),
+            ("BridgeHTTPTransportTests.testUSBAutoTrustSendsExpectedPayloadAndDoesNotSignRequest", {
+                try await BridgeHTTPTransportTests().testUSBAutoTrustSendsExpectedPayloadAndDoesNotSignRequest()
+            }),
+            ("BridgeHTTPTransportTests.testUSBAutoTrustSurfacesRejectionError", {
+                try await BridgeHTTPTransportTests().testUSBAutoTrustSurfacesRejectionError()
+            }),
             ("BridgeHTTPTransportTests.testForgetLocalAuthDeletesOnlyLocalIdentity", {
                 try await BridgeHTTPTransportTests().testForgetLocalAuthDeletesOnlyLocalIdentity()
             }),
@@ -181,6 +187,21 @@ struct InstantLinkMacOSTestRunner {
             }),
             ("BridgeControlCoordinatorTests.testCoordinatorPausesPollingWhenWindowHides", {
                 try await BridgeControlCoordinatorTests().testCoordinatorPausesPollingWhenWindowHides()
+            }),
+            ("BridgeControlCoordinatorTests.testDiscoveryOverUSBTriggersAutoTrust", {
+                try await BridgeControlCoordinatorTests().testDiscoveryOverUSBTriggersAutoTrust()
+            }),
+            ("BridgeControlCoordinatorTests.testDiscoveryOverWiFiDoesNotAutoTrust", {
+                try await BridgeControlCoordinatorTests().testDiscoveryOverWiFiDoesNotAutoTrust()
+            }),
+            ("BridgeControlCoordinatorTests.testAutoTrustFailureLeavesPairingUnpaired", {
+                try await BridgeControlCoordinatorTests().testAutoTrustFailureLeavesPairingUnpaired()
+            }),
+            ("BridgeControlCoordinatorTests.testAutoTrustSkippedWhenIdentityAlreadySaved", {
+                try await BridgeControlCoordinatorTests().testAutoTrustSkippedWhenIdentityAlreadySaved()
+            }),
+            ("BridgeControlCoordinatorTests.testLastAutoTrustEventPublishedOnSuccess", {
+                try await BridgeControlCoordinatorTests().testLastAutoTrustEventPublishedOnSuccess()
             }),
         ]
 

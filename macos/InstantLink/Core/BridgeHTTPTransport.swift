@@ -104,6 +104,37 @@ final class BridgeHTTPTransport: BridgeTransport {
         return completion
     }
 
+    func usbAutoTrust(
+        device: BridgeDevice,
+        clientName: String
+    ) async throws -> BridgePairingCompletion {
+        let resolvedClientName = clientName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? self.clientName
+            : clientName
+        let identity = try keyStore.loadIdentity(for: device.deviceID) ?? keyStore.createIdentity(
+            for: device.deviceID,
+            clientName: resolvedClientName
+        )
+        let autoTrustRequest = BridgeUSBAutoTrustRequest(
+            clientID: identity.clientID,
+            clientName: identity.clientName,
+            publicKey: identity.publicKey,
+            publicKeyAlgorithm: identity.pairingRequestPublicKeyAlgorithm,
+            expectedDeviceID: device.deviceID
+        )
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/pairing/usb_auto_trust",
+                body: encoder.encode(autoTrustRequest),
+                device: device
+            )
+        )
+        let completion = try envelope.requirePairingCompletion()
+        try keyStore.saveIdentity(identity, for: device.deviceID)
+        return completion
+    }
+
     func forgetLocalAuth(device: BridgeDevice) async throws {
         try keyStore.deleteIdentity(for: device.deviceID)
     }

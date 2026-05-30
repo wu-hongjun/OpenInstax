@@ -26,7 +26,11 @@ final class BridgeControlCoordinatorTests {
     // MARK: - Helpers
 
     @MainActor
-    private func makeDevice(deviceID: String = "IB-TESTABCD") -> BridgeDevice {
+    private func makeDevice(
+        deviceID: String = "IB-TESTABCD",
+        endpointURL: URL? = URL(string: "http://192.168.7.1:8742"),
+        networkLabels: [String] = ["USB IP"]
+    ) -> BridgeDevice {
         BridgeDevice(
             deviceID: deviceID,
             displayName: "InstantLink Bridge \(deviceID)",
@@ -34,8 +38,8 @@ final class BridgeControlCoordinatorTests {
             apiVersion: "v1",
             managementPublicKeyFingerprint: nil,
             pairingOpen: false,
-            networkLabels: ["USB IP"],
-            endpointURL: URL(string: "http://192.168.7.1:8742"),
+            networkLabels: networkLabels,
+            endpointURL: endpointURL,
             isPaired: false
         )
     }
@@ -110,7 +114,7 @@ final class BridgeControlCoordinatorTests {
         defer { coordinator.stop() }
 
         let found = await waitForSnapshot(coordinator) { snapshot in
-            if case .found(let d) = snapshot.discovery, d.deviceID == device.deviceID { return true }
+            if case .found(let d, _) = snapshot.discovery, d.deviceID == device.deviceID { return true }
             return false
         }
         try expectTrue(found)
@@ -140,7 +144,13 @@ final class BridgeControlCoordinatorTests {
 
     @MainActor
     func testPairingStateProgressesOnSuccessfulCompletion() async throws {
-        let device = makeDevice()
+        // Use a Wi-Fi-host bridge so the LCD-code pairing path applies. USB
+        // hosts now auto-trust silently (plan 038 phase A.1); the LCD-code
+        // flow only fires for Bridge Wi-Fi / Same-Wi-Fi paths.
+        let device = makeDevice(
+            endpointURL: URL(string: "http://192.168.8.1:8742"),
+            networkLabels: ["Bridge Wi-Fi"]
+        )
         let status = makeStatus()
         let transport = InMemoryBridgeTransport(
             devices: [device],
@@ -167,7 +177,7 @@ final class BridgeControlCoordinatorTests {
             keychain: keychain,
             probe: probe,
             config: .init(
-                probeEndpoints: [URL(string: "http://192.168.7.1:8742")!],
+                probeEndpoints: [URL(string: "http://192.168.8.1:8742")!],
                 discoveryIntervalUnpaired: 0.05,
                 discoveryIntervalPaired: 0.5,
                 statusInterval: 0.05,
@@ -176,6 +186,8 @@ final class BridgeControlCoordinatorTests {
             ),
             clientNameProvider: { "Test Mac" }
         )
+        // Probe endpoints above target the Wi-Fi listener so the LCD-pairing
+        // path applies (USB triggers auto-trust, plan 038 A.1).
         coordinator.start()
         defer { coordinator.stop() }
 
@@ -201,7 +213,13 @@ final class BridgeControlCoordinatorTests {
 
     @MainActor
     func testPairingFailureSurfaceErrorAndStaysUnpaired() async throws {
-        let device = makeDevice()
+        // Use a Wi-Fi-host bridge so the LCD-code pairing path applies. USB
+        // hosts now auto-trust silently (plan 038 phase A.1); the LCD-code
+        // flow only fires for Bridge Wi-Fi / Same-Wi-Fi paths.
+        let device = makeDevice(
+            endpointURL: URL(string: "http://192.168.8.1:8742"),
+            networkLabels: ["Bridge Wi-Fi"]
+        )
         let transport = InMemoryBridgeTransport(
             devices: [device],
             statuses: [device.deviceID: makeStatus()],
@@ -228,7 +246,7 @@ final class BridgeControlCoordinatorTests {
             keychain: keychain,
             probe: probe,
             config: .init(
-                probeEndpoints: [URL(string: "http://192.168.7.1:8742")!],
+                probeEndpoints: [URL(string: "http://192.168.8.1:8742")!],
                 discoveryIntervalUnpaired: 0.05,
                 discoveryIntervalPaired: 0.5,
                 statusInterval: 0.05,
@@ -357,6 +375,250 @@ final class BridgeControlCoordinatorTests {
 
         let identities = try keychain.listIdentities()
         try expectEqual(identities.count, 0)
+    }
+
+    // MARK: - Plan 038 phase A.1: USB auto-trust
+
+    @MainActor
+    func testDiscoveryOverUSBTriggersAutoTrust() async throws {
+        // USB device hosted at 192.168.7.1 → should silently auto-trust.
+        let device = makeDevice() // endpointURL is http://192.168.7.1:8742 (see makeDevice).
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: makeStatus()],
+            authRequiredDeviceIDs: [device.deviceID]
+        )
+        let probe = ScriptedBridgeDiscoveryProbe(initial: .success(device))
+        let keychain = BridgeKeychain(backend: InMemoryBridgeKeychainBackend())
+        let coordinator = BridgeControlCoordinator(
+            transport: transport,
+            keychain: keychain,
+            probe: probe,
+            config: .init(
+                probeEndpoints: [URL(string: "http://192.168.7.1:8742")!],
+                discoveryIntervalUnpaired: 0.05,
+                discoveryIntervalPaired: 0.5,
+                statusInterval: 0.05,
+                pairingPollInterval: 0.05,
+                staleAfter: 1.0
+            ),
+            clientNameProvider: { "Test Mac" }
+        )
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        let paired = await waitForSnapshot(coordinator) { snapshot in
+            if case .paired = snapshot.pairing { return true }
+            return false
+        }
+        try expectTrue(paired)
+
+        let calls = await transport.usbAutoTrustCalls
+        try expectTrue(calls >= 1)
+    }
+
+    @MainActor
+    func testDiscoveryOverWiFiDoesNotAutoTrust() async throws {
+        // Bridge Wi-Fi at 192.168.8.1 → should NOT call usbAutoTrust.
+        let device = BridgeDevice(
+            deviceID: "IB-WIFI0001",
+            displayName: "InstantLink Bridge IB-WIFI0001",
+            softwareVersion: "0.1.17",
+            apiVersion: "v1",
+            networkLabels: ["Bridge Wi-Fi"],
+            endpointURL: URL(string: "http://192.168.8.1:8742"),
+            isPaired: false
+        )
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: BridgeStatus(
+                deviceID: device.deviceID,
+                displayName: device.displayName,
+                bridgeVersion: "0.1.17",
+                apiVersion: "v1",
+                readiness: .ready,
+                activeUploadMode: .bridgeWiFi
+            )],
+            authRequiredDeviceIDs: [device.deviceID]
+        )
+        await transport.setPairingStatus(
+            BridgePairingStatus(
+                open: false,
+                authImplemented: true,
+                confirmationCodeRequired: true,
+                expiresAt: nil,
+                expiresInSeconds: nil,
+                pairedClientID: nil,
+                authorizedClientCount: 0
+            ),
+            for: device.deviceID
+        )
+        let probe = ScriptedBridgeDiscoveryProbe(initial: .success(device))
+        let keychain = BridgeKeychain(backend: InMemoryBridgeKeychainBackend())
+        let coordinator = BridgeControlCoordinator(
+            transport: transport,
+            keychain: keychain,
+            probe: probe,
+            config: .init(
+                probeEndpoints: [URL(string: "http://192.168.8.1:8742")!],
+                discoveryIntervalUnpaired: 0.05,
+                discoveryIntervalPaired: 0.5,
+                statusInterval: 0.05,
+                pairingPollInterval: 0.05,
+                staleAfter: 1.0
+            ),
+            clientNameProvider: { "Test Mac" }
+        )
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        let discovered = await waitForSnapshot(coordinator) { snapshot in
+            if case .found(_, let medium) = snapshot.discovery, medium == .bridgeWiFi { return true }
+            return false
+        }
+        try expectTrue(discovered)
+
+        // Give the coordinator a beat to run any auto-trust path.
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let calls = await transport.usbAutoTrustCalls
+        try expectEqual(calls, 0)
+        // Pairing must remain on a non-paired branch.
+        switch coordinator.snapshot.pairing {
+        case .paired:
+            throw MacTestFailure(file: #filePath, line: #line, message: "Wi-Fi must not auto-trust")
+        default:
+            break
+        }
+    }
+
+    @MainActor
+    func testAutoTrustFailureLeavesPairingUnpaired() async throws {
+        let device = makeDevice()
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: makeStatus()],
+            authRequiredDeviceIDs: [device.deviceID]
+        )
+        await transport.setUSBAutoTrustShouldReject(true, for: device.deviceID)
+        let probe = ScriptedBridgeDiscoveryProbe(initial: .success(device))
+        let keychain = BridgeKeychain(backend: InMemoryBridgeKeychainBackend())
+        let coordinator = BridgeControlCoordinator(
+            transport: transport,
+            keychain: keychain,
+            probe: probe,
+            config: .init(
+                probeEndpoints: [URL(string: "http://192.168.7.1:8742")!],
+                discoveryIntervalUnpaired: 0.05,
+                discoveryIntervalPaired: 0.5,
+                statusInterval: 0.05,
+                pairingPollInterval: 0.05,
+                staleAfter: 1.0
+            ),
+            clientNameProvider: { "Test Mac" }
+        )
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        // Discovery should land.
+        let found = await waitForSnapshot(coordinator) { snapshot in
+            if case .found(_, let medium) = snapshot.discovery, medium == .usb { return true }
+            return false
+        }
+        try expectTrue(found)
+
+        // Give the auto-trust call time to run and fail.
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        // Pairing must NOT be in .paired.
+        switch coordinator.snapshot.pairing {
+        case .paired:
+            throw MacTestFailure(file: #filePath, line: #line, message: "expected pairing to stay unpaired")
+        default:
+            break
+        }
+        try expectTrue(coordinator.snapshot.lastError != nil)
+    }
+
+    @MainActor
+    func testAutoTrustSkippedWhenIdentityAlreadySaved() async throws {
+        let device = makeDevice()
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: makeStatus()]
+        )
+        let keychain = BridgeKeychain(backend: InMemoryBridgeKeychainBackend())
+        // Pre-seed a saved identity for this device.
+        try keychain.saveIdentity(
+            BridgeIdentity(
+                deviceID: device.deviceID,
+                displayName: device.displayName,
+                pairedAt: Date(),
+                clientID: "macbook",
+                clientName: "Test Mac"
+            ),
+            privateKey: .init()
+        )
+        let probe = ScriptedBridgeDiscoveryProbe(initial: .success(device))
+        let coordinator = BridgeControlCoordinator(
+            transport: transport,
+            keychain: keychain,
+            probe: probe,
+            config: .init(
+                probeEndpoints: [URL(string: "http://192.168.7.1:8742")!],
+                discoveryIntervalUnpaired: 0.05,
+                discoveryIntervalPaired: 0.5,
+                statusInterval: 0.05,
+                pairingPollInterval: 0.05,
+                staleAfter: 1.0
+            ),
+            clientNameProvider: { "Test Mac" }
+        )
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        let paired = await waitForSnapshot(coordinator) { snapshot in
+            if case .paired = snapshot.pairing { return true }
+            return false
+        }
+        try expectTrue(paired)
+
+        // Auto-trust must NOT have been called: the saved identity should win.
+        let calls = await transport.usbAutoTrustCalls
+        try expectEqual(calls, 0)
+    }
+
+    @MainActor
+    func testLastAutoTrustEventPublishedOnSuccess() async throws {
+        let device = makeDevice()
+        let transport = InMemoryBridgeTransport(
+            devices: [device],
+            statuses: [device.deviceID: makeStatus()],
+            authRequiredDeviceIDs: [device.deviceID]
+        )
+        let probe = ScriptedBridgeDiscoveryProbe(initial: .success(device))
+        let keychain = BridgeKeychain(backend: InMemoryBridgeKeychainBackend())
+        let coordinator = BridgeControlCoordinator(
+            transport: transport,
+            keychain: keychain,
+            probe: probe,
+            config: .init(
+                probeEndpoints: [URL(string: "http://192.168.7.1:8742")!],
+                discoveryIntervalUnpaired: 0.05,
+                discoveryIntervalPaired: 0.5,
+                statusInterval: 0.05,
+                pairingPollInterval: 0.05,
+                staleAfter: 1.0
+            ),
+            clientNameProvider: { "Test Mac" }
+        )
+        coordinator.start()
+        defer { coordinator.stop() }
+
+        let published = await waitForSnapshot(coordinator) { snapshot in
+            snapshot.lastAutoTrustEvent != nil
+        }
+        try expectTrue(published)
     }
 
     @MainActor

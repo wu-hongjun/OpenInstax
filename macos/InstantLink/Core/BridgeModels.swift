@@ -410,6 +410,25 @@ struct BridgePairingCompleteRequest: Codable, Equatable {
     }
 }
 
+/// Body for `POST /v1/pairing/usb_auto_trust`. Mirrors the pairing-complete shape
+/// but omits the confirmation code — the bridge enforces physical USB presence
+/// via the listening-interface check rather than an LCD-displayed code.
+struct BridgeUSBAutoTrustRequest: Codable, Equatable {
+    var clientID: String
+    var clientName: String
+    var publicKey: String
+    var publicKeyAlgorithm: BridgeClientKeyAlgorithm
+    var expectedDeviceID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case clientID = "client_id"
+        case clientName = "client_name"
+        case publicKey = "public_key"
+        case publicKeyAlgorithm = "public_key_algorithm"
+        case expectedDeviceID = "expected_device_id"
+    }
+}
+
 struct BridgePairingCompletion: Codable, Equatable {
     var clientID: String
     var clientName: String?

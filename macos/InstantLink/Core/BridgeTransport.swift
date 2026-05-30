@@ -8,6 +8,10 @@ protocol BridgeTransport {
         confirmationCode: String,
         clientName: String
     ) async throws -> BridgePairingCompletion
+    func usbAutoTrust(
+        device: BridgeDevice,
+        clientName: String
+    ) async throws -> BridgePairingCompletion
     func forgetLocalAuth(device: BridgeDevice) async throws
     func status(device: BridgeDevice) async throws -> BridgeStatus
     func preflightUpdate(device: BridgeDevice, package: BridgeUpdatePackage) async throws -> BridgeUpdatePreflight
@@ -45,6 +49,8 @@ actor InMemoryBridgeTransport: BridgeTransport {
     private var updateScripts: [String: [BridgeUpdateState]]
     private var operations: [String: UpdateOperation]
     private var nextOperationNumber: Int
+    private(set) var usbAutoTrustCalls: Int
+    private var usbAutoTrustShouldRejectDeviceIDs: Set<String>
 
     init(
         devices: [BridgeDevice] = [],
@@ -60,6 +66,16 @@ actor InMemoryBridgeTransport: BridgeTransport {
         self.updateScripts = [:]
         self.operations = [:]
         self.nextOperationNumber = 1
+        self.usbAutoTrustCalls = 0
+        self.usbAutoTrustShouldRejectDeviceIDs = []
+    }
+
+    func setUSBAutoTrustShouldReject(_ reject: Bool, for deviceID: String) {
+        if reject {
+            usbAutoTrustShouldRejectDeviceIDs.insert(deviceID)
+        } else {
+            usbAutoTrustShouldRejectDeviceIDs.remove(deviceID)
+        }
     }
 
     func addDevice(_ device: BridgeDevice, status: BridgeStatus) {
@@ -139,6 +155,38 @@ actor InMemoryBridgeTransport: BridgeTransport {
             publicKeyAlgorithm: .ed25519,
             createdAt: nil,
             message: confirmationCode.isEmpty ? nil : "Paired"
+        )
+    }
+
+    func usbAutoTrust(
+        device: BridgeDevice,
+        clientName: String
+    ) async throws -> BridgePairingCompletion {
+        guard var storedDevice = devices[device.deviceID] else {
+            throw BridgeTransportError.deviceNotFound(device.deviceID)
+        }
+        if usbAutoTrustShouldRejectDeviceIDs.contains(device.deviceID) {
+            throw BridgeAPIError(
+                requestID: "in-memory-\(UUID().uuidString)",
+                code: "not_usb_interface",
+                payload: BridgeErrorPayload(
+                    message: "usb_auto_trust is only available on the USB-tether interface.",
+                    details: ["device_id": .string(device.deviceID)]
+                )
+            )
+        }
+
+        storedDevice.isPaired = true
+        devices[device.deviceID] = storedDevice
+        authRequiredDeviceIDs.remove(device.deviceID)
+        usbAutoTrustCalls += 1
+        return BridgePairingCompletion(
+            clientID: "in-memory",
+            clientName: clientName,
+            paired: true,
+            publicKeyAlgorithm: .ed25519,
+            createdAt: nil,
+            message: "Auto-trusted over USB"
         )
     }
 

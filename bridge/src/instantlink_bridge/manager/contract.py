@@ -52,6 +52,13 @@ DISCOVERY_ROUTES: tuple[ManagementRoute, ...] = (
         operation_id="pairing_complete",
         summary="Complete physical-code-gated local authorization.",
     ),
+    ManagementRoute(
+        method="POST",
+        path="/v1/pairing/usb_auto_trust",
+        auth_required=False,
+        operation_id="pairing_usb_auto_trust",
+        summary="USB-physical auto-trust: register a new client over the USB-tether interface.",
+    ),
 )
 
 ADMIN_ROUTES: tuple[ManagementRoute, ...] = (

@@ -429,6 +429,170 @@ async def test_manager_http_pairing_complete_rejects_expected_device_mismatch(
 
 
 @pytest.mark.asyncio
+async def test_manager_http_usb_auto_trust_succeeds_on_usb_interface(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from instantlink_bridge.manager import api as manager_api
+
+    monkeypatch.setattr(manager_api, "local_listening_ip_for", lambda request: "192.168.7.1")
+    monkeypatch.setattr(manager_status, "read_system_info", fake_system_info)
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    client_store = ClientStore(tmp_path / "clients")
+    app = create_app(
+        config_path=tmp_path / "missing.toml",
+        request_id_factory=lambda: "req-usb-auto",
+        client_store=client_store,
+    )
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        response = await client.post(
+            "/v1/pairing/usb_auto_trust",
+            json=usb_auto_trust_body(
+                public_key=public_key_text(private_key.public_key()),
+                expected_device_id="IB-1234ABCD",
+            ),
+        )
+        data = cast(dict[str, Any], await response.json())
+        assert response.status == 200
+        assert_success_envelope(data, request_id="req-usb-auto")
+        completion = data["pairing_completion"]
+        assert completion["paired"] is True
+        assert completion["client_id"] == "macbook"
+        assert completion["client_name"] == "Test Mac"
+        assert completion["public_key_algorithm"] == "ed25519"
+        assert "created_at" in completion
+
+        stored = client_store.read_client("macbook")
+        assert stored.client_name == "Test Mac"
+        assert stored.public_key == public_key_text(private_key.public_key())
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_manager_http_usb_auto_trust_rejects_on_wifi_interface(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from instantlink_bridge.manager import api as manager_api
+
+    monkeypatch.setattr(manager_api, "local_listening_ip_for", lambda request: "192.168.8.1")
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    client_store = ClientStore(tmp_path / "clients")
+    app = create_app(
+        config_path=tmp_path / "missing.toml",
+        request_id_factory=lambda: "req-usb-wifi",
+        client_store=client_store,
+    )
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        response = await client.post(
+            "/v1/pairing/usb_auto_trust",
+            json=usb_auto_trust_body(
+                public_key=public_key_text(private_key.public_key()),
+            ),
+        )
+        data = cast(dict[str, Any], await response.json())
+        assert response.status == 403
+        assert_error_envelope(data, error_code="not_usb_interface", request_id="req-usb-wifi")
+        assert not client_store.client_path("macbook").exists()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_manager_http_usb_auto_trust_rejects_on_localhost(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from instantlink_bridge.manager import api as manager_api
+
+    monkeypatch.setattr(manager_api, "local_listening_ip_for", lambda request: "127.0.0.1")
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    client_store = ClientStore(tmp_path / "clients")
+    app = create_app(
+        config_path=tmp_path / "missing.toml",
+        request_id_factory=lambda: "req-usb-localhost",
+        client_store=client_store,
+    )
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        response = await client.post(
+            "/v1/pairing/usb_auto_trust",
+            json=usb_auto_trust_body(
+                public_key=public_key_text(private_key.public_key()),
+            ),
+        )
+        data = cast(dict[str, Any], await response.json())
+        assert response.status == 403
+        assert_error_envelope(data, error_code="not_usb_interface")
+        assert not client_store.client_path("macbook").exists()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_manager_http_usb_auto_trust_response_shape_matches_pairing_complete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The USB auto-trust completion envelope must match /v1/pairing/complete so
+    the Mac can share its existing BridgePairingCompletion decoder.
+    """
+    from instantlink_bridge.manager import api as manager_api
+
+    monkeypatch.setattr(manager_api, "local_listening_ip_for", lambda request: "192.168.7.1")
+    monkeypatch.setattr(manager_status, "read_system_info", fake_system_info)
+    private_key = ed25519.Ed25519PrivateKey.generate()
+    pairing_store = PairingWindowStore(
+        tmp_path / "pairing.json",
+        now_seconds=lambda: 1000,
+        confirmation_code_factory=lambda: "123456",
+    )
+    pairing_store.open_window()
+    client_store = ClientStore(tmp_path / "clients")
+    app = create_app(
+        config_path=tmp_path / "missing.toml",
+        request_id_factory=lambda: "req-shape",
+        client_store=client_store,
+        pairing_store=pairing_store,
+    )
+    client = TestClient(TestServer(app))
+    await client.start_server()
+    try:
+        complete_response = await client.post(
+            "/v1/pairing/complete",
+            json=pairing_body(
+                public_key=public_key_text(private_key.public_key()),
+                confirmation_code="123456",
+            ),
+        )
+        complete_data = cast(dict[str, Any], await complete_response.json())
+        assert complete_response.status == 200
+        complete_keys = set(complete_data["pairing_completion"].keys())
+
+        # Wipe the client store so we can rerun against the USB route.
+        client_store.client_path("macbook").unlink()
+
+        usb_response = await client.post(
+            "/v1/pairing/usb_auto_trust",
+            json=usb_auto_trust_body(
+                public_key=public_key_text(private_key.public_key()),
+            ),
+        )
+        usb_data = cast(dict[str, Any], await usb_response.json())
+        assert usb_response.status == 200
+        usb_keys = set(usb_data["pairing_completion"].keys())
+        assert usb_keys == complete_keys
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_manager_http_admin_routes_are_auth_required(
     tmp_path: Path,
 ) -> None:
@@ -682,6 +846,21 @@ def pairing_body(
         "client_name": "Test Mac",
         "public_key": public_key,
         "confirmation_code": confirmation_code,
+    }
+    if expected_device_id is not None:
+        body["expected_device_id"] = expected_device_id
+    return body
+
+
+def usb_auto_trust_body(
+    *,
+    public_key: str,
+    expected_device_id: str | None = None,
+) -> dict[str, str]:
+    body = {
+        "client_id": "macbook",
+        "client_name": "Test Mac",
+        "public_key": public_key,
     }
     if expected_device_id is not None:
         body["expected_device_id"] = expected_device_id

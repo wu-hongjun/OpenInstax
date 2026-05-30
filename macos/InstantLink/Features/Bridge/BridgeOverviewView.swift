@@ -12,7 +12,7 @@ struct BridgeOverviewView: View {
                     searchingCard
                 case .lost(let device, _):
                     disconnectedCard(device: device)
-                case .found(let device):
+                case .found(let device, _):
                     deviceCard(device: device)
                 }
 

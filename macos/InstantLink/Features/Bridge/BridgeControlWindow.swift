@@ -81,7 +81,7 @@ struct BridgeControlWindow: View {
         let icon: String
         let tint: Color
         switch snapshot.discovery {
-        case .found(let device):
+        case .found(let device, _):
             title = "\(device.deviceID) — v\(device.softwareVersion)"
             icon = "antenna.radiowaves.left.and.right"
             tint = .accentColor

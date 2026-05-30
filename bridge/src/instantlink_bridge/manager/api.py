@@ -68,12 +68,24 @@ class PairingCompleteBody:
     expected_device_id: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class UsbAutoTrustBody:
+    client_id: str
+    client_name: str
+    public_key: str
+    public_key_algorithm: str
+    expected_device_id: str | None
+
+
 class PairingRequestError(ValueError):
     """Raised when the pairing completion request body is invalid."""
 
     def __init__(self, message: str, *, error_code: str = "invalid_request") -> None:
         super().__init__(message)
         self.error_code = error_code
+
+
+USB_AUTO_TRUST_LOCAL_PREFIX = "192.168.7."
 
 
 def create_app(
@@ -104,6 +116,7 @@ def create_app(
     app.router.add_get("/v1/hello", handle_hello)
     app.router.add_get("/v1/pairing/status", handle_pairing_status)
     app.router.add_post("/v1/pairing/complete", handle_pairing_complete)
+    app.router.add_post("/v1/pairing/usb_auto_trust", handle_pairing_usb_auto_trust)
     for route in ADMIN_ROUTES:
         app.router.add_route(route.method, route.path, auth_required_handler(route))
     return app
@@ -251,6 +264,136 @@ async def handle_pairing_complete(request: web.Request) -> web.Response:
     )
 
 
+async def handle_pairing_usb_auto_trust(request: web.Request) -> web.Response:
+    """USB-physical auto-trust: register a client over the USB-tether interface only.
+
+    The gate is the local listening IP. A request that arrived on the bridge's own
+    USB-bound listener has ``sockname[0] == "192.168.7.1"``; a Wi-Fi-bound request has
+    ``sockname[0] == "192.168.8.1"``. This is non-spoofable because it is the bridge's
+    own server socket address, not the peer's. Wi-Fi callers must use the LCD-code
+    pairing window instead.
+    """
+
+    local_ip = local_listening_ip_for(request)
+    peer = peer_address_for(request)
+    if local_ip is None or not local_ip.startswith(USB_AUTO_TRUST_LOCAL_PREFIX):
+        LOGGER.info(
+            "ui.management.usb_auto_trust.rejected reason=not_usb_interface "
+            "local_ip=%s peer=%s",
+            local_ip,
+            peer,
+        )
+        return json_failure(
+            request,
+            status=403,
+            error_code="not_usb_interface",
+            message="usb_auto_trust is only available on the USB-tether interface.",
+            recommended_action="Connect the Bridge over USB or use LCD-code pairing instead.",
+        )
+
+    try:
+        body = await read_usb_auto_trust_body(request)
+    except PairingRequestError as exc:
+        return json_failure(
+            request,
+            status=400,
+            error_code=exc.error_code,
+            message=str(exc),
+            recommended_action="Retry with a valid usb_auto_trust request body.",
+        )
+    if body.public_key_algorithm != "ed25519":
+        return json_failure(
+            request,
+            status=400,
+            error_code="unsupported_key_algorithm",
+            message="Bridge management pairing currently requires Ed25519 client keys.",
+            recommended_action="Retry pairing with an Ed25519 client key.",
+        )
+
+    if body.expected_device_id is not None:
+        actual_device_id = manager_status.current_device_id()
+        if body.expected_device_id != actual_device_id:
+            return json_failure(
+                request,
+                status=409,
+                error_code="device_id_mismatch",
+                message="This pairing request targets a different Bridge device.",
+                recommended_action="Refresh Bridge discovery and retry pairing with this device.",
+            )
+
+    try:
+        client = AuthorizedClient(
+            client_id=body.client_id,
+            client_name=body.client_name,
+            public_key=body.public_key,
+            created_at=utc_timestamp(),
+        )
+    except ManagementAuthError as exc:
+        return json_failure(
+            request,
+            status=400,
+            error_code="invalid_request",
+            message=str(exc),
+            recommended_action="Retry with a valid client id, name, and Ed25519 public key.",
+        )
+
+    client_store_for(request).save_client(client)
+    LOGGER.info(
+        "ui.management.usb_auto_trust client_id=%s display_name=%s peer=%s local_ip=%s",
+        client.client_id,
+        client.client_name,
+        peer,
+        local_ip,
+    )
+    return json_success(
+        request,
+        {
+            "pairing_completion": {
+                "paired": True,
+                "client_id": client.client_id,
+                "client_name": client.client_name,
+                "public_key_algorithm": body.public_key_algorithm,
+                "created_at": client.created_at,
+            },
+        },
+    )
+
+
+def local_listening_ip_for(request: web.Request) -> str | None:
+    """Return the bridge's own listening IP for the request, or ``None`` if unavailable.
+
+    ``request.transport.get_extra_info('sockname')`` returns the local server socket
+    address, which is the bind host the manager was launched with (e.g.
+    ``192.168.7.1`` for the USB gadget interface or ``192.168.8.1`` for Bridge Wi-Fi).
+    """
+
+    transport = request.transport
+    if transport is None:
+        return None
+    sockname = transport.get_extra_info("sockname")
+    if not sockname:
+        return None
+    candidate = sockname[0] if isinstance(sockname, tuple | list) else None
+    if isinstance(candidate, str) and candidate:
+        return candidate
+    return None
+
+
+def peer_address_for(request: web.Request) -> str | None:
+    """Return the remote peer address for logs, or ``None`` if unavailable."""
+
+    transport = request.transport
+    if transport is None:
+        return None
+    peername = transport.get_extra_info("peername")
+    if not peername:
+        return None
+    candidate = peername[0] if isinstance(peername, tuple | list) else None
+    if isinstance(candidate, str) and candidate:
+        return candidate
+    return None
+
+
 async def read_pairing_complete_body(request: web.Request) -> PairingCompleteBody:
     """Validate the JSON body for pairing completion."""
 
@@ -267,6 +410,25 @@ async def read_pairing_complete_body(request: web.Request) -> PairingCompleteBod
         public_key=required_body_str(payload, "public_key"),
         public_key_algorithm=optional_body_str(payload, "public_key_algorithm") or "ed25519",
         confirmation_code=required_body_str(payload, "confirmation_code"),
+        expected_device_id=optional_body_str(payload, "expected_device_id"),
+    )
+
+
+async def read_usb_auto_trust_body(request: web.Request) -> UsbAutoTrustBody:
+    """Validate the JSON body for USB-physical auto-trust pairing."""
+
+    try:
+        value = await request.json()
+    except ValueError as exc:
+        raise PairingRequestError("Request body must be valid JSON.") from exc
+    if not isinstance(value, dict):
+        raise PairingRequestError("Request body must be a JSON object.")
+    payload = cast(dict[str, Any], value)
+    return UsbAutoTrustBody(
+        client_id=required_body_str(payload, "client_id"),
+        client_name=required_body_str(payload, "client_name"),
+        public_key=required_body_str(payload, "public_key"),
+        public_key_algorithm=optional_body_str(payload, "public_key_algorithm") or "ed25519",
         expected_device_id=optional_body_str(payload, "expected_device_id"),
     )
 
