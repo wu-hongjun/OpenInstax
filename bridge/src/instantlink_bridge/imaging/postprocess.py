@@ -66,7 +66,7 @@ class AdjustmentProfile:
     """Overlay flag. When True and datestamp_text is non-empty, renders it bottom-right."""
 
     watermark: bool = False
-    """Overlay flag. When True and watermark_text is non-empty, renders it top-right."""
+    """Overlay flag. When True and watermark_text is non-empty, renders it bottom-left."""
 
     datestamp_text: str = ""
     """Pre-formatted datestamp string. Empty string disables the overlay even if datestamp=True.
@@ -198,9 +198,9 @@ def apply_adjustments(image: Image.Image, profile: AdjustmentProfile) -> Image.I
     if profile.datestamp and profile.datestamp_text:
         out = _render_overlay(out, profile.datestamp_text, anchor="rs")
 
-    # --- Watermark (top-right, same style) --------------------------------
+    # --- Watermark (bottom-left, same style) ------------------------------
     if profile.watermark and profile.watermark_text:
-        out = _render_overlay(out, profile.watermark_text, anchor="rt")
+        out = _render_overlay(out, profile.watermark_text, anchor="ls")
 
     return out
 
@@ -272,7 +272,9 @@ def _render_overlay(
 
     ``anchor`` follows PIL anchor semantics:
     * ``"rs"`` — right-bottom (datestamp).
-    * ``"rt"`` — right-top (watermark).
+    * ``"ls"`` — left-bottom (watermark, plan 037).
+    * ``"rt"`` — right-top (legacy, retained for back-compat in case a
+      caller still asks for it).
 
     Style: white fill, 2 px black stroke for legibility on busy photos.
     Margin from edge: ``max(image.height // 40, 16)`` px.
@@ -302,8 +304,12 @@ def _render_overlay(
     if anchor == "rs":
         # right-bottom: position is (right_edge - margin, bottom_edge - margin)
         x, y = w - margin, h - margin
+    elif anchor == "ls":
+        # left-bottom (watermark, post plan 037)
+        x, y = margin, h - margin
     else:
-        # anchor == "rt": right-top
+        # anchor == "rt": right-top (legacy, retained for back-compat
+        # in case a caller still asks for it)
         x, y = w - margin, margin
 
     draw.text(

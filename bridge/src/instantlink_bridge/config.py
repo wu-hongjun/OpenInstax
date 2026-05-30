@@ -405,7 +405,7 @@ class AdjustmentsConfig:
     """Render EXIF DateTimeOriginal in the bottom-right corner when True."""
 
     watermark: bool = False
-    """Render watermark_text in the top-right corner when True."""
+    """Render watermark_text in the bottom-left corner when True."""
 
     watermark_text: str = "InstantLink"
     """Text to stamp as a watermark. Empty string disables rendering."""

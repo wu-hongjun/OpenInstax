@@ -287,16 +287,16 @@ def test_datestamp_no_op_when_text_empty() -> None:
 
 
 def test_watermark_renders_when_text_set() -> None:
-    """watermark=True with non-empty watermark_text changes the top-right region."""
+    """watermark=True with non-empty watermark_text changes the bottom-left region."""
     img = _make_rgb(size=(200, 200))
     profile = AdjustmentProfile(watermark=True, watermark_text="InstantLink")
     result = apply_adjustments(img.copy(), profile)
 
-    # Top-right quadrant must differ from the plain colour fill.
-    orig = img.crop((100, 0, 200, 100))
-    stamped = result.crop((100, 0, 200, 100))
+    # Bottom-left quadrant must differ from the plain colour fill.
+    orig = img.crop((0, 100, 100, 200))
+    stamped = result.crop((0, 100, 100, 200))
     assert orig.tobytes() != stamped.tobytes(), (
-        "Top-right region should differ when watermark_text is set"
+        "Bottom-left region should differ when watermark_text is set"
     )
 
 
@@ -307,6 +307,75 @@ def test_watermark_no_op_when_text_empty() -> None:
     result = apply_adjustments(img.copy(), profile)
     assert img.tobytes() == result.tobytes(), (
         "Image should be unchanged when watermark_text is empty"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plan 037 phase 2: watermark moves to bottom-left
+# ---------------------------------------------------------------------------
+
+
+def _quadrant_nonmatching_counts(
+    img: Image.Image,
+    background: tuple[int, int, int],
+) -> tuple[int, int, int, int]:
+    """Return non-background pixel counts per quadrant (tl, tr, bl, br)."""
+    import numpy as np
+
+    arr = np.asarray(img)
+    h, w = arr.shape[:2]
+    bg = np.asarray(background, dtype=arr.dtype)
+    mismatch = np.any(arr != bg, axis=-1)
+    mid_x = w // 2
+    mid_y = h // 2
+    tl = int(mismatch[:mid_y, :mid_x].sum())
+    tr = int(mismatch[:mid_y, mid_x:].sum())
+    bl = int(mismatch[mid_y:, :mid_x].sum())
+    br = int(mismatch[mid_y:, mid_x:].sum())
+    return tl, tr, bl, br
+
+
+def test_render_overlay_supports_ls_anchor() -> None:
+    """_render_overlay with anchor="ls" renders text into the bottom-left quadrant."""
+    from instantlink_bridge.imaging.postprocess import _render_overlay
+
+    canvas = Image.new("RGB", (400, 300), (0, 0, 0))
+    result = _render_overlay(canvas, "TEST", anchor="ls")
+
+    tl, tr, bl, br = _quadrant_nonmatching_counts(result, (0, 0, 0))
+    assert bl > 0, "Bottom-left quadrant should contain rendered text pixels"
+    # Bottom-left should dominate the other three quadrants by a healthy margin.
+    others_max = max(tl, tr, br)
+    assert bl > others_max * 5, (
+        f"Bottom-left ({bl}) should exceed other quadrants (tl={tl}, tr={tr}, br={br}) by >5x"
+    )
+
+
+def test_watermark_anchor_is_bottom_left() -> None:
+    """apply_adjustments with watermark=True paints into the bottom-left quadrant."""
+    canvas = Image.new("RGB", (600, 400), (255, 255, 255))
+    profile = AdjustmentProfile(watermark=True, watermark_text="Hello")
+    result = apply_adjustments(canvas.copy(), profile)
+
+    tl, tr, bl, br = _quadrant_nonmatching_counts(result, (255, 255, 255))
+    assert bl > 0, "Bottom-left quadrant should contain rendered watermark pixels"
+    others_max = max(tl, tr, br)
+    assert bl > others_max * 5, (
+        f"Bottom-left ({bl}) should exceed other quadrants (tl={tl}, tr={tr}, br={br}) by >5x"
+    )
+
+
+def test_datestamp_anchor_unchanged_at_bottom_right() -> None:
+    """Regression guard: datestamp stays at bottom-right after the watermark move."""
+    canvas = Image.new("RGB", (600, 400), (255, 255, 255))
+    profile = AdjustmentProfile(datestamp=True, datestamp_text="2026")
+    result = apply_adjustments(canvas.copy(), profile)
+
+    tl, tr, bl, br = _quadrant_nonmatching_counts(result, (255, 255, 255))
+    assert br > 0, "Bottom-right quadrant should contain rendered datestamp pixels"
+    others_max = max(tl, tr, bl)
+    assert br > others_max * 5, (
+        f"Bottom-right ({br}) should exceed other quadrants (tl={tl}, tr={tr}, bl={bl}) by >5x"
     )
 
 
@@ -347,9 +416,7 @@ def test_vignette_darkens_corners_more_than_centre() -> None:
     # Corner should be noticeably dark.
     assert corner_r <= 50, f"Corner pixel should be ≤ 50, got {corner_r}"
     # Corner must be darker than centre.
-    assert corner_r < centre_r, (
-        f"Corner ({corner_r}) should be darker than centre ({centre_r})"
-    )
+    assert corner_r < centre_r, f"Corner ({corner_r}) should be darker than centre ({centre_r})"
 
 
 def test_vignette_runs_before_overlays() -> None:

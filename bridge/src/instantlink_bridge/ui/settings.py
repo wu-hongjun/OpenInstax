@@ -481,7 +481,7 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.ADJUST_VIGNETTE: "Darken the corners to simulate Instax film",
     # Adjustments overlay toggles (plan 035 phase 4).
     SettingKey.ADJUST_DATESTAMP: "Stamp the photo's date in the bottom-right corner",
-    SettingKey.ADJUST_WATERMARK: "Stamp a short label in the top-right corner",
+    SettingKey.ADJUST_WATERMARK: "Stamp a short label in the bottom-left corner",
     # Preset picker and save action (plan 035 phase 5; updated plan 036 phase 5).
     SettingKey.ADJUST_PRESET: "Choose a look, or tweak the sliders below",
     SettingKey.ADJUST_SAVE_CUSTOM: "Save as preset. K3 hold a slot to overwrite or delete.",

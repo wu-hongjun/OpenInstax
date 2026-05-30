@@ -383,7 +383,7 @@ _ZH_HANS: dict[str, str] = {
     "Datestamp": "日期戳",
     "Watermark": "水印",
     "Stamp the photo's date in the bottom-right corner": "在照片右下角加盖拍摄日期",
-    "Stamp a short label in the top-right corner": "在照片右上角加盖短标签",
+    "Stamp a short label in the bottom-left corner": "在照片左下角加盖短标签",
     # --- Preset picker labels and actions (plan 035 phase 5) ------------
     # "Instax" stays in Latin (brand name) per the i18n doctrine.
     "Preset": "预设",
