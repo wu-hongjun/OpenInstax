@@ -1954,6 +1954,56 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#phase-5-post-audit-polish-15-items" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5 — Post-audit polish (15 items)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 5 — Post-audit polish (15 items)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#design-contract-additions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design contract additions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tests-added" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests added
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-6-tool-pin-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6 — Tool-pin cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2254,6 +2304,97 @@ same vocabulary.</p>
 <li><code>test_watermark_row_shows_current_text_when_set</code></li>
 <li><code>test_watermark_row_shows_no_text_hint_when_empty</code></li>
 </ul>
+<h3 id="phase-5-post-audit-polish-15-items">Phase 5 — Post-audit polish (15 items)<a class="headerlink" href="#phase-5-post-audit-polish-15-items" title="Permanent link">&para;</a></h3>
+<p>After Phases 1-4 shipped, two parallel fresh-eyes audits (designer +
+adversarial critic) produced ~42 raw findings. A tracer agent
+verified the highest-impact P1 claims: 1 confirmed actionable, 1
+confirmed dead-but-inert, 3 falsified. The actionable subset became
+this batch.</p>
+<p><strong>P1 visual fixes</strong>
+1. Section headers (<code>SettingsRow.is_header</code> flag) — render at small
+   font with no row-grid hairline so they read as dividers rather
+   than greyed-out selectable rows.
+2. Adjustments scrollbar — 2 px indicator on the card's right edge
+   when <code>start &gt; 0</code> or <code>start + visible_count &lt; len(rows)</code>. The
+   page has 10 rows after Phase 4; only ~8 fit visibly.
+3. Empty preset slot picker hint dropped (was "KEY1 empty" — read
+   as "press to do nothing").
+4. Watermark row <code>On · "Hello"</code> translates the <code>On</code> prefix in
+   zh-Hans via a new <code>SettingsRow.i18n_value_prefix</code> field. The
+   render layer translates the prefix only; the user text stays
+   verbatim.</p>
+<p><strong>P2 visual fixes</strong></p>
+<ol>
+<li>Chevron <code>›</code> reserved for <code>kind == "open"</code> rows. Action rows
+   (Pair, Forget, Save current, etc.) drop the chevron and use
+   <code>theme.accent_blue</code> (or <code>theme.accent_destructive</code>) label tint
+   instead. The chevron stops lying about "this opens a new view".</li>
+<li>Preset modified marker <code>*</code> → <code>· edited</code> (textual badge,
+   translatable via <code>t("edited", lang)</code>).</li>
+<li>Edit-preview tile failure path — instead of <code>except: pass</code>,
+   draw a cross-hatch + log WARNING once per session. Users now
+   see "preview is broken" rather than "preview looks the same as
+   identity".</li>
+<li>"Wi-Fi Mode" row → "Camera link". The setting controls FTP
+   receive path, not the bridge's Wi-Fi station/AP mode.</li>
+<li>Drop duplicate "Searching" body title from <code>_printer_searching</code>;
+   promote the actionable hint to the primary line.</li>
+<li>zh-Hans "Press KEY1 again to delete CustomN" added for all 6
+    slots (i18n parity with the overwrite variant).</li>
+<li>KEY3 help text auto-clears on subsequent UP/DOWN in edit mode
+    (was sticky).</li>
+</ol>
+<p><strong>Cleanups</strong></p>
+<ol>
+<li>Delete <code>SYSTEM_IDLE_INFO</code> enum — tracer confirmed unreachable.</li>
+<li>Delete <code>_settings_default_message</code> helper — both branches
+    returned <code>None</code>.</li>
+<li>Drop trailing period from Hue help text (en + zh-Hans) for
+    consistency with sibling rows.</li>
+<li>zh-Hans translations for "Quartz Date" / "Modern" / "Lab Print"
+    (descriptive English). "Olympus" / "Contax" stay Latin (real
+    product brands).</li>
+</ol>
+<h4 id="design-contract-additions">Design contract additions<a class="headerlink" href="#design-contract-additions" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong><code>SettingsRow.is_header: bool</code></strong> — explicit flag, replaces the
+  brittle <code>hint == "" and value == ""</code> heuristic for header
+  detection.</li>
+<li><strong><code>SettingsRow.i18n_value_prefix: str</code></strong> — render layer
+  translates the prefix only; the suffix (user text) stays
+  verbatim. Used by the watermark row's <code>On · "..."</code> format.</li>
+<li><strong>Row kind discipline</strong> — chevron <code>›</code> ONLY for <code>"open"</code> rows;
+  <code>"run"</code> rows get <code>accent_blue</code> label; destructive runs get
+  <code>accent_destructive</code>. Codifies plan 036 phase 5's "no chevron
+  lies on read-only rows" rule for the action class.</li>
+</ul>
+<h4 id="tests-added">Tests added<a class="headerlink" href="#tests-added" title="Permanent link">&para;</a></h4>
+<p>+28 tests delta (787 → 815). Coverage spans section-header
+rendering, scroll cue, camera-link rename, Hue help period guard,
+zh-Hans delete-confirm parity, datestamp format zh-Hans, toggle-edit
+message clearing, watermark prefix translation, chevron-on-open
+guard, preview tile placeholder, preset modified marker.</p>
+<h3 id="phase-6-tool-pin-cleanup">Phase 6 — Tool-pin cleanup<a class="headerlink" href="#phase-6-tool-pin-cleanup" title="Permanent link">&para;</a></h3>
+<p>The <code>b0eefa2</code> "clear mypy debt" commit on 2026-05-29 removed three
+<code>cast(...)</code> calls that the then-current mypy / Pillow stub revision
+treated as redundant. After phases 1-5 shipped, <code>mypy --strict</code>
+flagged them again — Pillow 10.4 inline stubs return <code>Image | Any</code>
+from <code>.convert()</code> and mypy 1.11.2 does not narrow <code>object → str</code>
+on set-membership tests.</p>
+<ul>
+<li><code>imaging/postprocess.py:478</code> — restore <code>cast(Image.Image, ...)</code>
+  around the example-photo resize+convert chain.</li>
+<li><code>imaging/pipeline.py:498</code> — restore <code>cast(Image.Image, ...)</code>
+  around the HIF thumbnail convert.</li>
+<li><code>update/signing.py:473</code> — restore <code>cast(str, explicit_kind)</code>
+  inside the membership-check branch.</li>
+</ul>
+<p>Each cast carries a comment explaining when it was removed and
+why it had to come back, so the next "redundant cast" cleanup pass
+doesn't repeat the cycle.</p>
+<p>The <code>SKIP_HOOK no longer needed</code> memory was true at <code>b0eefa2</code>
+and stays true after this phase — both mypy strict and ruff are
+clean again.</p>
 <h2 id="out-of-scope">Out of scope<a class="headerlink" href="#out-of-scope" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Custom datestamp fonts (DSEG7 / MatrixSans) — macOS-only for now.</li>
