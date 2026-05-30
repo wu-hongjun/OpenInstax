@@ -1265,8 +1265,21 @@ def _printing(
 ) -> None:
     title = snapshot.print_title or t("Sending to printer", snapshot.language)
     _center_lines(draw, [title], 58, fonts["large"], theme.label_primary)
-    detail = snapshot.print_detail or t("Working", snapshot.language)
-    _text(draw, 18, 96, _ellipsize(detail, 31), fonts["body"], theme.label_primary)
+    # `print_detail` is only populated during non-SENDING stages now
+    # (e.g. "Checking printer"). The chunk-count / KB sub-string was
+    # dropped per user feedback: the progress bar + the percent-suffixed
+    # title carry the full signal. When the BLE callback sets detail to
+    # None, skip the secondary line entirely so we don't show a redundant
+    # "Working" fallback. y=96 is reserved; the progress bar stays at 122.
+    if snapshot.print_detail:
+        _text(
+            draw,
+            18,
+            96,
+            _ellipsize(snapshot.print_detail, 31),
+            fonts["body"],
+            theme.label_primary,
+        )
     _progress_bar(
         draw, 18, 122, snapshot.print_progress_percent, theme.accent_blue, fonts["small"], theme
     )

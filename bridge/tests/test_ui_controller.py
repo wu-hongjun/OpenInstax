@@ -3483,6 +3483,53 @@ async def test_adjustment_edit_back_reverts_without_commit(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_adjustment_edit_help_preserves_working_value(tmp_path: Path) -> None:
+    """KEY3 (HELP) in edit mode shows help WITHOUT discarding the working
+    value or exiting the edit mode. Regression for the plan-036 audit
+    finding: the previous implementation called `_show_settings(...)`
+    which forced mode → SETTINGS and recomputed adjustments_profile from
+    the committed config, silently dropping the user's in-progress edit
+    with no warning. KEY3 must now leave both `_adjustment_edit_value`
+    and the snapshot's edit mode + live preview intact."""
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[adjustments]\npreset = "Default"\nsaturation = 0\n',
+        encoding="utf-8",
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    await ui._handle_action(UiAction.DOWN)  # navigate to Saturation
+    await ui._handle_action(UiAction.SELECT)  # enter edit mode
+
+    await ui._handle_action(UiAction.RIGHT)  # +25 → working value 25
+    assert ui._adjustment_edit_value == 25
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+
+    await ui._handle_action(UiAction.HELP)
+
+    # KEY3 must NOT exit edit mode or revert the working value. The help
+    # text appears in the bottom strip via settings_message, but mode +
+    # value survive.
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    assert ui._adjustment_edit_value == 25
+    assert ui._snapshot.settings_message is not None
+
+    # A subsequent SELECT commits the working value, not the original 0.
+    await ui._handle_action(UiAction.SELECT)
+    assert ui._config.adjustments.saturation == 25
+    assert load_config(config_path).adjustments.saturation == 25
+
+
+@pytest.mark.asyncio
 async def test_adjustment_edit_preset_row_does_not_enter_edit(tmp_path: Path) -> None:
     """SELECT on the Preset row opens the preset picker, not edit mode."""
     config_path = tmp_path / "config.toml"

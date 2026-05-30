@@ -1456,11 +1456,19 @@ class BridgeUi:
         elif action in {UiAction.BACK}:
             self._cancel_adjustment_edit()
         elif action in {UiAction.HELP, UiAction.PAIR}:
-            # Show help text for the axis being edited.
-            self._show_settings(
-                setting_help_text(key),
-                page=SettingsPage.ADJUSTMENTS,
+            # Show help text for the axis being edited WITHOUT exiting edit
+            # mode. The previous implementation called `_show_settings(...)`
+            # which forces mode → SETTINGS and recomputes the snapshot's
+            # adjustments_profile from the COMMITTED config — silently
+            # discarding the user's working value with no warning (audit
+            # flagged this as a data-loss bug). Now we just stamp the help
+            # text into the existing edit-mode snapshot so the slider
+            # position, working value, and live preview all survive KEY3.
+            self._snapshot = replace(
+                self._snapshot,
+                settings_message=setting_help_text(key),
             )
+            self._render()
 
     async def _handle_setting_picker_action(self, action: UiAction) -> None:
         key = self._settings_picker_key

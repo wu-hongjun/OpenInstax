@@ -456,7 +456,9 @@ def _chunk_progress_emitter(
             PrintProgress(
                 PrintStage.SENDING,
                 f"Sending {percent}%",
-                f"{done}/{total} chunks  {image_size // 1024} KB",
+                # detail = None: chunk count + KB size dropped per user
+                # request; the progress bar carries the full signal.
+                None,
                 percent,
             ),
         )
