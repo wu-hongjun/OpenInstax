@@ -260,15 +260,26 @@ def draw_status_bar(
     *,
     theme: Theme | None = None,
 ) -> None:
-    """Draw the 30 px status bar with a Liquid Glass pill indicator.
+    """Draw the 36 px status bar — title left, status dot center, counter right.
 
-    The full bar background is ``theme.bg`` (calm, no tint). The live status
-    word sits inside a vibrant capsule pill centred at x=120. The pill colour
-    is modulated by the breath envelope for breathing states, keeping the
-    whole-bar tint approach retired.
+    Two separable affordances replaced the old single text pill:
 
-    SETTINGS mode appends a page counter (``3/10``) to the right of the pill
-    in ``theme.label_secondary``.
+    - **Title** (top-left): a short noun naming the screen — "Print" on a
+      Settings sub-page, "Ready" on the main READY screen, "Searching"
+      while scanning, etc. Rendered in body font, ``theme.label_primary``,
+      no chip. Tells the user *where they are*.
+    - **Status dot** (top-center, 12 px diameter): a filled circle whose
+      colour is the same green/yellow/red/blue the old pill carried. The
+      breath envelope animates the dot's fill during breathing states.
+      No text on the dot — its colour and pulse already carry the signal,
+      and the body content describes specifics for non-OK states. Tells
+      the user *whether things are OK*.
+    - **Settings counter** (top-right): unchanged. Shows "2/6" on Settings
+      sub-pages so the user knows their position in the list.
+
+    Splitting "where you are" (text) from "is it OK?" (dot) removes the
+    semantic overload the pill carried — yellow on a Settings pill used
+    to read as "warning" even though it just meant "you're in a menu".
     """
 
     if theme is None:
@@ -281,38 +292,31 @@ def draw_status_bar(
     # Bar background — neutral, no tint
     draw.rectangle((0, 0, 239, STATUS_BAR_H - 1), fill=theme.bg)
 
-    word = t(status_bar_word(snapshot), snapshot.language)
+    # --- Title (top-left) -------------------------------------------------
+    title = t(status_bar_word(snapshot), snapshot.language)
+    title_bbox = draw.textbbox((0, 0), title, font=font_body)
+    title_h = int(title_bbox[3] - title_bbox[1])
+    title_top = int(title_bbox[1])
+    # Optical centring: +1 px so the cap-height sits visually mid-bar even
+    # though the descent-anchored bbox would otherwise look top-heavy.
+    title_y = (STATUS_BAR_H - title_h) // 2 - title_top + 1
+    _text(draw, 12, title_y, title, font_body, theme.label_primary)
 
-    # Resolve pill background from the theme's semantic pill tokens,
-    # then modulate by the breath envelope at `now`.
-    pill_bg_rgb = _state_pill_bg(state, theme)
-    pill_bg_tinted = _apply_breath(state, pill_bg_rgb, now)
-    pill_bg_hex = _rgb_to_hex(pill_bg_tinted)
+    # --- Status dot (top-center) ------------------------------------------
+    # Same colour the pill used; same breath modulation. A small filled
+    # circle conveys live status without competing with the title text.
+    dot_rgb = _apply_breath(state, _state_pill_bg(state, theme), now)
+    dot_hex = _rgb_to_hex(dot_rgb)
+    dot_radius = 6  # 12 px diameter — visible at arm's length, not loud
+    dot_cx = 120
+    dot_cy = STATUS_BAR_H // 2 + 1  # mirrors title's +1 optical centring
+    draw.ellipse(
+        (dot_cx - dot_radius, dot_cy - dot_radius,
+         dot_cx + dot_radius, dot_cy + dot_radius),
+        fill=dot_hex,
+    )
 
-    fg = state.foreground()
-    fg_hex = _rgb_to_hex(fg)
-
-    # Measure pill width. CJK glyphs are wider and need more horizontal
-    # padding so "设置" doesn't look cramped (plan 034 item 13).
-    # Latin: max(60, word_w + 24); CJK: max(76, word_w + 32).
-    word_bbox = draw.textbbox((0, 0), word, font=font_body)
-    word_w = int(word_bbox[2] - word_bbox[0])
-    if _has_cjk(word):
-        pill_w = max(76, word_w + 32)
-    else:
-        pill_w = max(60, word_w + 24)
-    pill_h = 22
-
-    # Pill always centred on x=120 regardless of mode. In SETTINGS mode the
-    # page counter ("2/4") anchors to the top-right of the bar so it never
-    # nudges the pill off-centre.
-    pill_x = 120 - pill_w // 2
-    # Optical centring: +1 px shift so pill sits with 8 px above / 6 px below
-    # rather than equal 7/7 margins (plan 034 item 6).
-    pill_y = (STATUS_BAR_H - pill_h) // 2 + 1
-
-    draw_pill(draw, pill_x, pill_y, pill_w, pill_h, pill_bg_hex, fg_hex, word, font_body)
-
+    # --- Settings counter (top-right) -------------------------------------
     if snapshot.mode is UiMode.SETTINGS and snapshot.settings_rows:
         selected = min(snapshot.selected_index, len(snapshot.settings_rows) - 1)
         counter = f"{selected + 1}/{len(snapshot.settings_rows)}"
@@ -322,7 +326,7 @@ def draw_status_bar(
         counter_w = int(counter_bbox[2] - counter_bbox[0])
         counter_h = int(counter_bbox[3] - counter_bbox[1])
         counter_top = int(counter_bbox[1])
-        counter_x = 232 - counter_w  # right-anchored, matching READY chip margin
+        counter_x = 232 - counter_w
         counter_y = (STATUS_BAR_H - counter_h) // 2 - counter_top
         _text(draw, counter_x, counter_y, counter, font_small, theme.label_secondary)
 
