@@ -105,6 +105,9 @@ class Theme:
     hint_bg: str  # bar background
     hint_fg: str  # hint text
 
+    # Slider
+    slider_thumb_fill: str  # thumb fill — always bright white in both themes
+
 
 # iOS 26-inspired *Light* theme. Backgrounds use the system gray-6 family;
 # foregrounds use label primary/secondary. Accents are the canonical iOS
@@ -131,6 +134,7 @@ LIGHT_THEME = Theme(
     pill_bg_red="#FF6D65",     # #FF3B30 * 0.70 + #FFF * 0.30 → #FF6D65
     hint_bg="#E5E5EA",
     hint_fg="#6B6B70",
+    slider_thumb_fill="#FFFFFF",
 )
 
 
@@ -160,6 +164,7 @@ DARK_THEME = Theme(
     pill_bg_red="#D43A30",     # #FF453A * 0.82 + #1C1C1E * 0.18 → #D43A30
     hint_bg="#1C1C1E",
     hint_fg="#A1A1A6",
+    slider_thumb_fill="#FFFFFF",
 )
 
 

@@ -1047,3 +1047,74 @@ def test_destructive_toast_has_tinted_background() -> None:
     assert strip_px[:3] != bg_rgb, (
         f"Strip pixel should be tinted, not bg {bg_rgb}; got {strip_px}"
     )
+
+
+# ---------------------------------------------------------------------------
+# test_section_header_row_renders_without_highlight_when_selected
+# (plan 036 audit item 5)
+# ---------------------------------------------------------------------------
+
+
+def test_section_header_row_renders_without_highlight_when_selected() -> None:
+    """A section header row (hint=="" and value=="") must not show accent_blue
+    selection highlight even when selected=True, and must render in label_secondary.
+
+    Layout: the row sits at y=50 inside a 240x240 image. A regular card background
+    (theme.bg) fills behind it; the test checks that no accent_blue pixel appears
+    in the row's bounding box, confirming the header branch skips the highlight fill.
+    """
+    from PIL import Image, ImageDraw
+
+    from instantlink_bridge.ui.render import _font, draw_settings_row
+    from instantlink_bridge.ui.theme import theme_for
+
+    theme = theme_for("light")
+    img = Image.new("RGB", (240, 240), theme.bg)
+    draw = ImageDraw.Draw(img)
+
+    # _font takes (size: int, prefer_cjk: bool); 10 pt = the small font size
+    # the renderer uses at MEDIUM font scale.
+    font = _font(10, prefer_cjk=False)
+    draw_settings_row(
+        draw,
+        y=50,
+        label="Personalisation",
+        value="",
+        hint="",
+        selected=True,  # cursor on this row
+        font=font,
+        theme=theme,
+        row_height=19,
+    )
+
+    accent_blue_hex = theme.accent_blue.lstrip("#")
+    accent_blue = (
+        int(accent_blue_hex[0:2], 16),
+        int(accent_blue_hex[2:4], 16),
+        int(accent_blue_hex[4:6], 16),
+    )
+
+    # Scan the row's bounding box for accent_blue pixels (highlight must not appear).
+    row_y0, row_y1 = 50, 69  # y=50, row_height=19
+    found_highlight = False
+    for px in range(14, 227):
+        for py in range(row_y0, row_y1):
+            if img.getpixel((px, py))[:3] == accent_blue:
+                found_highlight = True
+                break
+        if found_highlight:
+            break
+
+    assert not found_highlight, (
+        f"Section header row must not render accent_blue highlight when selected. "
+        f"Found {accent_blue} in row bounding box."
+    )
+
+    # Confirm the row background is theme.bg (no fill was drawn).
+    bg_hex = theme.bg.lstrip("#")
+    bg_rgb = (int(bg_hex[0:2], 16), int(bg_hex[2:4], 16), int(bg_hex[4:6], 16))
+    # Sample the centre of the row (not where text is likely rendered).
+    centre_bg = img.getpixel((120, 58))[:3]
+    assert centre_bg == bg_rgb, (
+        f"Row background should remain theme.bg {bg_rgb}, got {centre_bg}"
+    )

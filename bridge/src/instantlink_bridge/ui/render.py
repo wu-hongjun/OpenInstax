@@ -315,6 +315,14 @@ def draw_slider(
     # Fill region
     if symmetric:
         zero_x = x + int(w * (0 - min_value) / (max_value - min_value))
+        # Centre-zero tick: always draw first so fill paints over on the
+        # filled side; when value==0 the tick is the only thing in the centre
+        # and remains fully visible (item 1, plan 036 audit follow-up).
+        draw.line(
+            (zero_x, y - 1, zero_x, y + track_height + 1),
+            fill=theme.separator,
+            width=1,
+        )
         if value > 0:
             draw.rectangle(
                 (zero_x, y, thumb_cx, y + track_height),
@@ -324,13 +332,6 @@ def draw_slider(
             draw.rectangle(
                 (thumb_cx, y, zero_x, y + track_height),
                 fill=theme.accent_blue,
-            )
-        # Zero-line marker when value != 0
-        if value != 0:
-            draw.line(
-                (zero_x, y - 2, zero_x, y + track_height + 2),
-                fill=theme.separator,
-                width=1,
             )
     else:
         # Asymmetric: fill from left edge to thumb
@@ -364,7 +365,7 @@ def _draw_slider_thumb(
     draw.rounded_rectangle(
         (tx0, ty0, tx1, ty1),
         radius=4,
-        fill=theme.label_inverse,
+        fill=theme.slider_thumb_fill,
         outline=theme.separator,
         width=1,
     )
@@ -740,6 +741,23 @@ def draw_settings_row(
         theme = theme_for("light")
     if marker_font is None:
         marker_font = font
+
+    # Section header rows: hint == "" and value == "" signals a non-actionable
+    # divider (e.g. "Advanced", "Personalisation", "Diagnostics"). Render them
+    # as muted section headers — no highlight, no chevron, slightly indented —
+    # so they read as labels rather than selectable rows (plan 036 audit item 5).
+    if hint == "" and value == "":
+        # Never draw a selection highlight: the row is not actionable.
+        label_max = 88
+        _text(
+            draw,
+            28,
+            y + 3,
+            _fit_text_to_width(draw, label, font, label_max),
+            font,
+            theme.label_secondary,
+        )
+        return
 
     if selected:
         # Selected row: flat vibrant accent fill (iOS picker style). Radius
@@ -1871,8 +1889,12 @@ def _adjustment_edit(
     _text(draw, 222 - val_w, label_y, val_str, font_body, theme.accent_blue)
 
     # --- Slider track -------------------------------------------------------
+    # slider_y moved from 168 → 164 (item 6, plan 036 audit follow-up):
+    # range labels render at slider_y+track_h+4=176, help strip at card_y1+3=191,
+    # giving 15 px clearance instead of 11 — prevents CJK range-label / hint
+    # overlap when zh-Hans line heights are taller.
     slider_x = 22
-    slider_y = 168
+    slider_y = 164
     slider_w = 196
     slider_track_h = 8
     lo, hi = ((-100, 100) if symmetric else (0, 100))
