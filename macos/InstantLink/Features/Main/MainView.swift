@@ -149,14 +149,19 @@ struct MainView: View {
                 }
             } else {
                 ZStack(alignment: .topTrailing) {
-                    Button {
-                        viewModel.showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 10) {
+                        BridgeConnectionIndicator(snapshot: viewModel.bridgeSnapshot) {
+                            openWindow(id: "BridgeControl")
+                        }
+                        Button {
+                            viewModel.showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                     .padding(10)
 
                     VStack(spacing: 16) {

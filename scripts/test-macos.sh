@@ -29,6 +29,7 @@ SOURCES=(
   "$REPO_ROOT/macos/InstantLink/Core/AppRuntimeServices.swift"
   "$REPO_ROOT/macos/InstantLink/Core/QueueEditCoordinator.swift"
   "$REPO_ROOT/macos/InstantLink/Core/PrinterConnectionCoordinator.swift"
+  "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeConnectionIndicator.swift"
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeDiscoveryBanner.swift"
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeOverviewView.swift"
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgePairingView.swift"
