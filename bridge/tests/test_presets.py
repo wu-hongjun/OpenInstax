@@ -57,18 +57,18 @@ def test_soft_preset_has_lower_saturation_than_default() -> None:
     assert PRESETS["Soft"].saturation < 1.0
 
 
-def test_instax_film_stub_is_identity_in_phase_5() -> None:
-    """Phase 5: Instax Film slot ships as identity.  Phase 6 will replace this test.
-
-    This assertion is intentional and explicit: the slot is reserved but the
-    values are not yet filled (vignette doesn't exist until Phase 6).
-    """
-    identity = AdjustmentProfile()
+def test_instax_film_preset_has_vignette_50() -> None:
+    """Phase 6: Instax Film preset has vignette=50, saturation=0.9, sharpness=0.9."""
     instax = PRESETS["Instax Film"]
-    assert instax.saturation == pytest.approx(identity.saturation)
-    assert instax.exposure == pytest.approx(identity.exposure)
-    assert instax.sharpness == pytest.approx(identity.sharpness)
-    assert instax.hue == identity.hue
+    assert instax.vignette == 50, f"Expected vignette=50, got {instax.vignette}"
+    assert instax.saturation == pytest.approx(0.9), (
+        f"Expected saturation=0.9, got {instax.saturation}"
+    )
+    assert instax.sharpness == pytest.approx(0.9), (
+        f"Expected sharpness=0.9, got {instax.sharpness}"
+    )
+    assert instax.exposure == pytest.approx(1.0)
+    assert instax.hue == 0
 
 
 # ---------------------------------------------------------------------------
@@ -224,3 +224,28 @@ def test_load_user_presets_returns_empty_on_corrupt_file(tmp_path: Path) -> None
     path.write_text("NOT VALID TOML !!!! @@@@")
     result = load_user_presets(path)
     assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Instax Film preset resolution + vignette config validation
+# ---------------------------------------------------------------------------
+
+
+def test_instax_film_preset_resolves_for_pipeline() -> None:
+    """Config with preset='Instax Film' resolves to Instax Film profile via resolve_preset.
+
+    The vignette, saturation, and sharpness values must match the built-in
+    preset definition, regardless of the per-axis values stored in config.
+    """
+    cfg = AdjustmentsConfig(preset="Instax Film", saturation=0, sharpness=0)
+    profile = resolve_preset(cfg)
+    instax = PRESETS["Instax Film"]
+    assert profile.vignette == instax.vignette
+    assert profile.saturation == pytest.approx(instax.saturation)
+    assert profile.sharpness == pytest.approx(instax.sharpness)
+
+
+def test_vignette_invalid_value_raises() -> None:
+    """AdjustmentsConfig with vignette not in {0, 25, 50, 75, 100} raises ValueError."""
+    with pytest.raises(ValueError, match="vignette"):
+        AdjustmentsConfig(vignette=33)

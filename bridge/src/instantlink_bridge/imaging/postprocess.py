@@ -54,6 +54,9 @@ class AdjustmentProfile:
     hue: int = 0
     """Degrees of HSV hue rotation. 0 = unchanged."""
 
+    vignette: int = 0
+    """Corner-darkening strength. 0 = off (identity), 100 = heavy. One-sided: no negative values."""
+
     datestamp: bool = False
     """Overlay flag. When True and datestamp_text is non-empty, renders it bottom-right."""
 
@@ -93,6 +96,7 @@ class AdjustmentProfile:
             exposure=2.0 ** (config.exposure / 100.0),
             sharpness=1.0 + config.sharpness / 100.0,
             hue=int(config.hue * 1.8),
+            vignette=config.vignette,
             datestamp=config.datestamp,
             watermark=config.watermark,
             datestamp_text="",  # caller fills this in after reading EXIF
@@ -115,7 +119,7 @@ _OVERLAY_FONT_SIZE_MAX = 48
 def apply_adjustments(image: Image.Image, profile: AdjustmentProfile) -> Image.Image:
     """Apply colour/overlay adjustments to ``image`` in place semantically.
 
-    Application order: hue → saturation → exposure → sharpness → datestamp → watermark.
+    Application order: hue → saturation → exposure → sharpness → vignette → datestamp → watermark.
 
     Hue is applied first because it operates on the original colour space;
     the subsequent saturation, exposure, and sharpness adjustments are linear
@@ -175,6 +179,13 @@ def apply_adjustments(image: Image.Image, profile: AdjustmentProfile) -> Image.I
 
         out = ImageEnhance.Sharpness(out).enhance(profile.sharpness)
 
+    # --- Vignette (radial corner-darkening, NumPy) ------------------------
+    # Runs AFTER sharpness so colour/tone adjustments happen first, and
+    # BEFORE overlays so datestamp/watermark text lands on top of the
+    # darkened corners and stays legible.
+    if profile.vignette != 0:
+        out = _apply_vignette(out, profile.vignette)
+
     # --- Datestamp (bottom-right, white text + 2px black stroke) ---------
     # Both the bool flag AND a non-empty text string are required. The caller
     # (controller / app.py) formats the EXIF date before building the profile;
@@ -187,6 +198,59 @@ def apply_adjustments(image: Image.Image, profile: AdjustmentProfile) -> Image.I
         out = _render_overlay(out, profile.watermark_text, anchor="rt")
 
     return out
+
+
+def _apply_vignette(image: Image.Image, strength: int) -> Image.Image:
+    """Apply a radial corner-darkening vignette to ``image``.
+
+    Builds a normalised radius map once with ``np.meshgrid`` broadcasting —
+    no per-pixel Python loops.  The darkening factor is::
+
+        r_norm = sqrt((x/w - 0.5)^2 + (y/h - 0.5)^2) * sqrt(2)
+
+    where ``r_norm`` is 0.0 at the image centre and 1.0 at each corner.
+    The darkening multiplier is::
+
+        factor = 1.0 - clip(r_norm, 0, 1)^gamma * (strength / 100.0)
+
+    ``gamma = 2.0`` gives a gentle falloff in the inner half and a steeper
+    rolloff near the corners, matching the look of a real Instax-camera
+    lens vignette.
+
+    Parameters
+    ----------
+    image:
+        Source RGB image.  Must be in ``"RGB"`` mode; the function converts
+        if necessary.
+    strength:
+        0 = no darkening (identity); 100 = heavy vignette.
+    """
+    import numpy as np  # lazy import keeps module load cheap
+
+    _GAMMA = 2.0
+
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+
+    w, h = image.size
+    # xs: column coords normalised to [-0.5, 0.5], shape (1, w)
+    # ys: row coords normalised to [-0.5, 0.5], shape (h, 1)
+    xs = (np.arange(w, dtype=np.float32) / w - 0.5).reshape(1, w)
+    ys = (np.arange(h, dtype=np.float32) / h - 0.5).reshape(h, 1)
+
+    # r_norm is 0 at centre, 1.0 at each corner (sqrt(2) normalises the
+    # half-diagonal so a corner lands exactly at 1.0).
+    r_norm = np.sqrt(xs * xs + ys * ys) * np.sqrt(2.0)  # shape (h, w)
+    r_norm = np.clip(r_norm, 0.0, 1.0)
+
+    # Darkening factor: 1.0 at centre, 1-(strength/100) at corners.
+    factor = 1.0 - (r_norm**_GAMMA) * (strength / 100.0)  # shape (h, w)
+
+    # Apply to all three RGB channels simultaneously via broadcasting.
+    arr = np.asarray(image, dtype=np.float32)  # H×W×3
+    arr_out = arr * factor[:, :, np.newaxis]
+    out_u8 = np.clip(arr_out, 0.0, 255.0).astype(np.uint8)
+    return Image.fromarray(out_u8, mode="RGB")
 
 
 def _render_overlay(

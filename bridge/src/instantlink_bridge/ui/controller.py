@@ -1224,6 +1224,7 @@ class BridgeUi:
             SettingKey.ADJUST_EXPOSURE,
             SettingKey.ADJUST_SHARPNESS,
             SettingKey.ADJUST_HUE,
+            SettingKey.ADJUST_VIGNETTE,
         })
         if key in _COLOUR_AXIS_KEYS and self._config.adjustments.preset != "Custom":
             self._show_settings("Edit by setting Preset → Custom")
@@ -1805,6 +1806,11 @@ class BridgeUi:
                 return SettingsRow("Hue", format_int_with_sign(adj.hue))
             value = self._resolved_preset_value_str("hue")
             return SettingsRow("Hue", value)
+        if key is SettingKey.ADJUST_VIGNETTE:
+            if _is_custom_preset:
+                return SettingsRow("Vignette", str(self._config.adjustments.vignette))
+            value = self._resolved_preset_value_str("vignette")
+            return SettingsRow("Vignette", value)
         if key is SettingKey.ADJUST_DATESTAMP:
             return SettingsRow("Datestamp", bool_label(self._config.adjustments.datestamp))
         if key is SettingKey.ADJUST_WATERMARK:
@@ -1957,6 +1963,9 @@ class BridgeUi:
             # degrees = hue_int; ui_val = degrees / 1.8
             ui_val = round(profile.hue / 1.8) if profile.hue != 0 else 0
             return format_int_with_sign(ui_val)
+        if axis == "vignette":
+            # vignette is already in the 0…100 display range; no conversion needed.
+            return str(profile.vignette)
         return "0"
 
     def _settings_row_help(self, key: SettingKey) -> str:

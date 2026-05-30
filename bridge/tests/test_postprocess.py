@@ -304,3 +304,75 @@ def test_watermark_no_op_when_text_empty() -> None:
     assert img.tobytes() == result.tobytes(), (
         "Image should be unchanged when watermark_text is empty"
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: vignette
+# ---------------------------------------------------------------------------
+
+
+def test_vignette_zero_is_identity() -> None:
+    """vignette=0 must produce byte-identical output to the identity profile."""
+    img = _make_rgb(size=(200, 200))
+    result = apply_adjustments(img, AdjustmentProfile(vignette=0))
+    # vignette=0 is the default; the whole profile is identity so same object.
+    assert result is img
+
+
+def test_vignette_darkens_corners_more_than_centre() -> None:
+    """vignette=100 on a solid-colour fixture darkens corners more than the centre.
+
+    Constraints from the plan:
+    - Centre pixel is at most ~5 levels darker than original (~123 from 128).
+    - Corner pixels are noticeably darker (≤ 50).
+    """
+    size = 200
+    original_value = 128
+    img = Image.new("RGB", (size, size), (original_value, original_value, original_value))
+    profile = AdjustmentProfile(vignette=100)
+    result = apply_adjustments(img.copy(), profile)
+
+    cx, cy = size // 2, size // 2
+    centre_r, _, _ = result.getpixel((cx, cy))
+    corner_r, _, _ = result.getpixel((0, 0))
+
+    # Centre should be close to unchanged (within 5 levels).
+    assert centre_r >= original_value - 5, (
+        f"Centre pixel should be near original {original_value}, got {centre_r}"
+    )
+    # Corner should be noticeably dark.
+    assert corner_r <= 50, f"Corner pixel should be ≤ 50, got {corner_r}"
+    # Corner must be darker than centre.
+    assert corner_r < centre_r, (
+        f"Corner ({corner_r}) should be darker than centre ({centre_r})"
+    )
+
+
+def test_vignette_runs_before_overlays() -> None:
+    """vignette=100 + datestamp: the datestamp text survives on top of darkened corners.
+
+    Verify:
+    - A pixel near the top-left corner (away from the datestamp text) is dark
+      (vignette took effect).
+    - The datestamp overlay rendered on top (the bottom-right region changed
+      from the plain-colour fill, indicating the text was drawn).
+    """
+    size = 200
+    img = Image.new("RGB", (size, size), (128, 128, 128))
+    profile = AdjustmentProfile(vignette=100, datestamp=True, datestamp_text="2026-05-30")
+    result = apply_adjustments(img.copy(), profile)
+
+    # Top-left corner should be dark (vignette applied).
+    corner_r, corner_g, corner_b = result.getpixel((0, 0))
+    assert corner_r <= 50 and corner_g <= 50 and corner_b <= 50, (
+        f"Top-left corner should be dark after vignette=100, got ({corner_r},{corner_g},{corner_b})"
+    )
+
+    # Bottom-right region (datestamp area) must differ from a plain vignette-only result —
+    # i.e. the text was drawn on top of the vignette.
+    vignette_only = apply_adjustments(img.copy(), AdjustmentProfile(vignette=100))
+    result_br = result.crop((100, 100, 200, 200))
+    vignette_br = vignette_only.crop((100, 100, 200, 200))
+    assert result_br.tobytes() != vignette_br.tobytes(), (
+        "Bottom-right region should differ from vignette-only — datestamp should be on top"
+    )

@@ -346,6 +346,7 @@ class FirmwareUpdateConfig:
 
 
 _ADJUSTMENT_VALID_VALUES: frozenset[int] = frozenset({-100, -50, 0, 50, 100})
+_VIGNETTE_VALID_VALUES: frozenset[int] = frozenset({0, 25, 50, 75, 100})
 
 # Valid preset names: built-ins + user custom slots + the "Custom" sentinel.
 # Keep in sync with VALID_PRESET_NAMES in imaging/presets.py (imported lazily
@@ -398,6 +399,9 @@ class AdjustmentsConfig:
     watermark_text: str = "InstantLink"
     """Text to stamp as a watermark. Empty string disables rendering."""
 
+    vignette: int = 0
+    """Corner-darkening strength. One of {0, 25, 50, 75, 100}. 0 = off (identity)."""
+
     def __post_init__(self) -> None:
         if self.preset not in _ADJUSTMENT_VALID_PRESET_NAMES:
             raise ValueError(
@@ -411,6 +415,11 @@ class AdjustmentsConfig:
                     f"[adjustments].{field_name} must be one of "
                     f"{sorted(_ADJUSTMENT_VALID_VALUES)}; got {value!r}"
                 )
+        if self.vignette not in _VIGNETTE_VALID_VALUES:
+            raise ValueError(
+                f"[adjustments].vignette must be one of "
+                f"{sorted(_VIGNETTE_VALID_VALUES)}; got {self.vignette!r}"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -545,6 +554,7 @@ def render_config(config: BridgeConfig) -> str:
             f"datestamp = {_toml_bool(config.adjustments.datestamp)}",
             f"watermark = {_toml_bool(config.adjustments.watermark)}",
             f"watermark_text = {_toml_string(config.adjustments.watermark_text)}",
+            f"vignette = {config.adjustments.vignette}",
             "",
         ]
     )
@@ -704,6 +714,7 @@ def _load_adjustments_config(data: object) -> AdjustmentsConfig:
         datestamp=_parse_bool(data.get("datestamp", False), "[adjustments].datestamp"),
         watermark=_parse_bool(data.get("watermark", False), "[adjustments].watermark"),
         watermark_text=str(data.get("watermark_text", "InstantLink")),
+        vignette=_vignette_int(data.get("vignette", 0), "[adjustments].vignette"),
     )
 
 
@@ -713,6 +724,16 @@ def _adjustment_int(value: object, field_name: str) -> int:
     if value not in _ADJUSTMENT_VALID_VALUES:
         raise ValueError(
             f"{field_name} must be one of {sorted(_ADJUSTMENT_VALID_VALUES)}; got {value!r}"
+        )
+    return value
+
+
+def _vignette_int(value: object, field_name: str) -> int:
+    if not isinstance(value, int):
+        raise ValueError(f"{field_name} must be an integer")
+    if value not in _VIGNETTE_VALID_VALUES:
+        raise ValueError(
+            f"{field_name} must be one of {sorted(_VIGNETTE_VALID_VALUES)}; got {value!r}"
         )
     return value
 

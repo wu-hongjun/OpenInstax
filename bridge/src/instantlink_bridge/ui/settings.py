@@ -35,6 +35,8 @@ class SettingKey(StrEnum):
     ADJUST_EXPOSURE = "adjust_exposure"
     ADJUST_SHARPNESS = "adjust_sharpness"
     ADJUST_HUE = "adjust_hue"
+    # Adjustments vignette picker (plan 035 phase 6).
+    ADJUST_VIGNETTE = "adjust_vignette"
     # Adjustments sub-page overlay toggles (plan 035 phase 4).
     ADJUST_DATESTAMP = "adjust_datestamp"
     ADJUST_WATERMARK = "adjust_watermark"
@@ -166,6 +168,7 @@ SETTINGS_BY_PAGE: dict[SettingsPage, tuple[SettingKey, ...]] = {
         SettingKey.ADJUST_EXPOSURE,
         SettingKey.ADJUST_SHARPNESS,
         SettingKey.ADJUST_HUE,
+        SettingKey.ADJUST_VIGNETTE,
         SettingKey.ADJUST_DATESTAMP,
         SettingKey.ADJUST_WATERMARK,
         SettingKey.ADJUST_SAVE_CUSTOM,
@@ -327,6 +330,8 @@ ADJUSTABLE_SETTING_KEYS: frozenset[SettingKey] = frozenset(
         SettingKey.ADJUST_EXPOSURE,
         SettingKey.ADJUST_SHARPNESS,
         SettingKey.ADJUST_HUE,
+        # Vignette picker (plan 035 phase 6).
+        SettingKey.ADJUST_VIGNETTE,
         # Adjustments overlay toggles (plan 035 phase 4).
         SettingKey.ADJUST_DATESTAMP,
         SettingKey.ADJUST_WATERMARK,
@@ -365,6 +370,16 @@ ADJUSTMENT_OPTIONS: tuple[SettingOption, ...] = (
     SettingOption("0", 0),
     SettingOption("+50", 50),
     SettingOption("+100", 100),
+)
+
+# Five-position one-sided discrete picker for vignette.
+# Values are always non-negative (0…100); no sign prefix on labels.
+VIGNETTE_OPTIONS: tuple[SettingOption, ...] = (
+    SettingOption("0", 0),
+    SettingOption("25", 25),
+    SettingOption("50", 50),
+    SettingOption("75", 75),
+    SettingOption("100", 100),
 )
 
 MODEL_OPTIONS: tuple[PrinterModel | None, ...] = (
@@ -438,6 +453,8 @@ SETTING_HELP_TEXT: dict[SettingKey, str] = {
     SettingKey.ADJUST_EXPOSURE: "Brightness in EV stops. ±100 = ±1 EV",
     SettingKey.ADJUST_SHARPNESS: "Edge contrast. Negative softens, positive crisps",
     SettingKey.ADJUST_HUE: "Hue rotation in degrees. ±100 = ±180°",
+    # Vignette picker (plan 035 phase 6).
+    SettingKey.ADJUST_VIGNETTE: "Darken the corners to simulate Instax film",
     # Adjustments overlay toggles (plan 035 phase 4).
     SettingKey.ADJUST_DATESTAMP: "Stamp the photo's date in the bottom-right corner",
     SettingKey.ADJUST_WATERMARK: "Stamp a short label in the top-right corner",
@@ -540,6 +557,8 @@ def setting_options(key: SettingKey) -> tuple[SettingOption, ...]:
         SettingKey.ADJUST_HUE,
     }:
         return ADJUSTMENT_OPTIONS
+    if key is SettingKey.ADJUST_VIGNETTE:
+        return VIGNETTE_OPTIONS
     if key is SettingKey.ADJUST_DATESTAMP:
         return tuple(SettingOption(bool_label(value), value) for value in BOOL_OPTIONS)
     if key is SettingKey.ADJUST_WATERMARK:
@@ -608,6 +627,8 @@ def config_with_setting_value(
         return replace(config, adjustments=replace(config.adjustments, sharpness=value))
     if key is SettingKey.ADJUST_HUE and isinstance(value, int):
         return replace(config, adjustments=replace(config.adjustments, hue=value))
+    if key is SettingKey.ADJUST_VIGNETTE and isinstance(value, int):
+        return replace(config, adjustments=replace(config.adjustments, vignette=value))
     if key is SettingKey.ADJUST_DATESTAMP and isinstance(value, bool):
         return replace(config, adjustments=replace(config.adjustments, datestamp=value))
     if key is SettingKey.ADJUST_WATERMARK and isinstance(value, bool):
@@ -702,6 +723,8 @@ def _setting_value(config: BridgeConfig, key: SettingKey) -> object:
         return config.adjustments.sharpness
     if key is SettingKey.ADJUST_HUE:
         return config.adjustments.hue
+    if key is SettingKey.ADJUST_VIGNETTE:
+        return config.adjustments.vignette
     if key is SettingKey.ADJUST_DATESTAMP:
         return config.adjustments.datestamp
     if key is SettingKey.ADJUST_WATERMARK:

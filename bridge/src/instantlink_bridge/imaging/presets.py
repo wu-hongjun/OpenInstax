@@ -40,9 +40,10 @@ USER_PRESETS_PATH = Path("/etc/InstantLinkBridge/presets.toml")
 # -100…+100 UI integers.  A preset can encode any float; the UI picker only
 # constrains user-driven per-axis edits in "Custom" mode.
 #
-# NOTE: "Instax Film" is intentionally all-identity in Phase 5.
-# Phase 6 fills in vignette=50, saturation=0.9, sharpness=0.9 once the
-# vignette field exists on AdjustmentProfile.
+# NOTE: "Instax Film" values filled in Phase 6:
+#   saturation=0.9  (-10 on ±100 UI scale → factor 1.0 + (-10)/100 = 0.9)
+#   sharpness=0.9   (-10 on ±100 UI scale → factor 1.0 + (-10)/100 = 0.9)
+#   vignette=50     (50 on 0…100 one-sided scale)
 
 PRESETS: dict[str, AdjustmentProfile] = {
     "Default": AdjustmentProfile(
@@ -69,13 +70,12 @@ PRESETS: dict[str, AdjustmentProfile] = {
         sharpness=1.0,
         hue=0,
     ),
-    # Phase 5 stub: identity values.  Phase 6 fills in vignette + colour tweaks
-    # once AdjustmentProfile gains its vignette field.
     "Instax Film": AdjustmentProfile(
-        saturation=1.0,
+        saturation=0.9,   # -10 on ±100 UI scale: slight desat for vintage feel
         exposure=1.0,
-        sharpness=1.0,
+        sharpness=0.9,    # -10 on ±100 UI scale: Instax prints aren't tack-sharp
         hue=0,
+        vignette=50,      # visible but not heavy corner darkening
     ),
 }
 

@@ -361,6 +361,9 @@ _ZH_HANS: dict[str, str] = {
     "Brightness in EV stops. ±100 = ±1 EV": "亮度（EV 档）。±100 = ±1 EV",
     "Edge contrast. Negative softens, positive crisps": "边缘对比度。负值柔化，正值锐化",
     "Hue rotation in degrees. ±100 = ±180°": "色相旋转角度。±100 = ±180°",
+    # --- Vignette picker (plan 035 phase 6) --------------------------------
+    "Vignette": "暗角",
+    "Darken the corners to simulate Instax film": "将四角变暗以模拟 Instax 胶片",
     # --- Adjustments overlay toggle labels (plan 035 phase 4) ------------
     "Datestamp": "日期戳",
     "Watermark": "水印",
