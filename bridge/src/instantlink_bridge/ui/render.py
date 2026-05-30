@@ -125,6 +125,8 @@ def render_snapshot(snapshot: UiSnapshot, now: float | None = None) -> Image.Ima
 
     if snapshot.mode is UiMode.READY:
         _ready(draw, snapshot, fonts, theme)
+    elif snapshot.mode is UiMode.ADJUSTMENT_EDIT:
+        _adjustment_edit(image, draw, snapshot, fonts, theme)
     elif snapshot.mode is UiMode.SETTINGS:
         if snapshot.settings_title == "Adjustments":
             _adjustments(image, draw, snapshot, fonts, theme)
@@ -539,6 +541,7 @@ _MODE_STATUS_WORD: dict[UiMode, str] = {
     UiMode.PRINT_COMPLETE: "Ejecting",
     UiMode.ERROR: "Error",
     UiMode.SETTINGS: "Settings",
+    UiMode.ADJUSTMENT_EDIT: "Adjustments",
 }
 
 
@@ -1925,6 +1928,121 @@ def _draw_adjustments_picker_row_right(
     _text(draw, val_x, y + 3, value_str, font, value_fill)
 
 
+def _adjustment_edit(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    snapshot: UiSnapshot,
+    fonts: dict[str, Font],
+    theme: Theme,
+) -> None:
+    """Render the focused-adjustment-edit mode (plan 036 phase 4).
+
+    Layout (240 × 240):
+    - Status bar at top (36 px) — title "Adjustments" + dot + page counter.
+    - Card border at (12, 38, 228, 188), radius=10.
+    - Preview tile at (16, 42) with size 192 × 108.
+    - Axis label at (22, 164) in body font.
+    - Value label right-aligned to x=222 in accent_blue.
+    - Slider track at (22, 172, width=174, height=8).
+    - Range labels: small font, label_secondary, "−100"/"0" left and "+100"/"100" right.
+    - Help strip: "Up/Dn ±5 · Left/Right ±25" in label_secondary between card and hint bar.
+    - Hint bar: KEY1 OK / KEY2 Cancel / KEY3 Help.
+    """
+    from instantlink_bridge.imaging.postprocess import (
+        AdjustmentProfile,
+        render_adjustments_preview,
+    )
+
+    lang = snapshot.language
+    font_body = fonts["body"]
+    font_small = fonts["small"]
+    # --- Card ---------------------------------------------------------------
+    card_x0, card_y0, card_x1, card_y1 = 12, 38, 228, 188
+    draw_card(draw, card_x0, card_y0, card_x1 - card_x0, card_y1 - card_y0, theme)
+
+    # --- Live preview tile --------------------------------------------------
+    _ADJ_EDIT_W = 192
+    _ADJ_EDIT_H = 108
+    tile_x, tile_y = 16, 42
+    profile = snapshot.adjustments_profile or AdjustmentProfile()
+    try:
+        preview_img = render_adjustments_preview(profile, size=(_ADJ_EDIT_W, _ADJ_EDIT_H))
+        image.paste(preview_img, (tile_x, tile_y))
+    except Exception:
+        pass  # preview failure must never crash the renderer
+
+    # Thin border around preview
+    draw.rounded_rectangle(
+        (tile_x, tile_y, tile_x + _ADJ_EDIT_W, tile_y + _ADJ_EDIT_H),
+        radius=4,
+        outline=theme.separator,
+        width=1,
+    )
+
+    # --- Axis label + value -------------------------------------------------
+    edit_key = snapshot.adjustment_edit_key or ""
+    # Map SettingKey value → human label.
+    _KEY_TO_LABEL: dict[str, str] = {
+        "adjust_saturation": "Saturation",
+        "adjust_exposure": "Exposure",
+        "adjust_sharpness": "Sharpness",
+        "adjust_hue": "Hue",
+        "adjust_vignette": "Vignette",
+    }
+    axis_label = t(_KEY_TO_LABEL.get(edit_key, edit_key.replace("adjust_", "").capitalize()), lang)
+    current_value = snapshot.adjustment_edit_value
+
+    # Determine symmetric vs asymmetric (vignette is [0, 100])
+    symmetric = edit_key != "adjust_vignette"
+    val_str = format_int_with_sign(current_value) if symmetric else str(current_value)
+
+    label_y = 155
+    _text(draw, 22, label_y, axis_label, font_body, theme.label_primary)
+    val_w = _text_width(draw, val_str, font_body)
+    _text(draw, 222 - val_w, label_y, val_str, font_body, theme.accent_blue)
+
+    # --- Slider track -------------------------------------------------------
+    slider_x = 22
+    slider_y = 168
+    slider_w = 196
+    slider_track_h = 8
+    lo, hi = ((-100, 100) if symmetric else (0, 100))
+    draw_slider(
+        draw,
+        slider_x,
+        slider_y,
+        slider_w,
+        current_value,
+        lo,
+        hi,
+        theme=theme,
+        track_height=slider_track_h,
+        thumb_width=10,
+        thumb_height=14,
+        symmetric=symmetric,
+    )
+
+    # --- Range labels -------------------------------------------------------
+    range_y = slider_y + slider_track_h + 4
+    left_label = "−100" if symmetric else "0"
+    right_label = "+100" if symmetric else "100"
+    _text(draw, slider_x, range_y, left_label, font_small, theme.label_secondary)
+    right_w = _text_width(draw, right_label, font_small)
+    right_x = slider_x + slider_w - right_w
+    _text(draw, right_x, range_y, right_label, font_small, theme.label_secondary)
+
+    # --- Help strip ---------------------------------------------------------
+    help_strip = t("Up/Dn ±5 · Left/Right ±25", lang)
+    help_y = card_y1 + 3
+    help_w = _text_width(draw, help_strip, font_small)
+    help_x = (240 - help_w) // 2
+    _text(draw, help_x, help_y, help_strip, font_small, theme.label_secondary)
+
+    # --- Hint bar -----------------------------------------------------------
+    hints = _mode_hints(snapshot)
+    draw_hint_bar(draw, hints, fonts["hint"], theme)
+
+
 def _pairing(
     draw: ImageDraw.ImageDraw,
     snapshot: UiSnapshot,
@@ -2029,6 +2147,8 @@ def _mode_hints(snapshot: UiSnapshot) -> tuple[str, str, str]:
 def _footer_label_lines(snapshot: UiSnapshot) -> tuple[tuple[str, str, str], ...]:
     if snapshot.mode is UiMode.BOOTING:
         return (("", "Starting", ""),)
+    if snapshot.mode is UiMode.ADJUSTMENT_EDIT:
+        return (("KEY1 OK", "KEY2 Cancel", "KEY3 Help"),)
     if snapshot.mode is UiMode.SETTINGS:
         return (
             # Three chips, three physical keys (KEY1/KEY2/KEY3 left-to-right

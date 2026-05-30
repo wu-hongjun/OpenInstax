@@ -898,3 +898,83 @@ def test_adjustments_page_renders_in_zh_hans() -> None:
     snapshot = _adjustments_snapshot(saturation=50, language="zh-Hans")
     image = render_snapshot(snapshot)
     assert image.size == (240, 240)
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 Phase 4 — ADJUSTMENT_EDIT mode renderer
+# ---------------------------------------------------------------------------
+
+
+def _adj_edit_snapshot(
+    axis_key: str = "adjust_saturation",
+    value: int = 50,
+    appearance: str = "light",
+    language: str = "en",
+) -> UiSnapshot:
+    """Build a UiSnapshot for ADJUSTMENT_EDIT mode."""
+    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
+
+    # Build a working profile with the given saturation overridden.
+    profile = AdjustmentProfile(saturation=1.0 + value / 100.0)
+    return UiSnapshot(
+        mode=UiMode.ADJUSTMENT_EDIT,
+        ftp_host="192.168.7.1",
+        adjustment_edit_key=axis_key,
+        adjustment_edit_value=value,
+        adjustment_edit_original=0,
+        adjustments_profile=profile,
+        appearance=appearance,
+        language=language,
+    )
+
+
+def test_adjustment_edit_mode_renders_240x240() -> None:
+    """ADJUSTMENT_EDIT mode renders to a 240×240 image without error."""
+    snapshot = _adj_edit_snapshot(axis_key="adjust_saturation", value=50)
+    image = render_snapshot(snapshot)
+    assert image.size == (240, 240)
+
+
+def test_adjustment_edit_mode_preview_tile_is_populated() -> None:
+    """Preview tile region should have varied pixel data (not all one colour)."""
+    snapshot = _adj_edit_snapshot(axis_key="adjust_saturation", value=50)
+    image = render_snapshot(snapshot)
+    # Tile is at x=16, y=42, size=192x108. Sample a few pixels in that region.
+    tile_pixels = set()
+    for x in range(16, 16 + 192, 16):
+        for y in range(42, 42 + 108, 16):
+            tile_pixels.add(image.getpixel((x, y)))
+    # A real preview photo has many distinct colours; at least 2 must differ.
+    assert len(tile_pixels) > 1, "Preview tile should contain varied pixels"
+
+
+def test_adjustment_edit_mode_differs_between_identity_and_value() -> None:
+    """A +50 saturation edit should render differently from an identity (0) edit."""
+    snapshot_identity = _adj_edit_snapshot(axis_key="adjust_saturation", value=0)
+    snapshot_saturated = _adj_edit_snapshot(axis_key="adjust_saturation", value=50)
+    image_identity = render_snapshot(snapshot_identity)
+    image_saturated = render_snapshot(snapshot_saturated)
+    assert image_identity.tobytes() != image_saturated.tobytes(), (
+        "Renders with different saturation values should differ"
+    )
+
+
+def test_adjustment_edit_mode_renders_dark_theme() -> None:
+    """ADJUSTMENT_EDIT renders without error in dark appearance."""
+    snapshot = _adj_edit_snapshot(value=50, appearance="dark")
+    image = render_snapshot(snapshot)
+    assert image.size == (240, 240)
+
+
+def test_adjustment_edit_mode_renders_zh_hans() -> None:
+    """ADJUSTMENT_EDIT renders without error in zh-Hans language."""
+    snapshot = _adj_edit_snapshot(value=50, language="zh-Hans")
+    image = render_snapshot(snapshot)
+    assert image.size == (240, 240)
+
+
+def test_adjustment_edit_mode_vignette_renders() -> None:
+    """ADJUSTMENT_EDIT for vignette (asymmetric [0,100]) renders without error."""
+    snapshot = _adj_edit_snapshot(axis_key="adjust_vignette", value=40)
+    image = render_snapshot(snapshot)
+    assert image.size == (240, 240)

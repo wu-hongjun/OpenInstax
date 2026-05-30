@@ -158,6 +158,7 @@ _ZH_HANS: dict[str, str] = {
     "Scanning": "扫描中",
     "Up/Dn": "上/下",
     "Up/Dn Edit": "上/下 编辑",
+    "Up/Dn ±5 · Left/Right ±25": "上下 ±5 · 左右 ±25",
     # --- Body action / status copy ---------------------------------------
     "Blocked": "已阻止",
     "Bluetooth lookup failed": "蓝牙查询失败",

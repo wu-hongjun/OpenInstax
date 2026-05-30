@@ -11,7 +11,7 @@ from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import replace
 from pathlib import Path
-from typing import Literal, Protocol, cast
+from typing import ClassVar, Literal, Protocol, cast
 
 from PIL import Image
 
@@ -329,6 +329,14 @@ class BridgeUi:
         from instantlink_bridge.imaging.postprocess import AdjustmentProfile as _AP
 
         self._user_presets: dict[str, _AP] = {}
+        # Focused adjustment-edit mode state (plan 036 phase 4).
+        # Populated when entering ADJUSTMENT_EDIT; cleared on commit/cancel.
+        self._adjustment_edit_key: SettingKey | None = None
+        self._adjustment_edit_value: int = 0
+        self._adjustment_edit_original: int = 0
+        # Row index in the Adjustments page that was selected when entering edit mode.
+        # Restored on commit/cancel so the cursor returns to the right row.
+        self._adjustment_edit_row_index: int = 0
 
     @property
     def config(self) -> BridgeConfig:
@@ -1005,6 +1013,9 @@ class BridgeUi:
         if self._snapshot.mode is UiMode.SETTINGS:
             await self._handle_settings_action(action)
             return
+        if self._snapshot.mode is UiMode.ADJUSTMENT_EDIT:
+            await self._handle_adjustment_edit_action(action)
+            return
         if self._snapshot.mode is UiMode.AWAITING_CONFIRM:
             await self._handle_preview_action(action)
             return
@@ -1232,6 +1243,10 @@ class BridgeUi:
         if key in _COLOUR_AXIS_KEYS and self._config.adjustments.preset != "Custom":
             self._show_settings("Edit by setting Preset → Custom")
             return
+        # Slider rows on the Adjustments page enter focused edit mode (plan 036 phase 4).
+        if key in _COLOUR_AXIS_KEYS:
+            self._enter_adjustment_edit(key)
+            return
         if key not in ADJUSTABLE_SETTING_KEYS:
             LOGGER.error("ui.setting_unhandled key=%s", key.value)
             self._show_settings("Not implemented")
@@ -1295,6 +1310,137 @@ class BridgeUi:
             slot for slot in USER_PRESET_SLOT_NAMES if slot in self._user_presets
         )
         return preset_options(user_names)
+
+    # -----------------------------------------------------------------------
+    # Focused adjustment-edit mode (plan 036 phase 4)
+    # -----------------------------------------------------------------------
+
+    # Per-axis integer range, keyed by SettingKey value string.
+    _ADJUSTMENT_AXIS_RANGE: ClassVar[dict[SettingKey, tuple[int, int]]] = {
+        SettingKey.ADJUST_SATURATION: (-100, 100),
+        SettingKey.ADJUST_EXPOSURE: (-100, 100),
+        SettingKey.ADJUST_SHARPNESS: (-100, 100),
+        SettingKey.ADJUST_HUE: (-100, 100),
+        SettingKey.ADJUST_VIGNETTE: (0, 100),
+    }
+
+    def _adjustment_current_value(self, key: SettingKey) -> int:
+        """Read the current config integer value for a colour-axis key."""
+        adj = self._config.adjustments
+        if key is SettingKey.ADJUST_SATURATION:
+            return adj.saturation
+        if key is SettingKey.ADJUST_EXPOSURE:
+            return adj.exposure
+        if key is SettingKey.ADJUST_SHARPNESS:
+            return adj.sharpness
+        if key is SettingKey.ADJUST_HUE:
+            return adj.hue
+        if key is SettingKey.ADJUST_VIGNETTE:
+            return adj.vignette
+        return 0
+
+    def _apply_adjustment_value(self, key: SettingKey, value: int) -> BridgeConfig:
+        """Return a new BridgeConfig with the given axis set to ``value``."""
+        adj = self._config.adjustments
+        if key is SettingKey.ADJUST_SATURATION:
+            new_adj = replace(adj, saturation=value)
+        elif key is SettingKey.ADJUST_EXPOSURE:
+            new_adj = replace(adj, exposure=value)
+        elif key is SettingKey.ADJUST_SHARPNESS:
+            new_adj = replace(adj, sharpness=value)
+        elif key is SettingKey.ADJUST_HUE:
+            new_adj = replace(adj, hue=value)
+        elif key is SettingKey.ADJUST_VIGNETTE:
+            new_adj = replace(adj, vignette=value)
+        else:
+            new_adj = adj
+        return replace(self._config, adjustments=new_adj)
+
+    def _enter_adjustment_edit(self, key: SettingKey) -> None:
+        """Enter ADJUSTMENT_EDIT mode for the given colour-axis key."""
+        original = self._adjustment_current_value(key)
+        self._adjustment_edit_key = key
+        self._adjustment_edit_value = original
+        self._adjustment_edit_original = original
+        self._adjustment_edit_row_index = self._snapshot.selected_index
+        from instantlink_bridge.imaging.postprocess import AdjustmentProfile as _AdjProf
+
+        self._snapshot = replace(
+            self._snapshot,
+            mode=UiMode.ADJUSTMENT_EDIT,
+            adjustment_edit_key=key.value,
+            adjustment_edit_value=original,
+            adjustment_edit_original=original,
+            adjustments_profile=_AdjProf.from_config(self._config.adjustments),
+        )
+        self._render()
+
+    def _update_adjustment_edit_value(self, delta: int) -> None:
+        """Nudge the working value by ``delta``, clamped to the axis range, and re-render."""
+        key = self._adjustment_edit_key
+        if key is None:
+            return
+        lo, hi = self._ADJUSTMENT_AXIS_RANGE.get(key, (-100, 100))
+        new_value = max(lo, min(hi, self._adjustment_edit_value + delta))
+        self._adjustment_edit_value = new_value
+        # Build a working AdjustmentProfile with the new value for the live preview.
+        from instantlink_bridge.imaging.postprocess import AdjustmentProfile as _AdjProf
+
+        working_config = self._apply_adjustment_value(key, new_value)
+        working_profile = _AdjProf.from_config(working_config.adjustments)
+        self._snapshot = replace(
+            self._snapshot,
+            adjustment_edit_value=new_value,
+            adjustments_profile=working_profile,
+        )
+        self._render()
+
+    async def _commit_adjustment_edit(self) -> None:
+        """Commit the working value: write to config + return to Adjustments list."""
+        key = self._adjustment_edit_key
+        if key is None:
+            return
+        row_index = self._adjustment_edit_row_index
+        new_config = self._apply_adjustment_value(key, self._adjustment_edit_value)
+        self._adjustment_edit_key = None
+        # Restore cursor before _set_config so _show_settings picks it up.
+        self._settings_indices[SettingsPage.ADJUSTMENTS] = row_index
+        self._settings_page = SettingsPage.ADJUSTMENTS
+        # _set_config → _show_settings("Saved") returns mode=SETTINGS with message.
+        await self._set_config(new_config, message="Saved")
+
+    def _cancel_adjustment_edit(self) -> None:
+        """Cancel edit mode: discard changes and return to Adjustments list."""
+        row_index = self._adjustment_edit_row_index
+        self._adjustment_edit_key = None
+        self._settings_indices[SettingsPage.ADJUSTMENTS] = row_index
+        self._show_settings(page=SettingsPage.ADJUSTMENTS)
+
+    async def _handle_adjustment_edit_action(self, action: UiAction) -> None:
+        """Handle key input while in ADJUSTMENT_EDIT mode."""
+        key = self._adjustment_edit_key
+        if key is None:
+            # Shouldn't happen; just escape back to settings.
+            self._show_settings(page=SettingsPage.ADJUSTMENTS)
+            return
+        if action is UiAction.UP:
+            self._update_adjustment_edit_value(-5)
+        elif action is UiAction.DOWN:
+            self._update_adjustment_edit_value(5)
+        elif action is UiAction.LEFT:
+            self._update_adjustment_edit_value(-25)
+        elif action is UiAction.RIGHT:
+            self._update_adjustment_edit_value(25)
+        elif action in {UiAction.SELECT}:
+            await self._commit_adjustment_edit()
+        elif action in {UiAction.BACK}:
+            self._cancel_adjustment_edit()
+        elif action in {UiAction.HELP, UiAction.PAIR}:
+            # Show help text for the axis being edited.
+            self._show_settings(
+                setting_help_text(key),
+                page=SettingsPage.ADJUSTMENTS,
+            )
 
     async def _handle_setting_picker_action(self, action: UiAction) -> None:
         key = self._settings_picker_key

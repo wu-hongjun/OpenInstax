@@ -16,6 +16,7 @@ class UiMode(StrEnum):
 
     BOOTING = "booting"
     SETTINGS = "settings"
+    ADJUSTMENT_EDIT = "adjustment_edit"
     NEEDS_PAIRING = "needs_pairing"
     PAIRING = "pairing"
     PRINTER_SEARCHING = "printer_searching"
@@ -116,3 +117,9 @@ class UiSnapshot:
     appearance: str = "light"
     image_queue_depth: int = 0
     adjustments_profile: AdjustmentProfile | None = None
+    # Focused adjustment-edit mode state (plan 036 phase 4).
+    # adjustment_edit_key: which axis is being edited (None outside ADJUSTMENT_EDIT).
+    # Use str to avoid circular import with settings.SettingKey.
+    adjustment_edit_key: str | None = None
+    adjustment_edit_value: int = 0
+    adjustment_edit_original: int = 0

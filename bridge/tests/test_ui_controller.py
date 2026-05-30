@@ -3276,3 +3276,262 @@ async def test_reset_credentials_other_key_cancels(
     assert ui._pending_credential_reset is False
     assert ssid_path.read_text(encoding="utf-8") == "InstantLink-ORIG\n"
     assert psk_path.read_text(encoding="utf-8") == "11111111\n"
+
+
+# ---------------------------------------------------------------------------
+# Plan 036 Phase 4 — Focused adjustment-edit mode
+# ---------------------------------------------------------------------------
+
+
+def _make_adj_ui(tmp_path: Path, *, preset: str = "Custom", saturation: int = 0) -> BridgeUi:
+    """Build a BridgeUi positioned on the Adjustments sub-page."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        f'[adjustments]\npreset = "{preset}"\nsaturation = {saturation}\n',
+        encoding="utf-8",
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    # Navigate directly to the Adjustments page via internal helper to avoid
+    # a long chain of action dispatches.
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    return ui
+
+
+@pytest.mark.asyncio
+async def test_adjustments_slider_row_select_enters_edit_mode(tmp_path: Path) -> None:
+    """SELECT on a slider row in Custom preset → enters ADJUSTMENT_EDIT mode."""
+    from instantlink_bridge.ui.settings import SettingKey
+
+    ui = _make_adj_ui(tmp_path, preset="Custom", saturation=0)
+    # Adjustments page rows: 0=Preset 1=Saturation 2=Exposure 3=Sharpness 4=Hue
+    # 5=Vignette 6=Datestamp 7=Watermark 8=Save current.
+    # Navigate to Saturation (row 1).
+    await ui._handle_action(UiAction.DOWN)  # → index 1 (Saturation)
+    await ui._handle_action(UiAction.SELECT)
+
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    assert ui._snapshot.adjustment_edit_key == SettingKey.ADJUST_SATURATION
+    assert ui._snapshot.adjustment_edit_value == 0
+    assert ui._adjustment_edit_key is SettingKey.ADJUST_SATURATION
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_up_nudges_minus_5(tmp_path: Path) -> None:
+    """UP in ADJUSTMENT_EDIT decrements working value by 5."""
+    ui = _make_adj_ui(tmp_path, saturation=0)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)  # enter edit
+
+    await ui._handle_action(UiAction.UP)
+
+    assert ui._snapshot.adjustment_edit_value == -5
+    assert ui._adjustment_edit_value == -5
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_down_nudges_plus_5(tmp_path: Path) -> None:
+    """DOWN in ADJUSTMENT_EDIT increments working value by 5."""
+    ui = _make_adj_ui(tmp_path, saturation=0)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)
+
+    await ui._handle_action(UiAction.DOWN)
+
+    assert ui._snapshot.adjustment_edit_value == 5
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_left_nudges_minus_25(tmp_path: Path) -> None:
+    """LEFT in ADJUSTMENT_EDIT decrements working value by 25."""
+    ui = _make_adj_ui(tmp_path, saturation=0)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)
+
+    await ui._handle_action(UiAction.LEFT)
+
+    assert ui._snapshot.adjustment_edit_value == -25
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_right_nudges_plus_25(tmp_path: Path) -> None:
+    """RIGHT in ADJUSTMENT_EDIT increments working value by 25."""
+    ui = _make_adj_ui(tmp_path, saturation=0)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)
+
+    await ui._handle_action(UiAction.RIGHT)
+
+    assert ui._snapshot.adjustment_edit_value == 25
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_value_clamped_to_range(tmp_path: Path) -> None:
+    """Nudging past the max is clamped at the axis max (100 for saturation)."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[adjustments]\npreset = "Custom"\nsaturation = 100\n', encoding="utf-8"
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)
+
+    # Already at max; RIGHT (+25) should stay at 100.
+    await ui._handle_action(UiAction.RIGHT)
+
+    assert ui._snapshot.adjustment_edit_value == 100
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_vignette_clamped_at_zero(tmp_path: Path) -> None:
+    """UP (-5) on vignette at 0 stays at 0 (range is [0, 100], not symmetric)."""
+    from instantlink_bridge.ui.settings import SettingsPage
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[adjustments]\npreset = "Custom"\nvignette = 0\n', encoding="utf-8"
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    # Adjustments page: 0=Preset 1=Sat 2=Exp 3=Sharp 4=Hue 5=Vignette.
+    for _ in range(5):
+        await ui._handle_action(UiAction.DOWN)
+    await ui._handle_action(UiAction.SELECT)
+
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    await ui._handle_action(UiAction.UP)  # -5, but floor is 0
+
+    assert ui._snapshot.adjustment_edit_value == 0
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_select_commits_to_config(tmp_path: Path) -> None:
+    """KEY1 (SELECT) in edit mode writes the value to config and disk."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Custom"\nsaturation = 0\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)  # enter edit
+
+    await ui._handle_action(UiAction.RIGHT)  # +25
+    await ui._handle_action(UiAction.RIGHT)  # +25 → 50
+    await ui._handle_action(UiAction.SELECT)  # commit
+
+    assert ui._config.adjustments.saturation == 50
+    assert load_config(config_path).adjustments.saturation == 50
+    assert ui._snapshot.mode is UiMode.SETTINGS
+    assert ui._snapshot.settings_message == "Saved"
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_back_reverts_without_commit(tmp_path: Path) -> None:
+    """KEY2 (BACK) in edit mode discards changes; config is unchanged."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Custom"\nsaturation = 0\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    await ui._handle_action(UiAction.DOWN)  # Saturation row
+    await ui._handle_action(UiAction.SELECT)  # enter edit
+
+    await ui._handle_action(UiAction.RIGHT)  # +25 (working value = 25, not committed)
+    await ui._handle_action(UiAction.BACK)  # cancel
+
+    assert ui._config.adjustments.saturation == 0
+    assert load_config(config_path).adjustments.saturation == 0
+    assert ui._snapshot.mode is UiMode.SETTINGS
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_preset_row_does_not_enter_edit(tmp_path: Path) -> None:
+    """SELECT on the Preset row opens the preset picker, not edit mode."""
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Custom"\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    # Row 0 is Preset — already selected.
+    await ui._handle_action(UiAction.SELECT)
+
+    # Mode stays SETTINGS (picker opens, not ADJUSTMENT_EDIT).
+    assert ui._snapshot.mode is UiMode.SETTINGS
+    assert ui._snapshot.settings_title == "Preset"
+    assert ui._adjustment_edit_key is None
+
+
+@pytest.mark.asyncio
+async def test_adjustment_edit_datestamp_row_does_not_enter_edit(tmp_path: Path) -> None:
+    """SELECT on Datestamp opens the bool picker, not the slider edit mode."""
+    from instantlink_bridge.ui.settings import SettingKey, SettingsPage
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(
+        '[adjustments]\npreset = "Custom"\ndatestamp = false\n', encoding="utf-8"
+    )
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    # Navigate to Datestamp row (index 6: Preset=0 Sat=1 Exp=2 Sharp=3 Hue=4 Vig=5 Datestamp=6).
+    for _ in range(6):
+        await ui._handle_action(UiAction.DOWN)
+    await ui._handle_action(UiAction.SELECT)
+
+    # Mode stays SETTINGS (bool picker opens), not ADJUSTMENT_EDIT.
+    assert ui._snapshot.mode is UiMode.SETTINGS
+    # The picker opened for Datestamp, so settings_picker_key is set.
+    assert ui._settings_picker_key is SettingKey.ADJUST_DATESTAMP
+    assert ui._adjustment_edit_key is None
