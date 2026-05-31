@@ -14,8 +14,20 @@ from instantlink_bridge.config import (
 from instantlink_bridge.manager.auth import PairingWindowError, PairingWindowStore
 from instantlink_bridge.manager.contract import API_VERSION, SERVICE_NAME, JsonObject, JsonValue
 from instantlink_bridge.system_info import SystemInfo, read_system_info
+from instantlink_bridge.system_stats import (
+    CPUSampler,
+    SystemStatsSnapshot,
+    read_system_stats,
+)
 
 DISPLAY_NAME = "InstantLink Bridge"
+
+# Module-level sampler so CPU% can be computed across status calls. The first
+# call has no baseline; ``read_system_stats`` handles the brief warm-up by
+# resampling after a short sleep. Subsequent calls return the percent measured
+# over the interval since the previous /v1/status request, which is the same
+# pattern the LCD About page uses.
+_status_cpu_sampler = CPUSampler()
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +146,7 @@ def collect_http_status_payload(
     snapshot = read_config_snapshot(config_path)
     config = snapshot.config
     upload_mode = bridge_upload_mode(config.ftp.mode)
+    stats = read_system_stats(_status_cpu_sampler)
     return {
         "status": {
             "device_id": info.device_id,
@@ -171,6 +184,7 @@ def collect_http_status_payload(
                 "operation_id": None,
                 "phase": "idle",
             },
+            "system_stats": system_stats_payload(stats),
             "last_upload": None,
             "last_error": (
                 {
@@ -182,6 +196,24 @@ def collect_http_status_payload(
                 else None
             ),
         }
+    }
+
+
+def system_stats_payload(stats: SystemStatsSnapshot) -> JsonObject:
+    """Serialize a ``SystemStatsSnapshot`` into the /v1/status JSON shape.
+
+    Every field is always present; readers that fail (missing thermal zone,
+    storage stat error, no CPU baseline yet) serialize as ``null`` so the
+    macOS client can render an em-dash without a key-missing branch.
+    """
+
+    return {
+        "cpu_percent": stats.cpu_percent,
+        "ram_used_mb": stats.ram_used_mb,
+        "ram_total_mb": stats.ram_total_mb,
+        "storage_used_gb": stats.storage_used_gb,
+        "storage_total_gb": stats.storage_total_gb,
+        "soc_temperature_c": stats.soc_temperature_c,
     }
 
 

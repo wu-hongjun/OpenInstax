@@ -263,6 +263,11 @@ struct BridgeStatus: Codable, Equatable {
     var network: BridgeNetworkStatus?
     var printer: BridgePrinterStatus?
     var update: BridgeUpdateSummary?
+    /// Live system metrics surfaced by the Bridge (CPU / RAM / storage / SoC
+    /// temp). Optional so older bridges that do not ship the block still
+    /// decode; the Overview tab renders an explanatory fallback row in that
+    /// case rather than failing.
+    var systemStats: BridgeSystemStats?
     var lastUpload: BridgeUploadRecord?
     var lastError: BridgeErrorPayload?
 
@@ -277,8 +282,72 @@ struct BridgeStatus: Codable, Equatable {
         case network
         case printer
         case update
+        case systemStats = "system_stats"
         case lastUpload = "last_upload"
         case lastError = "last_error"
+    }
+}
+
+/// Live system metrics surfaced from the Bridge `/v1/status` payload. Every
+/// field is optional because the underlying /proc and /sys readers each
+/// degrade to `nil` independently on parse/IO failure. Formatters return an
+/// em-dash (U+2014) when required fields are missing, mirroring the LCD About
+/// page so the Mac UI matches what's shown on the device.
+struct BridgeSystemStats: Codable, Equatable {
+    let cpuPercent: Double?
+    let ramUsedMB: Int?
+    let ramTotalMB: Int?
+    let storageUsedGB: Double?
+    let storageTotalGB: Double?
+    let socTemperatureC: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case cpuPercent = "cpu_percent"
+        case ramUsedMB = "ram_used_mb"
+        case ramTotalMB = "ram_total_mb"
+        case storageUsedGB = "storage_used_gb"
+        case storageTotalGB = "storage_total_gb"
+        case socTemperatureC = "soc_temperature_c"
+    }
+
+    /// Em-dash (U+2014) — same fallback the LCD About page uses when a reader
+    /// failed. Keeping the two views consistent makes "missing" feel
+    /// intentional rather than broken.
+    static let missingValue = "—"
+
+    /// Format CPU usage as `"23%"` (rounded to the nearest integer like the
+    /// LCD), or em-dash when no baseline has been measured yet.
+    var formattedCPU: String {
+        guard let percent = cpuPercent else { return Self.missingValue }
+        return "\(Int(percent.rounded()))%"
+    }
+
+    /// Format RAM as `"297 / 463 MB"`, or em-dash if either side is missing.
+    var formattedMemory: String {
+        guard let used = ramUsedMB, let total = ramTotalMB else { return Self.missingValue }
+        return "\(used) / \(total) MB"
+    }
+
+    /// Format storage as `"6.3 / 57 GB"` — one decimal under 10 GB and integer
+    /// otherwise to mirror the bridge LCD's `format_storage` helper. Em-dash
+    /// if either side is missing.
+    var formattedStorage: String {
+        guard let used = storageUsedGB, let total = storageTotalGB else { return Self.missingValue }
+        return "\(Self.formatGB(used)) / \(Self.formatGB(total)) GB"
+    }
+
+    /// Format SoC temperature as `"53°C"` rounded to integer, or em-dash if
+    /// the thermal zone wasn't readable.
+    var formattedTemperature: String {
+        guard let celsius = socTemperatureC else { return Self.missingValue }
+        return "\(Int(celsius.rounded()))°C"
+    }
+
+    private static func formatGB(_ value: Double) -> String {
+        if value < 10.0 {
+            return String(format: "%.1f", value)
+        }
+        return "\(Int(value.rounded()))"
     }
 }
 

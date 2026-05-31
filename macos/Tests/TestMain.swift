@@ -44,6 +44,18 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeModelsTests.testDecodesPairingStatusEnvelope", {
                 try BridgeModelsTests().testDecodesPairingStatusEnvelope()
             }),
+            ("BridgeModelsTests.testDecodesStatusEnvelopeWithSystemStats", {
+                try BridgeModelsTests().testDecodesStatusEnvelopeWithSystemStats()
+            }),
+            ("BridgeModelsTests.testDecodesStatusEnvelopeWithoutSystemStatsLeavesNil", {
+                try BridgeModelsTests().testDecodesStatusEnvelopeWithoutSystemStatsLeavesNil()
+            }),
+            ("BridgeModelsTests.testSystemStatsFormattersHandleNilValues", {
+                try BridgeModelsTests().testSystemStatsFormattersHandleNilValues()
+            }),
+            ("BridgeModelsTests.testSystemStatsFormattersWithKnownValues", {
+                try BridgeModelsTests().testSystemStatsFormattersWithKnownValues()
+            }),
             ("BridgeHTTPTransportTests.testCanonicalRequestPayloadMatchesBridgeManagerContract", {
                 try BridgeHTTPTransportTests().testCanonicalRequestPayloadMatchesBridgeManagerContract()
             }),

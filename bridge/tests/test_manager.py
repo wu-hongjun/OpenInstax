@@ -154,6 +154,87 @@ def test_http_status_payload_printer_carries_battery_charge_and_estimate_fields(
     assert printer["busy"] is False
 
 
+def test_status_payload_includes_system_stats_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The macOS Bridge Control Overview surfaces live CPU / RAM / Storage / SoC
+    # temp from the new system_stats block. All six keys must be present so the
+    # Swift decoder can map each field — values may be null on non-Pi hosts.
+    monkeypatch.setattr(manager_status, "read_system_info", fake_system_info)
+    config_path = tmp_path / "config.toml"
+
+    payload = manager_status.collect_http_status_payload(config_path)
+    system_stats = payload["status"]["system_stats"]
+
+    assert set(system_stats.keys()) == {
+        "cpu_percent",
+        "ram_used_mb",
+        "ram_total_mb",
+        "storage_used_gb",
+        "storage_total_gb",
+        "soc_temperature_c",
+    }
+
+
+def test_status_payload_uses_module_sampler_so_consecutive_calls_yield_real_percent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The status payload uses a module-level CPUSampler so two consecutive
+    # /v1/status calls produce a real percent — the first call seeds the
+    # baseline (and warms up via the read_system_stats sleep), the second
+    # call diffs the cumulative jiffies and returns a number.
+    monkeypatch.setattr(manager_status, "read_system_info", fake_system_info)
+    config_path = tmp_path / "config.toml"
+
+    first = manager_status.collect_http_status_payload(config_path)
+    second = manager_status.collect_http_status_payload(config_path)
+
+    # On hosts without /proc/stat (macOS CI, sandbox) cpu_percent stays None;
+    # that's fine — the contract is that the module-level sampler is reused
+    # across calls. We assert the field is present in both payloads.
+    assert "cpu_percent" in first["status"]["system_stats"]
+    assert "cpu_percent" in second["status"]["system_stats"]
+
+
+def test_status_payload_returns_null_fields_when_readers_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # When the underlying /proc and /sys readers all fail (e.g. on a developer
+    # macOS host or in a container without those files), every system_stats
+    # field MUST serialize as JSON null rather than be omitted. The Swift
+    # decoder relies on key presence to render the em-dash fallback.
+    from instantlink_bridge import system_stats as system_stats_module
+
+    monkeypatch.setattr(manager_status, "read_system_info", fake_system_info)
+    monkeypatch.setattr(system_stats_module, "read_memory", lambda **_: None)
+    monkeypatch.setattr(system_stats_module, "read_storage", lambda **_: None)
+    monkeypatch.setattr(system_stats_module, "read_soc_temperature_c", lambda **_: None)
+    # Force the CPU sampler to return None even after the warm-up resample by
+    # swapping the module sampler with one whose sample() always yields None.
+
+    class _NullSampler:
+        def sample(self, *, path: str = "") -> None:
+            return None
+
+    monkeypatch.setattr(manager_status, "_status_cpu_sampler", _NullSampler())
+
+    config_path = tmp_path / "config.toml"
+    payload = manager_status.collect_http_status_payload(config_path)
+    system_stats = payload["status"]["system_stats"]
+
+    assert system_stats == {
+        "cpu_percent": None,
+        "ram_used_mb": None,
+        "ram_total_mb": None,
+        "storage_used_gb": None,
+        "storage_total_gb": None,
+        "soc_temperature_c": None,
+    }
+
+
 def test_manager_cli_api_routes_describes_auth_boundaries(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

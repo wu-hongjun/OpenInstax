@@ -23,6 +23,7 @@ struct BridgeOverviewView: View {
 
                 if let status = coordinator.snapshot.status {
                     networkCard(status: status)
+                    systemCard(stats: status.systemStats)
                     printerCard(printer: status.printer)
                     uploadsCard(status: status)
                     if status.update?.previousVersion != nil {
@@ -167,6 +168,27 @@ struct BridgeOverviewView: View {
                     label: L("Upload path"),
                     value: uploadModeLabel(status.activeUploadMode)
                 )
+            }
+        }
+    }
+
+    private func systemCard(stats: BridgeSystemStats?) -> some View {
+        BridgeCard(title: L("System")) {
+            if let stats {
+                VStack(alignment: .leading, spacing: 6) {
+                    infoRow(label: L("CPU"), value: stats.formattedCPU)
+                    infoRow(label: L("Memory"), value: stats.formattedMemory)
+                    infoRow(label: L("Storage"), value: stats.formattedStorage)
+                    infoRow(label: L("SoC temp"), value: stats.formattedTemperature)
+                }
+            } else {
+                // Older bridges that don't ship the system_stats block decode
+                // as nil. Render a single explanatory row so the empty card
+                // looks intentional rather than broken — matching the
+                // discovery banner's "silent-when-paired" pattern.
+                Text(L("System stats not available on this Bridge"))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
     }
