@@ -348,6 +348,130 @@ final class BridgeHTTPTransport: BridgeTransport {
         return try envelope.requireBackupRestore()
     }
 
+    // MARK: Phase E — diagnostics + recovery
+
+    func streamLogs(
+        device: BridgeDevice,
+        level: BridgeLogLevel
+    ) -> AsyncThrowingStream<BridgeLogEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let levelQuery = level == .info
+                        ? "all"
+                        : level.rawValue
+                    let request = try self.makeRequest(
+                        method: "GET",
+                        path: "/v1/logs/stream",
+                        queryItems: [URLQueryItem(name: "level", value: levelQuery)],
+                        body: Data(),
+                        contentType: "application/json",
+                        extraHeaders: ["Accept": "text/event-stream"],
+                        device: device,
+                        signedFor: device
+                    )
+                    let (bytes, response) = try await self.session.bytes(for: request)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw BridgeHTTPTransportError.invalidResponse
+                    }
+                    if http.statusCode == 401 {
+                        let envelope = BridgeErrorPayload(message: "Bridge access requires pairing.")
+                        throw BridgeAPIError(
+                            requestID: http.value(forHTTPHeaderField: "X-Request-Id") ?? "unknown",
+                            code: .authRequired,
+                            payload: envelope
+                        )
+                    }
+                    guard (200..<300).contains(http.statusCode) else {
+                        throw BridgeHTTPTransportError.httpStatus(http.statusCode)
+                    }
+
+                    // SSE: data lines (data: <json>) followed by a blank
+                    // line. Other line shapes (id:, event:, retry:, comments
+                    // starting with `:`) are ignored.
+                    let decoder = JSONDecoder()
+                    for try await line in bytes.lines {
+                        if Task.isCancelled { break }
+                        guard line.hasPrefix("data: ") else { continue }
+                        let payload = String(line.dropFirst("data: ".count))
+                        guard let data = payload.data(using: .utf8) else { continue }
+                        if let event = try? decoder.decode(BridgeLogEvent.self, from: data) {
+                            continuation.yield(event)
+                        }
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    func createSupportBundle(device: BridgeDevice) async throws -> BridgeSupportBundleResult {
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/support-bundle/create",
+                signedFor: device
+            )
+        )
+        try envelope.requireOK()
+        guard let supportBundle = envelope.supportBundle else {
+            throw BridgeAPIError.missingPayload(
+                requestID: envelope.requestID,
+                payloadName: "support_bundle"
+            )
+        }
+        return supportBundle
+    }
+
+    func restartManagement(device: BridgeDevice) async throws {
+        do {
+            let envelope = try await send(
+                try makeRequest(
+                    method: "POST",
+                    path: "/v1/management/restart",
+                    signedFor: device
+                )
+            )
+            try envelope.requireOK()
+        } catch let error as BridgeHTTPTransportError {
+            if case .httpStatus(404) = error {
+                // Older bridges don't expose the restart route. Surface a
+                // typed error so the recovery UI can fall back to "ask the
+                // user to power-cycle the bridge".
+                throw BridgeTransportError.managementRestartFailed("Bridge does not support the restart route.")
+            }
+            throw error
+        }
+    }
+
+    func helloProbe(endpoint: URL) async throws -> BridgeDevice {
+        let url = try makeURL(base: endpoint, path: "/v1/hello", queryItems: [])
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(UUID().uuidString, forHTTPHeaderField: BridgeManagementAuth.requestIDHeader)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw BridgeHTTPTransportError.invalidResponse
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            throw BridgeHTTPTransportError.httpStatus(http.statusCode)
+        }
+        let envelope = try decoder.decode(BridgeAPIEnvelope.self, from: data)
+        var device = try envelope.requireDevice()
+        if device.endpointURL == nil {
+            device.endpointURL = endpoint
+        }
+        return device
+    }
+
     private func makeRequest(
         method: String,
         path: String,

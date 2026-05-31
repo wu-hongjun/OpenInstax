@@ -100,6 +100,13 @@ ADMIN_ROUTES: tuple[ManagementRoute, ...] = (
         "Create redacted support bundle.",
     ),
     ManagementRoute(
+        "GET",
+        "/v1/logs/stream",
+        True,
+        "logs_stream",
+        "Stream redacted Bridge journal entries as Server-Sent Events.",
+    ),
+    ManagementRoute(
         "POST",
         "/v1/update/preflight",
         True,

@@ -30,8 +30,9 @@ enum BridgeControlTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// Top-level window for the Bridge Control surface. Phase A only ships the
-/// Overview tab; the rest are placeholders for upcoming phases.
+/// Top-level window for the Bridge Control surface. Hosts the Overview,
+/// Settings, Updates, Backup, and Diagnostics tabs plus the recovery banner
+/// that surfaces when the bridge management service is unreachable.
 struct BridgeControlWindow: View {
     @ObservedObject var coordinator: BridgeControlCoordinator
     @State private var selectedTab: BridgeControlTab = .overview
@@ -49,6 +50,10 @@ struct BridgeControlWindow: View {
             VStack(spacing: 0) {
                 toolbar
                 Divider()
+                BridgeRecoveryView(
+                    coordinator: coordinator,
+                    diagnosticsCoordinator: coordinator.diagnosticsCoordinator
+                )
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
@@ -126,19 +131,11 @@ struct BridgeControlWindow: View {
                 backupCoordinator: coordinator.backupCoordinator
             )
         case .diagnostics:
-            placeholder(L("Coming soon"))
+            BridgeDiagnosticsView(
+                coordinator: coordinator,
+                diagnosticsCoordinator: coordinator.diagnosticsCoordinator
+            )
         }
-    }
-
-    private func placeholder(_ text: String) -> some View {
-        VStack {
-            Spacer()
-            Text(text)
-                .font(.callout)
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var statusBar: some View {

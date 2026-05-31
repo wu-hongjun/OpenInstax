@@ -170,6 +170,11 @@ final class BridgeControlCoordinator: ObservableObject {
     /// Backup tab and any future Settings affordance share one source of
     /// truth. Mirrors the `updateCoordinator` precedent from Phase C.
     let backupCoordinator: BridgeBackupCoordinator
+    /// Owns the Bridge diagnostics + recovery lifecycle. Composed here so
+    /// the Diagnostics tab + recovery banner share one source of truth
+    /// and so the discovery loop can drive recovery state on `/v1/hello`
+    /// failures. Mirrors the `updateCoordinator` precedent from Phase C.
+    let diagnosticsCoordinator: BridgeDiagnosticsCoordinator
 
     private let clientStore: BridgeClientFileStore
     private let probe: BridgeDiscoveryProbe
@@ -186,6 +191,10 @@ final class BridgeControlCoordinator: ObservableObject {
     private var isStarted: Bool = false
 
     private var currentTransportEndpoint: URL?
+    /// Number of consecutive `/v1/hello` failures since the last successful
+    /// probe. Drives the diagnostics coordinator's recovery banner when the
+    /// threshold is crossed.
+    private var consecutiveHelloFailures: Int = 0
 
     init(
         transport: BridgeTransport,
@@ -197,7 +206,8 @@ final class BridgeControlCoordinator: ObservableObject {
         },
         now: @escaping () -> Date = Date.init,
         updateCoordinator: BridgeUpdateCoordinator? = nil,
-        backupCoordinator: BridgeBackupCoordinator? = nil
+        backupCoordinator: BridgeBackupCoordinator? = nil,
+        diagnosticsCoordinator: BridgeDiagnosticsCoordinator? = nil
     ) {
         self.transport = transport
         self.clientStore = clientStore
@@ -208,6 +218,8 @@ final class BridgeControlCoordinator: ObservableObject {
         self.snapshot = .empty
         self.updateCoordinator = updateCoordinator ?? BridgeUpdateCoordinator(transport: transport)
         self.backupCoordinator = backupCoordinator ?? BridgeBackupCoordinator(transport: transport)
+        self.diagnosticsCoordinator = diagnosticsCoordinator
+            ?? BridgeDiagnosticsCoordinator(transport: transport)
     }
 
     deinit {
@@ -310,6 +322,8 @@ final class BridgeControlCoordinator: ObservableObject {
     private func handleDiscoveryHit(_ device: BridgeDevice) {
         let nowDate = now()
         lastSuccessfulDiscovery = nowDate
+        consecutiveHelloFailures = 0
+        diagnosticsCoordinator.evaluateHealthOnHelloSuccess()
 
         // Rotate transport endpoint if a fresh one is provided.
         if let endpoint = device.endpointURL, endpoint != currentTransportEndpoint {
@@ -411,6 +425,17 @@ final class BridgeControlCoordinator: ObservableObject {
 
     private func handleDiscoveryMiss() {
         let nowDate = now()
+        consecutiveHelloFailures += 1
+        // Drive the recovery banner via the diagnostics coordinator on every
+        // hello failure; the diagnostics coordinator owns the threshold. We
+        // pass `hasUSBCarrier = true` when we have a known last device with
+        // a `192.168.7.x` endpoint (i.e. the USB gadget is still up); plain
+        // Wi-Fi-only hits never trigger the management-unavailable banner.
+        let usbCarrier = hasUSBCarrier(lastDevice: lastDevice(from: snapshot))
+        diagnosticsCoordinator.evaluateHealthOnHelloFailure(
+            consecutiveFailures: consecutiveHelloFailures,
+            hasUSBCarrier: usbCarrier
+        )
         let last = lastSuccessfulDiscovery
         // If we never had a hit, stay in `searching`.
         guard let last else {
@@ -675,6 +700,27 @@ final class BridgeControlCoordinator: ObservableObject {
         case .found(let device, _): return device
         case .lost(let device, _): return device
         case .searching: return nil
+        }
+    }
+
+    private func lastDevice(from snapshot: BridgeControlSnapshot) -> BridgeDevice? {
+        switch snapshot.discovery {
+        case .found(let device, _): return device
+        case .lost(let device, _): return device
+        case .searching: return nil
+        }
+    }
+
+    /// Best-effort USB-carrier detection: if the most recent device hit
+    /// arrived on `192.168.7.x` (the USB gadget) and we have any probe
+    /// endpoint targeting USB, assume the USB carrier is up.
+    private func hasUSBCarrier(lastDevice: BridgeDevice?) -> Bool {
+        if let endpoint = lastDevice?.endpointURL,
+           endpoint.host?.hasPrefix("192.168.7.") == true {
+            return true
+        }
+        return config.probeEndpoints.contains { url in
+            url.host?.hasPrefix("192.168.7.") == true
         }
     }
 

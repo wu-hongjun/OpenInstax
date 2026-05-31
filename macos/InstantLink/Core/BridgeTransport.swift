@@ -39,6 +39,28 @@ protocol BridgeTransport {
         backupID: String,
         passphrase: String
     ) async throws -> BridgeBackupRestoreResult
+    // MARK: Phase E — diagnostics + recovery
+    /// Open an SSE stream against `/v1/logs/stream` and yield each
+    /// `BridgeLogEvent` until the bridge ends the stream or the consuming
+    /// `Task` is cancelled. `level` filters the events server-side; pass
+    /// `.info` to receive all events.
+    func streamLogs(
+        device: BridgeDevice,
+        level: BridgeLogLevel
+    ) -> AsyncThrowingStream<BridgeLogEvent, Error>
+    /// Ask the bridge to stage a redacted support bundle and return its
+    /// archive location + sha256. The Mac surfaces the location through the
+    /// UI; the file lives on the bridge filesystem.
+    func createSupportBundle(device: BridgeDevice) async throws -> BridgeSupportBundleResult
+    /// Ask the bridge to restart its management service. Used by the recovery
+    /// banner when `/v1/hello` is unreachable. Returns when the bridge
+    /// acknowledges; the caller is responsible for polling `/v1/hello` to
+    /// detect that the management service is back.
+    func restartManagement(device: BridgeDevice) async throws
+    /// Anonymous probe of `/v1/hello` for the supplied endpoint. Used by the
+    /// diagnostics coordinator to confirm the management service is alive
+    /// (without requiring a paired identity).
+    func helloProbe(endpoint: URL) async throws -> BridgeDevice
 }
 
 extension BridgeTransport {
@@ -61,6 +83,9 @@ enum BridgeTransportError: Error, Equatable {
     case updateScriptEmpty
     case updatePreflightFailed
     case localAuthNotFound(String)
+    case helloProbeFailed(String)
+    case managementRestartFailed(String)
+    case supportBundleFailed(String)
 }
 
 actor InMemoryBridgeTransport: BridgeTransport {
@@ -93,6 +118,18 @@ actor InMemoryBridgeTransport: BridgeTransport {
     private var createBackupShouldFailDeviceIDs: Set<String>
     private var restoreBackupShouldFailDeviceIDs: Set<String>
     private var backupSourceDeviceIDs: [String: String]
+    // MARK: Phase E — diagnostics test scaffolding
+    private var logScripts: [String: [BridgeLogEvent]]
+    private var logStreamError: [String: Error]
+    private var supportBundleResults: [String: BridgeSupportBundleResult]
+    private var supportBundleShouldFailDeviceIDs: Set<String>
+    private var restartManagementShouldFailDeviceIDs: Set<String>
+    private(set) var restartManagementCalls: Int
+    private(set) var createSupportBundleCalls: Int
+    private(set) var streamLogsCalls: Int
+    private(set) var helloProbeCalls: Int
+    private var helloProbeResults: [URL: BridgeDevice]
+    private var helloProbeFailures: Set<URL>
 
     init(
         devices: [BridgeDevice] = [],
@@ -121,6 +158,64 @@ actor InMemoryBridgeTransport: BridgeTransport {
         self.createBackupShouldFailDeviceIDs = []
         self.restoreBackupShouldFailDeviceIDs = []
         self.backupSourceDeviceIDs = [:]
+        self.logScripts = [:]
+        self.logStreamError = [:]
+        self.supportBundleResults = [:]
+        self.supportBundleShouldFailDeviceIDs = []
+        self.restartManagementShouldFailDeviceIDs = []
+        self.restartManagementCalls = 0
+        self.createSupportBundleCalls = 0
+        self.streamLogsCalls = 0
+        self.helloProbeCalls = 0
+        self.helloProbeResults = [:]
+        self.helloProbeFailures = []
+    }
+
+    // MARK: Phase E — diagnostics test helpers
+
+    func setLogScript(_ events: [BridgeLogEvent], for deviceID: String) {
+        logScripts[deviceID] = events
+    }
+
+    func setLogStreamError(_ error: Error?, for deviceID: String) {
+        if let error {
+            logStreamError[deviceID] = error
+        } else {
+            logStreamError.removeValue(forKey: deviceID)
+        }
+    }
+
+    func setSupportBundleResult(_ result: BridgeSupportBundleResult, for deviceID: String) {
+        supportBundleResults[deviceID] = result
+    }
+
+    func setSupportBundleShouldFail(_ shouldFail: Bool, for deviceID: String) {
+        if shouldFail {
+            supportBundleShouldFailDeviceIDs.insert(deviceID)
+        } else {
+            supportBundleShouldFailDeviceIDs.remove(deviceID)
+        }
+    }
+
+    func setRestartManagementShouldFail(_ shouldFail: Bool, for deviceID: String) {
+        if shouldFail {
+            restartManagementShouldFailDeviceIDs.insert(deviceID)
+        } else {
+            restartManagementShouldFailDeviceIDs.remove(deviceID)
+        }
+    }
+
+    func setHelloProbeResult(_ device: BridgeDevice, for endpoint: URL) {
+        helloProbeResults[endpoint] = device
+        helloProbeFailures.remove(endpoint)
+    }
+
+    func setHelloProbeShouldFail(_ shouldFail: Bool, for endpoint: URL) {
+        if shouldFail {
+            helloProbeFailures.insert(endpoint)
+        } else {
+            helloProbeFailures.remove(endpoint)
+        }
     }
 
     // MARK: Phase D — backup / restore test helpers
@@ -580,6 +675,117 @@ actor InMemoryBridgeTransport: BridgeTransport {
             restoredPaths: ["/etc/InstantLinkBridge/config.toml"],
             restoredCount: 1
         )
+    }
+
+    // MARK: Phase E — diagnostics + recovery
+
+    nonisolated func streamLogs(
+        device: BridgeDevice,
+        level: BridgeLogLevel
+    ) -> AsyncThrowingStream<BridgeLogEvent, Error> {
+        AsyncThrowingStream { continuation in
+            Task { [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+                let scripted = await self.recordStreamLogsCall(deviceID: device.deviceID)
+                if let error = scripted.error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                let filtered = scripted.events.filter { event in
+                    Self.eventMatchesFilter(event.level, requested: level)
+                }
+                for event in filtered {
+                    if Task.isCancelled { break }
+                    continuation.yield(event)
+                }
+                continuation.finish()
+            }
+        }
+    }
+
+    private func recordStreamLogsCall(
+        deviceID: String
+    ) -> (events: [BridgeLogEvent], error: Error?) {
+        streamLogsCalls += 1
+        let error = logStreamError[deviceID]
+        let events = logScripts[deviceID] ?? []
+        return (events, error)
+    }
+
+    /// Apply the same min-level filter the bridge uses server-side: `.info`
+    /// surfaces every event, `.warning` drops info, `.error` only allows
+    /// errors.
+    private static func eventMatchesFilter(_ level: BridgeLogLevel, requested: BridgeLogLevel) -> Bool {
+        switch requested {
+        case .info:
+            return true
+        case .warning:
+            return level != .info
+        case .error:
+            return level == .error
+        }
+    }
+
+    func createSupportBundle(device: BridgeDevice) async throws -> BridgeSupportBundleResult {
+        try requireAuthorized(device)
+        createSupportBundleCalls += 1
+        if supportBundleShouldFailDeviceIDs.contains(device.deviceID) {
+            throw BridgeAPIError(
+                requestID: "in-memory-\(UUID().uuidString)",
+                code: "support_bundle_failed",
+                payload: BridgeErrorPayload(
+                    message: "Bridge could not stage a support bundle.",
+                    details: ["device_id": .string(device.deviceID)]
+                )
+            )
+        }
+        if let scripted = supportBundleResults[device.deviceID] {
+            return scripted
+        }
+        return BridgeSupportBundleResult(
+            schemaVersion: 1,
+            bundleID: "support-inmemory-\(device.deviceID)",
+            archivePath: "/var/lib/InstantLinkBridge/support-bundles/support-inmemory-\(device.deviceID).zip",
+            sizeBytes: 1024,
+            sha256: String(repeating: "0", count: 64),
+            contents: ["manifest.json", "etc/InstantLinkBridge/config.toml"],
+            createdAt: "2026-05-30T10:00:00Z"
+        )
+    }
+
+    func restartManagement(device: BridgeDevice) async throws {
+        try requireAuthorized(device)
+        restartManagementCalls += 1
+        if restartManagementShouldFailDeviceIDs.contains(device.deviceID) {
+            throw BridgeAPIError(
+                requestID: "in-memory-\(UUID().uuidString)",
+                code: "not_implemented",
+                payload: BridgeErrorPayload(
+                    message: "Bridge does not support the restart route.",
+                    details: ["device_id": .string(device.deviceID)]
+                )
+            )
+        }
+    }
+
+    func helloProbe(endpoint: URL) async throws -> BridgeDevice {
+        helloProbeCalls += 1
+        if helloProbeFailures.contains(endpoint) {
+            throw BridgeTransportError.helloProbeFailed(endpoint.absoluteString)
+        }
+        if let scripted = helloProbeResults[endpoint] {
+            return scripted
+        }
+        // Default: surface the first known device with this endpoint.
+        for deviceID in orderedDeviceIDs {
+            if let device = devices[deviceID], device.endpointURL == endpoint {
+                return device
+            }
+        }
+        throw BridgeTransportError.helloProbeFailed(endpoint.absoluteString)
     }
 
     private func requireAuthorized(_ device: BridgeDevice) throws {

@@ -23,6 +23,7 @@ struct BridgeAPIEnvelope: Codable, Equatable {
     var restore: BridgeBackupRestoreResult?
     var upload: BridgeUploadResult?
     var config: BridgeConfig?
+    var supportBundle: BridgeSupportBundleResult?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -44,6 +45,7 @@ struct BridgeAPIEnvelope: Codable, Equatable {
         case restore
         case upload
         case config
+        case supportBundle = "support_bundle"
     }
 
     func requireOK() throws {
@@ -717,6 +719,73 @@ struct BridgeUploadResult: Codable, Equatable {
         case storedPath = "stored_path"
         case sizeBytes = "size_bytes"
         case sha256
+    }
+}
+
+// MARK: - Diagnostics
+
+/// Severity classification surfaced by the Bridge logs SSE stream.
+enum BridgeLogLevel: String, Codable, Equatable, Hashable, CaseIterable {
+    case info
+    case warning
+    case error
+
+    var displayLabel: String {
+        switch self {
+        case .info: return "Info"
+        case .warning: return "Warning"
+        case .error: return "Error"
+        }
+    }
+}
+
+/// One redacted log entry from the Bridge management `/v1/logs/stream` SSE feed.
+struct BridgeLogEvent: Codable, Equatable, Identifiable, Hashable {
+    var id: String
+    var timestamp: String
+    var level: BridgeLogLevel
+    var message: String
+
+    init(id: String, timestamp: String, level: BridgeLogLevel, message: String) {
+        self.id = id
+        self.timestamp = timestamp
+        self.level = level
+        self.message = message
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.timestamp = try container.decode(String.self, forKey: .timestamp)
+        if let level = try? container.decode(BridgeLogLevel.self, forKey: .level) {
+            self.level = level
+        } else {
+            // Unknown levels (e.g. "debug" or "trace") collapse to .info so a
+            // future bridge level doesn't break the Mac client.
+            self.level = .info
+        }
+        self.message = try container.decode(String.self, forKey: .message)
+    }
+}
+
+/// Result of `POST /v1/support-bundle/create` — bundle ID plus archive location.
+struct BridgeSupportBundleResult: Codable, Equatable {
+    var schemaVersion: Int
+    var bundleID: String
+    var archivePath: String
+    var sizeBytes: Int64
+    var sha256: String
+    var contents: [String]
+    var createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case bundleID = "bundle_id"
+        case archivePath = "archive_path"
+        case sizeBytes = "size_bytes"
+        case sha256
+        case contents
+        case createdAt = "created_at"
     }
 }
 

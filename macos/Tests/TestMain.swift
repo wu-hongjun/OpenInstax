@@ -347,6 +347,48 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeBackupCoordinatorTests.testBackupOperationProgressEmitted", {
                 try await BridgeBackupCoordinatorTests().testBackupOperationProgressEmitted()
             }),
+            ("BridgeDiagnosticsCoordinatorTests.testStartStreamingAppendsScriptedEventsAndCapsAtMaxTail", {
+                try await BridgeDiagnosticsCoordinatorTests().testStartStreamingAppendsScriptedEventsAndCapsAtMaxTail()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testStartStreamingTransitionsLiveToDisconnectedWhenSourceFinishes", {
+                try await BridgeDiagnosticsCoordinatorTests().testStartStreamingTransitionsLiveToDisconnectedWhenSourceFinishes()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testStopStreamingMarksSnapshotPausedAndPreservesTail", {
+                try await BridgeDiagnosticsCoordinatorTests().testStopStreamingMarksSnapshotPausedAndPreservesTail()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testSetFilterUpdatesSnapshotAndRestartsStreamWhenLive", {
+                try await BridgeDiagnosticsCoordinatorTests().testSetFilterUpdatesSnapshotAndRestartsStreamWhenLive()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testStreamingErrorSurfacesDisconnectedWithReason", {
+                try await BridgeDiagnosticsCoordinatorTests().testStreamingErrorSurfacesDisconnectedWithReason()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testCreateSupportBundleHappyPathReturnsResult", {
+                try await BridgeDiagnosticsCoordinatorTests().testCreateSupportBundleHappyPathReturnsResult()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testCreateSupportBundleWritesSidecarToDestination", {
+                try await BridgeDiagnosticsCoordinatorTests().testCreateSupportBundleWritesSidecarToDestination()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testCreateSupportBundleSurfacesError", {
+                try await BridgeDiagnosticsCoordinatorTests().testCreateSupportBundleSurfacesError()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testEvaluateHealthOnHelloFailureCrossesThresholdAndSurfacesBanner", {
+                try await BridgeDiagnosticsCoordinatorTests().testEvaluateHealthOnHelloFailureCrossesThresholdAndSurfacesBanner()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testEvaluateHealthOnHelloFailureWithoutUSBCarrierDoesNotSurfaceBanner", {
+                try await BridgeDiagnosticsCoordinatorTests().testEvaluateHealthOnHelloFailureWithoutUSBCarrierDoesNotSurfaceBanner()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testEvaluateHealthOnHelloSuccessTransitionsToRecovered", {
+                try await BridgeDiagnosticsCoordinatorTests().testEvaluateHealthOnHelloSuccessTransitionsToRecovered()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testAttemptRecoveryHappyPathStaysInRestartUntilHelloSucceeds", {
+                try await BridgeDiagnosticsCoordinatorTests().testAttemptRecoveryHappyPathStaysInRestartUntilHelloSucceeds()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testAttemptRecoveryRestartFailureSurfacesUnrecoverable", {
+                try await BridgeDiagnosticsCoordinatorTests().testAttemptRecoveryRestartFailureSurfacesUnrecoverable()
+            }),
+            ("BridgeDiagnosticsCoordinatorTests.testDismissRecoveryFromRecoveredReturnsToOK", {
+                try await BridgeDiagnosticsCoordinatorTests().testDismissRecoveryFromRecoveredReturnsToOK()
+            }),
         ]
 
         var failures = 0

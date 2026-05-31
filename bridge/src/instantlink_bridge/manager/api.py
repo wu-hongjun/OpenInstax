@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -36,6 +37,16 @@ from instantlink_bridge.manager.contract import (
     new_request_id,
     success_response,
 )
+from instantlink_bridge.manager.diagnostics import (
+    DEFAULT_LOG_LEVELS,
+    SUPPORT_BUNDLE_SCHEMA_VERSION,
+    LogStreamSource,
+    SupportBundleSource,
+    create_support_bundle,
+    default_support_bundle_sources,
+    format_sse_event,
+    format_sse_heartbeat,
+)
 from instantlink_bridge.manager.update_flow import (
     ManagerEnvironment,
     UpdateFlowError,
@@ -53,7 +64,7 @@ LOGGER = logging.getLogger(__name__)
 REQUEST_ID_HEADER = "X-Request-Id"
 
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
-AdminHandler = Callable[[web.Request], Awaitable[web.Response]]
+AdminHandler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 RequestIdFactory = Callable[[], str]
 CONFIG_PATH_KEY = web.AppKey("instantlink_bridge.manager.config_path", Path)
 REQUEST_ID_FACTORY_KEY = web.AppKey("instantlink_bridge.manager.request_id_factory", object)
@@ -61,6 +72,16 @@ AUTH_VERIFIER_KEY = web.AppKey("instantlink_bridge.manager.auth_verifier", Signe
 CLIENT_STORE_KEY = web.AppKey("instantlink_bridge.manager.client_store", ClientStore)
 PAIRING_STORE_KEY = web.AppKey("instantlink_bridge.manager.pairing_store", PairingWindowStore)
 ENVIRONMENT_KEY = web.AppKey("instantlink_bridge.manager.environment", ManagerEnvironment)
+LOG_STREAM_SOURCE_KEY = web.AppKey(
+    "instantlink_bridge.manager.log_stream_source", LogStreamSource
+)
+SUPPORT_BUNDLE_DIR_KEY = web.AppKey(
+    "instantlink_bridge.manager.support_bundle_dir", Path
+)
+SUPPORT_BUNDLE_SOURCES_KEY = web.AppKey(
+    "instantlink_bridge.manager.support_bundle_sources", object
+)
+DEFAULT_SUPPORT_BUNDLE_DIR = Path("/var/lib/InstantLinkBridge/support-bundles")
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +122,9 @@ def create_app(
     client_store: ClientStore | None = None,
     pairing_store: PairingWindowStore | None = None,
     environment: ManagerEnvironment | None = None,
+    log_stream_source: LogStreamSource | None = None,
+    support_bundle_dir: Path | None = None,
+    support_bundle_sources: tuple[SupportBundleSource, ...] | None = None,
 ) -> web.Application:
     """Create the Phase 1 Bridge management API application."""
 
@@ -118,6 +142,13 @@ def create_app(
     app[PAIRING_STORE_KEY] = pairing_store or PairingWindowStore()
     app[AUTH_VERIFIER_KEY] = actual_auth_verifier
     app[ENVIRONMENT_KEY] = environment or ManagerEnvironment.production()
+    app[LOG_STREAM_SOURCE_KEY] = log_stream_source or LogStreamSource()
+    app[SUPPORT_BUNDLE_DIR_KEY] = support_bundle_dir or DEFAULT_SUPPORT_BUNDLE_DIR
+    app[SUPPORT_BUNDLE_SOURCES_KEY] = (
+        support_bundle_sources
+        if support_bundle_sources is not None
+        else default_support_bundle_sources(Path("/"))
+    )
     app.router.add_get("/v1/hello", handle_hello)
     app.router.add_get("/v1/pairing/status", handle_pairing_status)
     app.router.add_post("/v1/pairing/complete", handle_pairing_complete)
@@ -469,7 +500,7 @@ def status_for_pairing_error(exc: PairingWindowError) -> int:
 def auth_required_handler(route: ManagementRoute) -> Handler:
     """Return a signed admin handler for one management route."""
 
-    async def handler(request: web.Request) -> web.Response:
+    async def handler(request: web.Request) -> web.StreamResponse:
         try:
             await verify_signed_request(request, request.app[AUTH_VERIFIER_KEY])
         except ManagementAuthError as exc:
@@ -581,6 +612,113 @@ async def handle_backup_restore(request: web.Request) -> web.Response:
         backup_id=backup_id,
     )
     return json_success(request, payload)
+
+
+async def handle_logs_stream(request: web.Request) -> web.StreamResponse:
+    """Stream redacted Bridge log entries as Server-Sent Events.
+
+    The connection stays open until either the client disconnects or
+    the underlying ``LogStreamSource`` exhausts. A short heartbeat
+    comment is emitted whenever the source has no events available so
+    intermediaries don't drop the connection.
+    """
+
+    response = web.StreamResponse(
+        status=200,
+        reason="OK",
+        headers={
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            REQUEST_ID_HEADER: request_id_for(request),
+        },
+    )
+    await response.prepare(request)
+
+    level = request.query.get("level")
+    if level is not None and level.strip().lower() not in {"all", *DEFAULT_LOG_LEVELS}:
+        await response.write(
+            format_sse_event_error("invalid_level", "Unknown log level requested.")
+        )
+        await response.write_eof()
+        return response
+
+    source = request.app[LOG_STREAM_SOURCE_KEY]
+    try:
+        async for event in source.iter_events(level_filter=level):
+            await response.write(format_sse_event(event))
+    except ConnectionResetError:
+        LOGGER.info("manager.logs_stream.client_disconnected")
+    else:
+        await response.write(format_sse_heartbeat())
+    finally:
+        try:
+            await response.write_eof()
+        except (ConnectionResetError, RuntimeError):
+            # Client may already have closed; the stream is over either way.
+            pass
+    return response
+
+
+def format_sse_event_error(error_code: str, message: str) -> bytes:
+    """Encode an error as a single SSE record (used before stream end)."""
+
+    payload = json.dumps(
+        {"error_code": error_code, "message": message},
+        separators=(",", ":"),
+    )
+    return f"event: error\ndata: {payload}\n\n".encode()
+
+
+async def handle_support_bundle_create(request: web.Request) -> web.Response:
+    """Stage a redacted support bundle and return its location metadata."""
+
+    bundle_dir = request.app[SUPPORT_BUNDLE_DIR_KEY]
+    sources = cast(
+        "tuple[SupportBundleSource, ...]",
+        request.app[SUPPORT_BUNDLE_SOURCES_KEY],
+    )
+    try:
+        result = await asyncio.to_thread(
+            create_support_bundle,
+            bundles_dir=bundle_dir,
+            sources=sources,
+        )
+    except FileNotFoundError as exc:
+        LOGGER.exception("manager.support_bundle.required_source_missing")
+        return json_failure(
+            request,
+            status=503,
+            error_code="support_bundle_failed",
+            message=str(exc),
+            recommended_action=(
+                "Retry once the Bridge has finished booting or fix the missing path."
+            ),
+        )
+    except OSError as exc:
+        LOGGER.exception("manager.support_bundle.write_failed")
+        return json_failure(
+            request,
+            status=500,
+            error_code="support_bundle_failed",
+            message=str(exc),
+            recommended_action="Check disk space and Bridge permissions, then retry.",
+        )
+
+    return json_success(
+        request,
+        {
+            "support_bundle": {
+                "schema_version": SUPPORT_BUNDLE_SCHEMA_VERSION,
+                "bundle_id": result.bundle_id,
+                "archive_path": str(result.archive_path),
+                "size_bytes": result.size_bytes,
+                "sha256": result.sha256,
+                "contents": list(result.contents),
+                "created_at": result.created_at,
+            }
+        },
+    )
 
 
 async def handle_config_get(request: web.Request) -> web.Response:
@@ -712,6 +850,8 @@ ADMIN_OPERATION_HANDLERS: dict[str, AdminHandler] = {
     "update_rollback": handle_update_rollback,
     "backup_create": handle_backup_create,
     "backup_restore": handle_backup_restore,
+    "logs_stream": handle_logs_stream,
+    "support_bundle_create": handle_support_bundle_create,
 }
 
 

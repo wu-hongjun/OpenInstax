@@ -403,6 +403,9 @@ final class BridgeUpdateCoordinator: ObservableObject {
             case .updateScriptEmpty: return "Bridge returned no update steps."
             case .updatePreflightFailed: return "Preflight checks did not pass."
             case .localAuthNotFound(let id): return "Local auth missing for bridge \(id)."
+            case .helloProbeFailed(let host): return "Bridge \(host) is not reachable."
+            case .managementRestartFailed(let message): return message
+            case .supportBundleFailed(let message): return message
             }
         }
         return "\(error)"
