@@ -1059,53 +1059,32 @@ def test_selected_slider_row_renders_chevron() -> None:
     )
 
 
-def test_destructive_toast_has_tinted_background() -> None:
-    """A 'Press KEY1 again' toast strip is tinted, not the plain page background."""
-    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
-    from instantlink_bridge.ui.theme import theme_for
+def test_confirmation_dialog_overlay_renders() -> None:
+    """Plan 040: the dialog overlay paints over the previous mode's content.
 
-    rows = (
-        SettingsRow("Preset", "Custom", hint="Right/KEY1 choose"),
-        SettingsRow("Saturation", "0", hint="Right/KEY1 choose"),
-        SettingsRow("Exposure", "0", hint="Right/KEY1 choose"),
-        SettingsRow("Sharpness", "0", hint="Right/KEY1 choose"),
-        SettingsRow("Hue", "0", hint="Right/KEY1 choose"),
-        SettingsRow("Vignette", "0", hint="Right/KEY1 choose"),
-        SettingsRow("Datestamp", "Off", hint="Right/KEY1 choose"),
-        SettingsRow("Watermark", "Off", hint="Right/KEY1 choose"),
-        SettingsRow("Save current", "", hint="Right/KEY1 run"),
-    )
-    toast_snap = UiSnapshot(
-        mode=UiMode.SETTINGS,
+    Replaces the obsolete destructive-toast strip test. The dialog renderer
+    dims the underlying frame and paints a centred card; sampling the dim
+    background colour outside the card proves the overlay is applied.
+    """
+
+    snap = UiSnapshot(
+        mode=UiMode.CONFIRMATION_DIALOG,
         ftp_host="192.168.7.1",
-        settings_title="Adjustments",
-        settings_rows=rows,
-        selected_index=0,
-        settings_message="Press KEY1 again to save as Custom1",
-        adjustments_profile=AdjustmentProfile(),
+        confirmation_title="Forget printer?",
+        confirmation_message="The bridge will forget the paired printer.",
+        confirmation_confirm_label="Forget",
+        confirmation_destructive=True,
+        confirmation_focus="cancel",
+        confirmation_action_key="forget_printer",
     )
-    # Snapshot without the toast for comparison.
-    plain_snap = UiSnapshot(
-        mode=UiMode.SETTINGS,
-        ftp_host="192.168.7.1",
-        settings_title="Adjustments",
-        settings_rows=rows,
-        selected_index=0,
-        settings_message=None,
-        adjustments_profile=AdjustmentProfile(),
+    image = render_snapshot(snap, now=0.0)
+    # Top-left corner sits in the dim overlay (outside the centred card at
+    # x=15..225 y=45..195). The dim multiplier (0.60) drives every RGB
+    # channel below 200 even for the brightest LIGHT theme background.
+    pixel = image.getpixel((2, 2))
+    assert pixel[0] < 200 and pixel[1] < 200 and pixel[2] < 200, (
+        f"Top-left should be dimmed, got {pixel}"
     )
-
-    toast_image = render_snapshot(toast_snap)
-    render_snapshot(plain_snap)  # ensure no crash on plain render
-
-    theme = theme_for("light")
-    bg_hex = theme.bg.lstrip("#")
-    bg_rgb = (int(bg_hex[0:2], 16), int(bg_hex[2:4], 16), int(bg_hex[4:6], 16))
-
-    # Sample a pixel in the strip area (y≈210, x=20) from the toasted render.
-    # It must not be plain background colour (the tint must be applied).
-    strip_px = toast_image.getpixel((20, 210))
-    assert strip_px[:3] != bg_rgb, f"Strip pixel should be tinted, not bg {bg_rgb}; got {strip_px}"
 
 
 # ---------------------------------------------------------------------------

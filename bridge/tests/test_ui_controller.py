@@ -1904,12 +1904,18 @@ async def test_settings_printer_reset_ble_link_stays_in_printer_settings() -> No
     # Two DOWN presses lands on Reconnect (RESET_PRINTER_LINK, index 2).
     await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.DOWN)
-    # Reset BLE is now a two-press destructive confirm; the first SELECT only
-    # primes the confirmation toast, the second actually closes the cached
-    # session and schedules a fresh poll.
+    # Reset BLE now opens the iOS-style confirmation dialog overlay (plan 040);
+    # the first SELECT activates Reconnect → dialog mode with focus on Cancel;
+    # moving RIGHT focuses Confirm; the next SELECT closes the cached session
+    # and schedules a fresh poll.
     await ui._handle_action(UiAction.SELECT)
     assert status_provider.close_cached_calls == 0
-    assert display.snapshots[-1].settings_message == "Press KEY1 again to RESET BLE link"
+    assert display.snapshots[-1].mode is UiMode.CONFIRMATION_DIALOG
+    assert display.snapshots[-1].confirmation_title == "Reset connection?"
+    assert display.snapshots[-1].confirmation_confirm_label == "Reset"
+    assert display.snapshots[-1].confirmation_destructive is True
+    assert display.snapshots[-1].confirmation_focus == "cancel"
+    await ui._handle_action(UiAction.RIGHT)
     await ui._handle_action(UiAction.SELECT)
     await asyncio.sleep(0)
 
@@ -2250,11 +2256,18 @@ async def test_forget_printer_requires_second_confirmation() -> None:
     await ui._handle_action(UiAction.RIGHT)
 
     assert not pairer.forgot
-    # Confirm wording is now explicit about which key + which verb so the
-    # user knows K1 is the destructive press.
-    assert display.snapshots[-1].settings_message == "Press KEY1 again to FORGET printer"
+    # Confirm now opens the iOS-style dialog overlay (plan 040). Initial focus
+    # is Cancel so an accidental KEY1 press is non-destructive; the user
+    # explicitly moves focus to Confirm before activating.
+    assert display.snapshots[-1].mode is UiMode.CONFIRMATION_DIALOG
+    assert display.snapshots[-1].confirmation_title == "Forget printer?"
+    assert display.snapshots[-1].confirmation_confirm_label == "Forget"
+    assert display.snapshots[-1].confirmation_destructive is True
+    assert display.snapshots[-1].confirmation_focus == "cancel"
 
+    # Move focus to Confirm and activate.
     await ui._handle_action(UiAction.RIGHT)
+    await ui._handle_action(UiAction.SELECT)
 
     assert pairer.forgot
     assert display.snapshots[-1].settings_message == "Printer forgotten"
@@ -2266,12 +2279,12 @@ async def test_forget_and_repair_confirms_then_forgets_and_starts_scan() -> None
     """The state-aware "Re-pair" action is the atomic recovery flow.
 
     PAIR_PRINTER renders as "Pair" when nothing is saved and "Re-pair" when
-    a printer is bonded; the latter routes through the destructive
-    Forget+scan confirm that used to live on its own FORGET_AND_REPAIR row.
-    First SELECT primes the destructive confirm toast; second SELECT both
-    wipes the saved printer (and BlueZ bond) AND kicks off a fresh pairing
-    scan in one shot so the user lands in the picker without re-navigating
-    back into Settings.
+    a printer is bonded; the latter routes through the destructive Re-pair
+    dialog (plan 040) that used to live on its own FORGET_AND_REPAIR row.
+    Activating the row opens the dialog with focus on Cancel; the user
+    moves focus to Confirm and the activate atomically wipes the saved
+    printer (and BlueZ bond) AND kicks off a fresh pairing scan so the
+    user lands in the picker without re-navigating back into Settings.
     """
 
     printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
@@ -2296,13 +2309,17 @@ async def test_forget_and_repair_confirms_then_forgets_and_starts_scan() -> None
     await ui._handle_action(UiAction.DOWN)
     await ui._handle_action(UiAction.SELECT)
 
-    # First press just primes the confirm — neither destructive step runs yet.
+    # First press opens the dialog — neither destructive step runs yet.
     assert not pairer.forgot
-    assert display.snapshots[-1].settings_message == "Press KEY1 again to FORGET and re-pair"
+    assert display.snapshots[-1].mode is UiMode.CONFIRMATION_DIALOG
+    assert display.snapshots[-1].confirmation_title == "Re-pair printer?"
+    assert display.snapshots[-1].confirmation_confirm_label == "Re-pair"
+    assert display.snapshots[-1].confirmation_destructive is True
 
+    await ui._handle_action(UiAction.RIGHT)
     await ui._handle_action(UiAction.SELECT)
 
-    # Second press atomically forgets and enters the pairing flow.
+    # Confirm activates the atomic forget + enter pairing flow.
     assert pairer.forgot
     display = _FakeDisplay()
     ui = BridgeUi(
@@ -3401,15 +3418,16 @@ async def test_reset_credentials_requires_confirmation(
     for _ in range(len(camera_keys) - 1 - header_count):
         await ui._handle_action(UiAction.DOWN)
 
-    # First SELECT should show confirmation prompt, not execute
+    # First SELECT opens the confirmation dialog overlay (plan 040), not execute.
     await ui._handle_action(UiAction.SELECT)
 
-    # New copy: "Press KEY1 again to RESET Wi-Fi/FTP credentials" — match
-    # the pattern shared with other destructive-confirm toasts.
-    assert "press key1 again to reset" in (display.snapshots[-1].settings_message or "").lower()
+    assert display.snapshots[-1].mode is UiMode.CONFIRMATION_DIALOG
+    assert display.snapshots[-1].confirmation_title == "Reset credentials?"
+    assert display.snapshots[-1].confirmation_confirm_label == "Reset"
+    assert display.snapshots[-1].confirmation_destructive is True
+    assert display.snapshots[-1].confirmation_focus == "cancel"
     assert ssid_path.read_text(encoding="utf-8") == "InstantLink-ORIG\n"
     assert psk_path.read_text(encoding="utf-8") == "11111111\n"
-    assert ui._pending_credential_reset is True
 
 
 @pytest.mark.asyncio
@@ -3458,11 +3476,13 @@ async def test_reset_credentials_second_select_executes(
     for _ in range(len(camera_keys) - 1 - header_count):
         await ui._handle_action(UiAction.DOWN)
 
-    # First SELECT: confirmation prompt
+    # First SELECT opens the confirmation dialog (plan 040).
     await ui._handle_action(UiAction.SELECT)
-    assert ui._pending_credential_reset is True
+    assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+    assert ui._snapshot.confirmation_action_key == "reset_credentials"
 
-    # Second SELECT: execute reset
+    # Move focus to Confirm and activate.
+    await ui._handle_action(UiAction.RIGHT)
     await ui._handle_action(UiAction.SELECT)
 
     new_ssid = ssid_path.read_text(encoding="utf-8").strip()
@@ -3475,7 +3495,7 @@ async def test_reset_credentials_second_select_executes(
     assert ui._config.ftp.password != "11111111"
     assert len(ui._config.ftp.password) == 8
     assert len(applied_ftp) >= 1
-    assert ui._pending_credential_reset is False
+    assert ui._snapshot.mode is UiMode.SETTINGS
 
 
 @pytest.mark.asyncio
@@ -3518,14 +3538,16 @@ async def test_reset_credentials_other_key_cancels(
     for _ in range(len(camera_keys) - 1 - header_count):
         await ui._handle_action(UiAction.DOWN)
 
-    # First SELECT: arm confirmation
+    # First SELECT opens the confirmation dialog (plan 040).
     await ui._handle_action(UiAction.SELECT)
-    assert ui._pending_credential_reset is True
+    assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
 
-    # DOWN clears the flag and no files are written
-    await ui._handle_action(UiAction.DOWN)
+    # BACK / KEY2 dismisses the dialog without running the action; the safe
+    # default keeps the original files intact.
+    await ui._handle_action(UiAction.BACK)
 
-    assert ui._pending_credential_reset is False
+    assert ui._snapshot.mode is UiMode.SETTINGS
+    assert ui._snapshot.confirmation_action_key is None
     assert ssid_path.read_text(encoding="utf-8") == "InstantLink-ORIG\n"
     assert psk_path.read_text(encoding="utf-8") == "11111111\n"
 
@@ -4029,7 +4051,7 @@ async def test_adjustments_slider_editable_with_instax_film_preset(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_save_preset_requires_two_presses(tmp_path: Path) -> None:
-    """First KEY1 on Save current → arms confirm toast; no file written yet."""
+    """First KEY1 on Save current → opens the confirmation dialog; no save yet."""
 
     config_path = tmp_path / "config.toml"
     config_path.write_text('[adjustments]\npreset = "Default"\nsaturation = 30\n', encoding="utf-8")
@@ -4049,16 +4071,19 @@ async def test_save_preset_requires_two_presses(tmp_path: Path) -> None:
     for _ in range(9):
         await ui._handle_action(UiAction.DOWN)
 
-    # First KEY1 → destructive toast, no file write.
     import unittest.mock
 
     with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
         await ui._handle_action(UiAction.SELECT)
 
-    assert ui._pending_save_preset is True
-    msg = ui._snapshot.settings_message or ""
-    assert "Press KEY1 again" in msg
-    assert "Custom" in msg
+    # First press opens the dialog (plan 040). Constructive flow uses the
+    # blue accent (destructive=False), and the action_key names the target
+    # slot so the dispatch on confirm writes the right file.
+    assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+    assert ui._snapshot.confirmation_destructive is False
+    assert ui._snapshot.confirmation_confirm_label == "Save"
+    assert ui._snapshot.confirmation_action_key is not None
+    assert ui._snapshot.confirmation_action_key.startswith("save_preset:Custom")
     # No file written yet.
     assert not presets_path.exists()
 
@@ -4087,8 +4112,9 @@ async def test_save_preset_second_press_writes_file(tmp_path: Path) -> None:
         await ui._handle_action(UiAction.DOWN)
 
     with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
-        await ui._handle_action(UiAction.SELECT)  # first press — arms confirm
-        await ui._handle_action(UiAction.SELECT)  # second press — commits
+        await ui._handle_action(UiAction.SELECT)  # opens the dialog
+        await ui._handle_action(UiAction.RIGHT)  # focus → Confirm
+        await ui._handle_action(UiAction.SELECT)  # commits
 
     # File was written and preset label switched.
     assert presets_path.exists()
@@ -4119,12 +4145,13 @@ async def test_save_preset_cancel_between_presses(tmp_path: Path) -> None:
         await ui._handle_action(UiAction.DOWN)
 
     with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
-        await ui._handle_action(UiAction.SELECT)  # first press
-        assert ui._pending_save_preset is True
-        await ui._handle_action(UiAction.BACK)  # cancel
+        await ui._handle_action(UiAction.SELECT)  # opens dialog
+        assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+        await ui._handle_action(UiAction.BACK)  # dismisses without saving
 
     assert not presets_path.exists()
-    assert ui._pending_save_preset is False
+    assert ui._snapshot.mode is UiMode.SETTINGS
+    assert ui._snapshot.confirmation_action_key is None
 
 
 @pytest.mark.asyncio
@@ -4225,14 +4252,16 @@ async def test_overwrite_preset_two_press_confirm(tmp_path: Path) -> None:
     import unittest.mock
 
     with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
-        # First SELECT on Overwrite row → arms confirm, no write yet.
+        # First SELECT on Overwrite row → opens the dialog (plan 040), no write.
         await ui._handle_action(UiAction.SELECT)
-        assert ui._preset_submenu_pending_overwrite is True
+        assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+        assert ui._snapshot.confirmation_action_key == "preset_overwrite:Custom1"
+        assert ui._snapshot.confirmation_confirm_label == "Overwrite"
+        assert ui._snapshot.confirmation_destructive is True
         assert not presets_path.exists()
-        msg = ui._snapshot.settings_message or ""
-        assert "Press KEY1 again" in msg
 
-        # Second SELECT → commits overwrite.
+        # Move focus to Confirm and activate → commits.
+        await ui._handle_action(UiAction.RIGHT)
         await ui._handle_action(UiAction.SELECT)
 
     assert presets_path.exists()
@@ -4270,13 +4299,16 @@ async def test_delete_preset_two_press_confirm(tmp_path: Path) -> None:
     await ui._handle_action(UiAction.DOWN)
 
     with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
-        # First SELECT → arms confirm.
+        # First SELECT → opens the dialog (plan 040).
         await ui._handle_action(UiAction.SELECT)
-        assert ui._preset_submenu_pending_delete is True
-        msg = ui._snapshot.settings_message or ""
-        assert "Press KEY1 again" in msg
+        assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+        assert ui._snapshot.confirmation_action_key == "preset_delete:Custom1"
+        assert ui._snapshot.confirmation_confirm_label == "Delete"
+        assert ui._snapshot.confirmation_destructive is True
 
-        # Second SELECT → deletes; preset falls back to Default since it was active.
+        # Focus → Confirm, activate → deletes; preset falls back to Default
+        # since the deleted slot was the active preset.
+        await ui._handle_action(UiAction.RIGHT)
         await ui._handle_action(UiAction.SELECT)
 
     assert "Custom1" not in ui._user_presets
@@ -4426,13 +4458,17 @@ async def test_save_overwrites_active_custom_slot(tmp_path: Path) -> None:
         await ui._handle_action(UiAction.DOWN)
 
     with unittest.mock.patch("instantlink_bridge.imaging.presets.USER_PRESETS_PATH", presets_path):
-        # First press — arms confirm toast referencing Custom1 (overwrite).
+        # First press opens the dialog (plan 040) — title + action key both
+        # reference Custom1 since the active preset is already a saved slot.
         await ui._handle_action(UiAction.SELECT)
-        msg = ui._snapshot.settings_message or ""
-        assert "overwrite" in msg.lower(), f"Expected overwrite toast, got: {msg!r}"
-        assert "Custom1" in msg, f"Expected Custom1 in toast, got: {msg!r}"
+        assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+        assert ui._snapshot.confirmation_action_key == "save_preset:Custom1"
+        title = ui._snapshot.confirmation_title or ""
+        assert "Custom1" in title, f"Expected Custom1 in title, got: {title!r}"
+        assert ui._snapshot.confirmation_confirm_label == "Overwrite"
 
-        # Second press — commits.
+        # Focus → Confirm and activate → commits.
+        await ui._handle_action(UiAction.RIGHT)
         await ui._handle_action(UiAction.SELECT)
 
     # File written and preset label stays Custom1.
@@ -5034,3 +5070,250 @@ async def test_slider_edit_message_clears_on_up_down() -> None:
     assert ui._snapshot.settings_message is not None
     await ui._handle_adjustment_edit_action(UiAction.UP)
     assert ui._snapshot.settings_message is None
+
+
+# ---------------------------------------------------------------------------
+# Plan 040 — iOS-style confirmation dialog overlay
+# ---------------------------------------------------------------------------
+
+
+def _build_dialog_ui(printer: PairedPrinter | None = None) -> tuple[BridgeUi, _FakeDisplay]:
+    """Build a BridgeUi parked in READY with one paired printer."""
+
+    display = _FakeDisplay()
+    paired = printer or PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([paired]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.READY, paired_printer=paired)
+    return ui, display
+
+
+@pytest.mark.asyncio
+async def test_destructive_action_opens_confirmation_dialog() -> None:
+    """Forget-printer activates the dialog overlay with destructive styling."""
+
+    ui, display = _build_dialog_ui()
+    await ui._confirm_or_forget_selected_printer()
+
+    snap = display.snapshots[-1]
+    assert snap.mode is UiMode.CONFIRMATION_DIALOG
+    assert snap.confirmation_title == "Forget printer?"
+    assert snap.confirmation_message is not None
+    assert snap.confirmation_confirm_label == "Forget"
+    assert snap.confirmation_destructive is True
+    assert snap.confirmation_focus == "cancel"
+    assert snap.confirmation_action_key == "forget_printer"
+
+
+@pytest.mark.asyncio
+async def test_dialog_left_right_toggles_focus() -> None:
+    """LEFT/RIGHT swap focus between Cancel and Confirm."""
+
+    ui, _ = _build_dialog_ui()
+    await ui._confirm_or_forget_selected_printer()
+
+    assert ui._snapshot.confirmation_focus == "cancel"
+    await ui._handle_action(UiAction.RIGHT)
+    assert ui._snapshot.confirmation_focus == "confirm"
+    await ui._handle_action(UiAction.LEFT)
+    assert ui._snapshot.confirmation_focus == "cancel"
+    # UP/DOWN behaves the same as LEFT/RIGHT (forgiving joystick).
+    await ui._handle_action(UiAction.DOWN)
+    assert ui._snapshot.confirmation_focus == "confirm"
+    await ui._handle_action(UiAction.UP)
+    assert ui._snapshot.confirmation_focus == "cancel"
+
+
+@pytest.mark.asyncio
+async def test_dialog_select_with_cancel_focused_dismisses_without_action() -> None:
+    """SELECT while Cancel is focused closes the dialog; no action runs."""
+
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    pairer = _FakePairer([printer])
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=pairer,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.READY, paired_printer=printer)
+
+    await ui._confirm_or_forget_selected_printer()
+    assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+    await ui._handle_action(UiAction.SELECT)
+
+    assert not pairer.forgot
+    # The dialog restores the previous mode (READY here) and clears the
+    # action key so a stray follow-up press cannot re-trigger the action.
+    assert ui._snapshot.mode is UiMode.READY
+    assert ui._snapshot.confirmation_action_key is None
+
+
+@pytest.mark.asyncio
+async def test_dialog_select_with_confirm_focused_executes_action() -> None:
+    """RIGHT → SELECT closes the dialog and runs the registered action."""
+
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    pairer = _FakePairer([printer])
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=pairer,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.READY, paired_printer=printer)
+
+    await ui._confirm_or_forget_selected_printer()
+    await ui._handle_action(UiAction.RIGHT)
+    await ui._handle_action(UiAction.SELECT)
+
+    assert pairer.forgot
+    assert ui._snapshot.paired_printer is None
+
+
+@pytest.mark.asyncio
+async def test_dialog_back_dismisses_without_action() -> None:
+    """KEY2 / BACK closes the dialog without running the action."""
+
+    printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
+    pairer = _FakePairer([printer])
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=pairer,
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._snapshot = ui._build_snapshot(mode=UiMode.READY, paired_printer=printer)
+
+    await ui._confirm_or_forget_selected_printer()
+    # Move focus to Confirm to prove BACK still wins.
+    await ui._handle_action(UiAction.RIGHT)
+    await ui._handle_action(UiAction.BACK)
+
+    assert not pairer.forgot
+    # Previous mode (READY) is restored regardless of focus position.
+    assert ui._snapshot.mode is UiMode.READY
+    assert ui._snapshot.confirmation_action_key is None
+
+
+@pytest.mark.asyncio
+async def test_dialog_focus_starts_on_cancel() -> None:
+    """Every dialog flow opens with focus on Cancel (safe default)."""
+
+    ui, _ = _build_dialog_ui()
+    for opener in (
+        ui._confirm_or_forget_selected_printer,
+        ui._confirm_or_reset_ble_link,
+        ui._confirm_or_forget_and_repair,
+        ui._confirm_or_reset_credentials,
+    ):
+        await opener()
+        assert ui._snapshot.confirmation_focus == "cancel"
+        # Dismiss before the next iteration.
+        await ui._handle_action(UiAction.BACK)
+
+
+@pytest.mark.asyncio
+async def test_dialog_returns_to_previous_page_on_dismiss() -> None:
+    """Dismissing the dialog restores the previous settings page."""
+
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._show_settings(page=SettingsPage.NETWORK)
+    assert ui._settings_page is SettingsPage.NETWORK
+
+    await ui._confirm_or_reset_credentials()
+    assert ui._snapshot.mode is UiMode.CONFIRMATION_DIALOG
+
+    await ui._handle_action(UiAction.BACK)
+    assert ui._snapshot.mode is UiMode.SETTINGS
+    assert ui._settings_page is SettingsPage.NETWORK
+
+
+@pytest.mark.asyncio
+async def test_preset_overwrite_dialog_includes_slot_name_in_title(tmp_path: Path) -> None:
+    """The overwrite sub-menu confirm dialog names the targeted slot."""
+
+    from instantlink_bridge.imaging.postprocess import AdjustmentProfile
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._user_presets = {"Custom3": AdjustmentProfile(saturation=1.0)}
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    await ui._handle_action(UiAction.SELECT)  # open preset picker
+
+    # Built-ins occupy indices 0..4; Custom1 is at 5, Custom3 at 7.
+    for _ in range(7):
+        await ui._handle_action(UiAction.DOWN)
+    await ui._handle_action(UiAction.HELP)  # open sub-menu on Custom3
+
+    # SELECT on the Overwrite row opens the dialog.
+    await ui._handle_action(UiAction.SELECT)
+    snap = ui._snapshot
+    assert snap.mode is UiMode.CONFIRMATION_DIALOG
+    assert snap.confirmation_title == "Overwrite Custom3?"
+    assert snap.confirmation_action_key == "preset_overwrite:Custom3"
+
+
+@pytest.mark.asyncio
+async def test_save_preset_uses_constructive_confirm_label(tmp_path: Path) -> None:
+    """Saving an empty slot uses the constructive accent (destructive=False)."""
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text('[adjustments]\npreset = "Default"\nsaturation = 10\n', encoding="utf-8")
+    display = _FakeDisplay()
+    ui = BridgeUi(
+        load_config(config_path),
+        config_path=config_path,
+        display=display,
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+    ui._user_presets = {}
+    ui._show_settings(page=SettingsPage.ADJUSTMENTS)
+    for _ in range(9):
+        await ui._handle_action(UiAction.DOWN)
+    await ui._handle_action(UiAction.SELECT)
+
+    snap = ui._snapshot
+    assert snap.mode is UiMode.CONFIRMATION_DIALOG
+    assert snap.confirmation_confirm_label == "Save"
+    assert snap.confirmation_destructive is False
+
+
+@pytest.mark.asyncio
+async def test_forget_printer_uses_destructive_confirm_label() -> None:
+    """The Forget-printer dialog uses the destructive (red) accent."""
+
+    ui, _ = _build_dialog_ui()
+    await ui._confirm_or_forget_selected_printer()
+
+    assert ui._snapshot.confirmation_confirm_label == "Forget"
+    assert ui._snapshot.confirmation_destructive is True

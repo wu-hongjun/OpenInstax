@@ -30,6 +30,10 @@ class UiMode(StrEnum):
     PRINT_COMPLETE = "print_complete"
     PAIR_FAILED = "pair_failed"
     ERROR = "error"
+    # iOS-style yes/no dialog overlay (plan 040). Replaces the per-flow
+    # two-press confirms; the controller stamps the action_key into the
+    # snapshot and dispatches on confirm.
+    CONFIRMATION_DIALOG = "confirmation_dialog"
 
 
 class UiAction(StrEnum):
@@ -135,3 +139,15 @@ class UiSnapshot:
     adjustment_edit_key: str | None = None
     adjustment_edit_value: int = 0
     adjustment_edit_original: int = 0
+    # iOS-style confirmation-dialog overlay (plan 040). Populated only while
+    # ``mode is UiMode.CONFIRMATION_DIALOG``; the controller registers an
+    # ``action_key`` when opening the dialog and dispatches the matching
+    # ``_execute_*`` method when the user activates the Confirm button. Keeping
+    # the state inside the frozen snapshot (instead of a callable on the
+    # controller) preserves Equatable semantics and renderer purity.
+    confirmation_title: str | None = None
+    confirmation_message: str | None = None
+    confirmation_confirm_label: str = "OK"
+    confirmation_destructive: bool = False
+    confirmation_focus: str = "cancel"  # "cancel" | "confirm"
+    confirmation_action_key: str | None = None

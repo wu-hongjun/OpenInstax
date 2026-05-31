@@ -372,25 +372,16 @@ class BridgeUi:
         self._settings_picker_key: SettingKey | None = None
         self._pairing_generation = 0
         self._pair_return_page: SettingsPage | None = None
-        self._forget_confirm_pending = False
-        self._pending_credential_reset = False
-        # Two-press confirm flags so destructive printer actions never fire on
-        # an accidental K1: each flag flips to True on the first press (showing
-        # an explicit "Press KEY1 again to <verb>" toast), and only the second
-        # press inside the same SETTINGS context actually runs the action. Any
-        # navigation or BACK clears them.
-        self._pending_reset_ble_link = False
-        self._pending_forget_and_repair = False
-        # Two-press confirm for saving a new user preset (plan 036 phase 5).
-        # First KEY1 on "Save current" arms this flag and shows a destructive
-        # toast; second KEY1 within the same context writes the file.
-        self._pending_save_preset = False
+        # iOS-style confirmation dialog (plan 040). Replaces the per-flow
+        # ``_pending_*`` booleans that drove the old two-press confirms. The
+        # dialog mode owns its own focus + action key in the snapshot; the
+        # controller only remembers where to return when the user dismisses
+        # or confirms.
+        self._previous_mode_before_dialog: UiMode | None = None
+        self._previous_page_before_dialog: SettingsPage | None = None
         # Preset picker sub-menu state (plan 036 phase 5).
         # Set when the user long-presses a saved custom preset in the picker.
-        # Values: None (no sub-menu active), "overwrite", "delete".
         self._preset_submenu_slot: str | None = None
-        self._preset_submenu_pending_overwrite = False
-        self._preset_submenu_pending_delete = False
         self._credential_hotspot_task: asyncio.Task[None] | None = None
         self._pending_print_result: asyncio.Future[PrintEdit | None] | None = None
         self._preview_edit = PrintEdit()
@@ -1101,6 +1092,9 @@ class BridgeUi:
         await self._power_activity_callback()
 
     async def _handle_action(self, action: UiAction) -> None:
+        if self._snapshot.mode is UiMode.CONFIRMATION_DIALOG:
+            await self._handle_confirmation_dialog_action(action)
+            return
         if self._snapshot.mode is UiMode.SETTINGS:
             await self._handle_settings_action(action)
             return
@@ -1234,22 +1228,128 @@ class BridgeUi:
         )
         self._render()
 
-    def _clear_pending_confirms(self) -> None:
-        """Reset every two-press confirm flag.
+    def _show_confirmation_dialog(
+        self,
+        *,
+        title: str,
+        message: str,
+        confirm_label: str,
+        destructive: bool,
+        action_key: str,
+    ) -> None:
+        """Open the iOS-style yes/no dialog overlay (plan 040).
 
-        Called on any navigation/back action so that moving away from a
-        primed destructive row cancels the half-armed confirm. Each per-row
-        confirm handler still owns the targeted flag (only clears its own on
-        success/cancel).
+        Replaces the legacy per-flow ``_pending_*`` two-press confirms. The
+        renderer paints a centred card with a Cancel/Confirm button row over
+        the existing screen contents; LEFT/RIGHT toggle focus and KEY1 / SELECT
+        activates the focused button. Initial focus is always Cancel so an
+        accidental KEY1 press is non-destructive.
+
+        ``action_key`` is the string ID dispatched by
+        :py:meth:`_dispatch_confirmed_action` when the user confirms. Cancel /
+        BACK / KEY2 simply close the dialog and restore the previous mode +
+        settings page; no callable is captured (the snapshot stays frozen and
+        Equatable).
         """
 
-        self._forget_confirm_pending = False
-        self._pending_credential_reset = False
-        self._pending_reset_ble_link = False
-        self._pending_forget_and_repair = False
-        self._pending_save_preset = False
-        self._preset_submenu_pending_overwrite = False
-        self._preset_submenu_pending_delete = False
+        self._previous_mode_before_dialog = self._snapshot.mode
+        self._previous_page_before_dialog = self._settings_page
+        self._snapshot = replace(
+            self._snapshot,
+            mode=UiMode.CONFIRMATION_DIALOG,
+            confirmation_title=title,
+            confirmation_message=message,
+            confirmation_confirm_label=confirm_label,
+            confirmation_destructive=destructive,
+            confirmation_focus="cancel",
+            confirmation_action_key=action_key,
+        )
+        self._render()
+
+    async def _handle_confirmation_dialog_action(self, action: UiAction) -> None:
+        """Route input while the confirmation-dialog overlay is open."""
+
+        if action in {UiAction.LEFT, UiAction.RIGHT, UiAction.UP, UiAction.DOWN}:
+            new_focus = (
+                "confirm" if self._snapshot.confirmation_focus == "cancel" else "cancel"
+            )
+            self._snapshot = replace(self._snapshot, confirmation_focus=new_focus)
+            self._render()
+            return
+        if action is UiAction.BACK:
+            await self._dismiss_confirmation_dialog(confirmed=False)
+            return
+        if action is UiAction.SELECT:
+            confirmed = self._snapshot.confirmation_focus == "confirm"
+            await self._dismiss_confirmation_dialog(confirmed=confirmed)
+            return
+        # HELP / PAIR / others: no-op while the dialog is open. The dialog
+        # only exposes Cancel / Confirm; treating other inputs as no-ops keeps
+        # the focus state stable so a stray press never silently dismisses.
+
+    async def _dismiss_confirmation_dialog(self, *, confirmed: bool) -> None:
+        """Close the dialog and optionally dispatch the confirmed action.
+
+        Restoring the previous mode + page first means any ``_show_settings``
+        toast the dispatched action emits lands on the right page rather than
+        flashing on a stale dialog overlay.
+        """
+
+        action_key = self._snapshot.confirmation_action_key
+        previous_mode = self._previous_mode_before_dialog or UiMode.SETTINGS
+        previous_page = self._previous_page_before_dialog or self._settings_page
+        self._snapshot = replace(
+            self._snapshot,
+            mode=previous_mode,
+            confirmation_title=None,
+            confirmation_message=None,
+            confirmation_confirm_label="OK",
+            confirmation_destructive=False,
+            confirmation_focus="cancel",
+            confirmation_action_key=None,
+        )
+        self._settings_page = previous_page
+        self._previous_mode_before_dialog = None
+        self._previous_page_before_dialog = None
+        if confirmed and action_key is not None:
+            await self._dispatch_confirmed_action(action_key)
+        else:
+            self._render()
+
+    async def _dispatch_confirmed_action(self, action_key: str) -> None:
+        """Run the action registered when the dialog was opened.
+
+        Centralises every confirmed flow so each call site stays a single
+        ``_show_confirmation_dialog(action_key=...)`` and the executor
+        methods are plain ``_execute_*`` coroutines without per-press flag
+        plumbing.
+        """
+
+        if action_key == "forget_printer":
+            await self._execute_forget_printer()
+            return
+        if action_key == "reset_credentials":
+            await self._execute_reset_credentials()
+            return
+        if action_key == "reset_ble_link":
+            await self._execute_reset_ble_link()
+            return
+        if action_key == "forget_and_repair":
+            await self._execute_forget_and_repair()
+            return
+        if action_key.startswith("save_preset:"):
+            slot = action_key.removeprefix("save_preset:")
+            await self._execute_save_preset(slot)
+            return
+        if action_key.startswith("preset_overwrite:"):
+            slot = action_key.removeprefix("preset_overwrite:")
+            await self._execute_preset_overwrite(slot)
+            return
+        if action_key.startswith("preset_delete:"):
+            slot = action_key.removeprefix("preset_delete:")
+            await self._execute_preset_delete(slot)
+            return
+        LOGGER.error("ui.unknown_confirmation_action_key key=%s", action_key)
 
     async def _handle_settings_action(self, action: UiAction) -> None:
         if self._settings_operation_pending:
@@ -1259,7 +1359,6 @@ class BridgeUi:
             await self._handle_setting_picker_action(action)
             return
         if action in {UiAction.HELP, UiAction.PAIR}:
-            self._clear_pending_confirms()
             if self._settings_page is SettingsPage.MAIN:
                 self._show_settings("KEY1 opens category")
                 return
@@ -1267,7 +1366,6 @@ class BridgeUi:
             self._show_settings(self._settings_row_help(keys[self._snapshot.selected_index]))
             return
         if action in {UiAction.BACK, UiAction.LEFT}:
-            self._clear_pending_confirms()
             if self._settings_page is SettingsPage.MAIN:
                 await self.refresh_printer_status()
             else:
@@ -1279,7 +1377,6 @@ class BridgeUi:
                 self._show_settings(page=parent)
             return
         if action in {UiAction.UP, UiAction.DOWN}:
-            self._clear_pending_confirms()
             direction = -1 if action is UiAction.UP else 1
             keys = self._visible_keys_for_page(self._settings_page)
             selected_index = (self._snapshot.selected_index + direction) % len(keys)
@@ -1316,19 +1413,17 @@ class BridgeUi:
             # defensive backstop.
             return
         if key in PAGE_FOR_OPEN_KEY:
-            self._clear_pending_confirms()
             self._show_settings(page=PAGE_FOR_OPEN_KEY[key])
             return
         if key is SettingKey.PAIR_PRINTER:
             # State-aware: unpaired → scan immediately ("Pair"). Paired →
-            # the destructive "Re-pair" flow (two-press confirm that wipes
-            # the saved printer + BlueZ bond, then enters the picker). This
+            # the destructive "Re-pair" flow (dialog-confirm that wipes the
+            # saved printer + BlueZ bond, then enters the picker). This
             # subsumes the old standalone FORGET_AND_REPAIR row so the user
             # has one place to start pairing regardless of state.
             if self._snapshot.paired_printer is not None:
                 await self._confirm_or_forget_and_repair()
                 return
-            self._clear_pending_confirms()
             self._pair_return_page = self._settings_page
             await self._start_pairing()
             return
@@ -1344,7 +1439,6 @@ class BridgeUi:
         if key is SettingKey.ADJUST_SAVE_CUSTOM:
             await self._confirm_or_save_preset()
             return
-        self._clear_pending_confirms()
         if key is SettingKey.REFRESH_STATUS:
             await self._refresh_status_from_settings()
             return
@@ -1838,8 +1932,6 @@ class BridgeUi:
             return
         # User custom slot — open sub-menu.
         self._preset_submenu_slot = slot
-        self._preset_submenu_pending_overwrite = False
-        self._preset_submenu_pending_delete = False
         self._snapshot = replace(
             self._snapshot,
             settings_title=f"{slot}",
@@ -1861,8 +1953,6 @@ class BridgeUi:
 
         if action in {UiAction.BACK, UiAction.LEFT}:
             self._preset_submenu_slot = None
-            self._preset_submenu_pending_overwrite = False
-            self._preset_submenu_pending_delete = False
             self._show_preset_picker()
             return
 
@@ -1880,39 +1970,45 @@ class BridgeUi:
 
         row_index = self._snapshot.selected_index
         if row_index == 0:
-            # Overwrite row.
-            if not self._preset_submenu_pending_overwrite:
-                self._preset_submenu_pending_overwrite = True
-                self._snapshot = replace(
-                    self._snapshot,
-                    settings_message=f"Press KEY1 again to overwrite {slot}",
-                )
-                self._render()
-                return
-            # Second press — overwrite.
-            self._preset_submenu_pending_overwrite = False
+            # Overwrite row → open dialog. Overwriting a saved slot blows away
+            # the existing values, so the confirm is destructive (red accent).
             self._preset_submenu_slot = None
-            from instantlink_bridge.imaging.presets import USER_PRESETS_PATH, load_user_presets
-
-            try:
-                current_saved = load_user_presets(USER_PRESETS_PATH)
-            except Exception:
-                current_saved = dict(self._user_presets)
-            await self._write_preset_slot(slot, current_saved)
-            return
-
-        # Delete row.
-        if not self._preset_submenu_pending_delete:
-            self._preset_submenu_pending_delete = True
-            self._snapshot = replace(
-                self._snapshot,
-                settings_message=f"Press KEY1 again to delete {slot}",
+            self._show_confirmation_dialog(
+                title=f"Overwrite {slot}?",
+                message=(
+                    f"The current values of {slot} will be replaced "
+                    "with the active adjustments."
+                ),
+                confirm_label="Overwrite",
+                destructive=True,
+                action_key=f"preset_overwrite:{slot}",
             )
-            self._render()
             return
-        # Second press — delete.
-        self._preset_submenu_pending_delete = False
+
+        # Delete row → open dialog.
         self._preset_submenu_slot = None
+        self._show_confirmation_dialog(
+            title=f"Delete {slot}?",
+            message=f"The saved values for {slot} will be lost.",
+            confirm_label="Delete",
+            destructive=True,
+            action_key=f"preset_delete:{slot}",
+        )
+
+    async def _execute_preset_overwrite(self, slot: str) -> None:
+        """Run the overwrite-preset action after the dialog confirms."""
+
+        from instantlink_bridge.imaging.presets import USER_PRESETS_PATH, load_user_presets
+
+        try:
+            current_saved = load_user_presets(USER_PRESETS_PATH)
+        except Exception:
+            current_saved = dict(self._user_presets)
+        await self._write_preset_slot(slot, current_saved)
+
+    async def _execute_preset_delete(self, slot: str) -> None:
+        """Run the delete-preset action after the dialog confirms."""
+
         await self._delete_preset_slot(slot)
 
     async def _delete_preset_slot(self, slot: str) -> None:
@@ -2067,60 +2163,77 @@ class BridgeUi:
             LOGGER.warning("ui.ftp_mode_boot_apply_failed mode=%s", mode.value, exc_info=True)
 
     async def _confirm_or_forget_selected_printer(self) -> None:
+        """Open the Forget-printer confirmation dialog (plan 040)."""
+
         if self._snapshot.paired_printer is None:
-            self._forget_confirm_pending = False
             self._show_settings("No printer saved")
             return
-        if not self._forget_confirm_pending:
-            self._forget_confirm_pending = True
-            # Explicit verb + key reminds the user K1 is the destructive press;
-            # uppercase FORGET signals destructive intent without needing color.
-            self._show_settings("Press KEY1 again to FORGET printer")
-            return
-        self._forget_confirm_pending = False
-        await self._forget_selected_printer()
+        self._show_confirmation_dialog(
+            title="Forget printer?",
+            message=(
+                "The bridge will forget the paired printer. "
+                "You'll need to re-pair to print."
+            ),
+            confirm_label="Forget",
+            destructive=True,
+            action_key="forget_printer",
+        )
 
     async def _confirm_or_reset_ble_link(self) -> None:
-        """Two-press confirm for the Reset BLE link action.
+        """Open the Reset-BLE-link confirmation dialog (plan 040).
 
         Reset BLE drops the live BlueZ session and re-establishes it. It's not
-        destructive but it does interrupt any in-flight print or pairing, so a
-        deliberate confirmation prevents accidental presses from killing a
-        running upload.
+        destructive long-term but it does interrupt any in-flight print or
+        pairing, so a deliberate confirmation prevents an accidental press
+        from killing a running upload.
         """
 
         if self._snapshot.paired_printer is None:
-            self._pending_reset_ble_link = False
             self._show_settings("No printer saved")
             return
-        if not self._pending_reset_ble_link:
-            self._pending_reset_ble_link = True
-            self._show_settings("Press KEY1 again to RESET BLE link")
-            return
-        self._pending_reset_ble_link = False
-        await self._reset_printer_link_from_settings()
+        self._show_confirmation_dialog(
+            title="Reset connection?",
+            message=(
+                "Drop the current Bluetooth link to the printer and let "
+                "it reconnect fresh."
+            ),
+            confirm_label="Reset",
+            destructive=True,
+            action_key="reset_ble_link",
+        )
 
     async def _confirm_or_forget_and_repair(self) -> None:
-        """Two-press confirm for the atomic Forget & re-pair action.
-
-        On the first press the toast asks for confirmation; on the second
-        press we wipe the saved pairing (BlueZ bond included) and immediately
-        kick off a fresh scan, so the user lands in the printer-picker without
-        a separate trip back into Settings.
-        """
+        """Open the Re-pair confirmation dialog (plan 040)."""
 
         if self._snapshot.paired_printer is None:
-            self._pending_forget_and_repair = False
             self._show_settings("No printer saved")
             return
-        if not self._pending_forget_and_repair:
-            self._pending_forget_and_repair = True
-            self._show_settings("Press KEY1 again to FORGET and re-pair")
-            return
-        self._pending_forget_and_repair = False
-        # Run the forget, then immediately enter pairing — the user requested
-        # this as an atomic single-action recovery so they don't have to
-        # navigate back into Settings between steps.
+        self._show_confirmation_dialog(
+            title="Re-pair printer?",
+            message="The bridge will forget the saved printer and start a new scan.",
+            confirm_label="Re-pair",
+            destructive=True,
+            action_key="forget_and_repair",
+        )
+
+    async def _execute_forget_printer(self) -> None:
+        """Run the Forget-printer action after the dialog confirms."""
+
+        await self._forget_selected_printer()
+
+    async def _execute_reset_ble_link(self) -> None:
+        """Run the Reset-BLE-link action after the dialog confirms."""
+
+        await self._reset_printer_link_from_settings()
+
+    async def _execute_forget_and_repair(self) -> None:
+        """Run the Forget+repair action after the dialog confirms.
+
+        Atomic single-action recovery: wipe the saved pairing (BlueZ bond
+        included) and immediately kick off a fresh scan so the user lands in
+        the printer-picker without a separate trip back into Settings.
+        """
+
         await self._forget_selected_printer()
         self._pair_return_page = self._settings_page
         await self._start_pairing()
@@ -2150,11 +2263,22 @@ class BridgeUi:
         self._show_settings("Printer forgotten")
 
     async def _confirm_or_reset_credentials(self) -> None:
-        if not self._pending_credential_reset:
-            self._pending_credential_reset = True
-            self._show_settings("Press KEY1 again to RESET Wi-Fi/FTP credentials")
-            return
-        self._pending_credential_reset = False
+        """Open the Reset-credentials confirmation dialog (plan 040)."""
+
+        self._show_confirmation_dialog(
+            title="Reset credentials?",
+            message=(
+                "Wi-Fi PIN and FTP password will be regenerated. "
+                "Update the camera afterwards."
+            ),
+            confirm_label="Reset",
+            destructive=True,
+            action_key="reset_credentials",
+        )
+
+    async def _execute_reset_credentials(self) -> None:
+        """Run the credential-reset action after the dialog confirms."""
+
         await self._reset_credentials()
 
     def _atomic_write_credential_file(self, path: Path, contents: str) -> bool:
@@ -2203,11 +2327,12 @@ class BridgeUi:
             self._user_presets = {}
 
     async def _confirm_or_save_preset(self) -> None:
-        """Two-press confirm for saving the current values as a new custom preset.
+        """Open the Save-preset confirmation dialog (plan 040).
 
-        First KEY1 on "Save current" → arms the flag, shows a destructive
-        toast naming the target slot.  Second KEY1 → writes the file.
-        KEY2 or any navigation → clears the flag.
+        Picks the target slot exactly like the legacy two-press flow: if the
+        active preset is already a populated CustomN slot, overwrite it in
+        place; otherwise pick the first free CustomN slot. If all 6 slots are
+        full and none is active, show the existing toast and bail.
         """
 
         from instantlink_bridge.imaging.presets import USER_PRESETS_PATH, load_user_presets
@@ -2218,8 +2343,6 @@ class BridgeUi:
         except Exception:
             current_saved = dict(self._user_presets)
 
-        # Determine target slot: if the active preset is already a CustomN slot
-        # that exists in the saved file, default to overwriting it in place.
         active_preset = self._config.adjustments.preset
         overwrite_slot: str | None = None
         if active_preset in USER_PRESET_SLOT_NAMES and active_preset in current_saved:
@@ -2227,9 +2350,13 @@ class BridgeUi:
 
         if overwrite_slot is not None:
             target_slot = overwrite_slot
-            toast = f"Press KEY1 again to overwrite {target_slot}"
+            title = f"Overwrite {target_slot}?"
+            message = (
+                f"The current values of {target_slot} will be replaced "
+                "with the active adjustments."
+            )
+            confirm_label = "Overwrite"
         else:
-            # Find the first free slot.
             free_slot: str | None = None
             for slot in USER_PRESET_SLOT_NAMES:
                 if slot not in current_saved:
@@ -2241,17 +2368,31 @@ class BridgeUi:
                 return
 
             target_slot = free_slot
-            toast = f"Press KEY1 again to save as {target_slot}"
+            title = "Save preset?"
+            message = f"Save the current adjustments to {target_slot}."
+            confirm_label = "Save"
 
-        if not self._pending_save_preset:
-            # First press — arm the confirm and show the destructive toast.
-            self._pending_save_preset = True
-            self._show_settings(toast)
-            return
+        # Constructive flow (save / overwrite-active-slot) — keep the confirm
+        # label in the safe accent; destructive=False makes the renderer use
+        # ``accent_blue`` for the confirm button.
+        self._show_confirmation_dialog(
+            title=title,
+            message=message,
+            confirm_label=confirm_label,
+            destructive=False,
+            action_key=f"save_preset:{target_slot}",
+        )
 
-        # Second press — commit.
-        self._pending_save_preset = False
-        await self._write_preset_slot(target_slot, current_saved)
+    async def _execute_save_preset(self, slot: str) -> None:
+        """Run the save-preset action after the dialog confirms."""
+
+        from instantlink_bridge.imaging.presets import USER_PRESETS_PATH, load_user_presets
+
+        try:
+            current_saved = load_user_presets(USER_PRESETS_PATH)
+        except Exception:
+            current_saved = dict(self._user_presets)
+        await self._write_preset_slot(slot, current_saved)
 
     async def _write_preset_slot(
         self,

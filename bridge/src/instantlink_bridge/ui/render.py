@@ -231,6 +231,8 @@ def render_snapshot(snapshot: UiSnapshot, now: float | None = None) -> Image.Ima
         _error(draw, snapshot, fonts, theme)
     elif snapshot.mode is UiMode.BOOTING:
         _booting(draw, snapshot, fonts, theme)
+    elif snapshot.mode is UiMode.CONFIRMATION_DIALOG:
+        _confirmation_dialog(image, draw, snapshot, fonts, theme)
     else:
         _needs_pairing(draw, snapshot, fonts, theme)
 
@@ -260,23 +262,6 @@ def _darken(colour: str | tuple[int, int, int], amount: int = 30) -> str:
     else:
         r, g, b = colour
     return f"#{max(0, r - amount):02x}{max(0, g - amount):02x}{max(0, b - amount):02x}"
-
-
-def _destructive_strip_tint(theme: Theme) -> str:
-    """Return a 20 % alpha-blend of accent_destructive over the page background.
-
-    Used to tint the toast strip background for two-press destructive-confirm
-    messages so the affordance is visible at arm's length (plan 036 P1 fix 5).
-    Formula: 0.2 * accent_destructive + 0.8 * bg
-    """
-    ad = theme.accent_destructive.lstrip("#")
-    bg = theme.bg.lstrip("#")
-    ar, ag, ab = int(ad[0:2], 16), int(ad[2:4], 16), int(ad[4:6], 16)
-    br, bg_g, bb = int(bg[0:2], 16), int(bg[2:4], 16), int(bg[4:6], 16)
-    tr = round(0.2 * ar + 0.8 * br)
-    tg = round(0.2 * ag + 0.8 * bg_g)
-    tb = round(0.2 * ab + 0.8 * bb)
-    return f"#{tr:02x}{tg:02x}{tb:02x}"
 
 
 def draw_pill(
@@ -1540,16 +1525,14 @@ def _settings(
     # card's rounded borders.
     toast_message = snapshot.settings_message
     help_text = selected_row.help if selected_row.help else ""
+    # Destructive confirms now use the iOS-style dialog overlay (plan 040), so
+    # ``settings_message`` here is informational only ("Saved", "Choose
+    # action", etc.) — always rendered in the existing accent_yellow help
+    # tint. The legacy destructive-toast red-strip path was removed when the
+    # controller stopped emitting those toasts.
     if toast_message is not None:
         bottom_text = toast_message
-        # Destructive-confirm toasts start with "Press KEY1 again" — the
-        # canonical shape the controller emits when arming a two-press confirm.
-        # Render them in red so the user sees the affordance before a second
-        # press blows through the action (plan 034 item 10).
-        if toast_message.startswith("Press KEY1 again"):
-            bottom_color = theme.accent_destructive
-        else:
-            bottom_color = theme.accent_yellow
+        bottom_color = theme.accent_yellow
     elif help_text:
         bottom_text = help_text
         bottom_color = theme.label_secondary
@@ -1628,11 +1611,6 @@ def _settings(
         bottom_text = t(bottom_text, snapshot.language)
         bottom_y = card_bottom + 2
         max_w = 240 - 32
-        # Destructive-confirm toasts get a tinted strip background so the
-        # affordance is visible at arm's length (plan 036 P1 fix 5).
-        if toast_message is not None and toast_message.startswith("Press KEY1 again"):
-            strip_tint = _destructive_strip_tint(theme)
-            draw.rectangle((0, card_bottom, 239, HINT_BAR_Y - 3), fill=strip_tint)
         lines = _wrap_two_lines(draw, bottom_text, font, max_w)
         for i, line in enumerate(lines):
             _text(draw, 16, bottom_y + i * 12, line, font, bottom_color)
@@ -1714,15 +1692,15 @@ def _adjustments(
     selected = min(snapshot.selected_index, len(rows) - 1)
     selected_row = rows[selected]
 
-    # Toast / help strip (same logic as _settings)
+    # Toast / help strip (same logic as _settings). Destructive confirms
+    # now use the dialog overlay (plan 040), so ``settings_message`` here is
+    # informational only ("Saved", "Choose action", etc.) and always renders
+    # in the existing accent_yellow help tint.
     toast_message = snapshot.settings_message
     help_text = selected_row.help if selected_row.help else ""
     if toast_message is not None:
         bottom_text = toast_message
-        if toast_message.startswith("Press KEY1 again"):
-            bottom_color = theme.accent_destructive
-        else:
-            bottom_color = theme.accent_yellow
+        bottom_color = theme.accent_yellow
     elif help_text:
         bottom_text = help_text
         bottom_color = theme.label_secondary
@@ -1823,10 +1801,6 @@ def _adjustments(
         bottom_text = t(bottom_text, snapshot.language)
         bottom_y = card_bottom + 2
         max_w = 240 - 32
-        # Destructive-confirm toasts get a tinted strip background (plan 036 P1 fix 5).
-        if toast_message is not None and toast_message.startswith("Press KEY1 again"):
-            strip_tint = _destructive_strip_tint(theme)
-            draw.rectangle((0, card_bottom, 239, HINT_BAR_Y - 3), fill=strip_tint)
         lines = _wrap_two_lines(draw, bottom_text, font, max_w)
         for i, line in enumerate(lines):
             _text(draw, 16, bottom_y + i * 12, line, font, bottom_color)
@@ -2208,6 +2182,225 @@ def _error(
 
 
 # ---------------------------------------------------------------------------
+# Confirmation dialog overlay (plan 040)
+# ---------------------------------------------------------------------------
+
+# Centred-card geometry on the 240×240 panel. The card sits over a dimmed
+# overlay so the user reads the dialog as a modal, not a swap.
+_CONFIRM_CARD_X = 15
+_CONFIRM_CARD_Y = 45
+_CONFIRM_CARD_W = 210
+_CONFIRM_CARD_H = 150
+_CONFIRM_BUTTON_H = 32
+_CONFIRM_DIM_FILL = (0, 0, 0)
+# 40 % black overlay tint applied by darkening the whole RGB frame.
+_CONFIRM_DIM_FACTOR = 0.60
+
+
+def _confirmation_dialog(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    snapshot: UiSnapshot,
+    fonts: dict[str, Font],
+    theme: Theme,
+) -> None:
+    """Render the iOS-style yes/no confirmation dialog overlay (plan 040).
+
+    Layout on 240×240:
+
+    * 40 % black overlay over the existing frame (the renderer already drew
+      the previous mode's content via the status bar; we just dim it).
+    * Centred card 210×150 at (15, 45), rounded radius 12, theme.surface
+      with a 1-px theme.separator border.
+    * Title row centred near the top (bold body font).
+    * Message wrapped to up to three lines under the title.
+    * Two buttons at the bottom: Cancel | Confirm, divided by a 1-px line.
+      The focused button gets a tinted background; the confirm label is
+      red for destructive flows and blue for constructive flows.
+
+    Initial focus = Cancel; the controller enforces that invariant when it
+    opens the dialog so an accidental KEY1 press is always safe.
+    """
+
+    lang = snapshot.language
+    title = snapshot.confirmation_title or ""
+    message = snapshot.confirmation_message or ""
+    confirm_label = snapshot.confirmation_confirm_label or "OK"
+    destructive = snapshot.confirmation_destructive
+    focus = snapshot.confirmation_focus
+
+    # 1. Dim overlay — darken every pixel by 40 % so the existing screen
+    # contents read as ambient context, not interactive UI. PIL's plain
+    # rectangle with an alpha tuple requires RGBA; the bridge frame is RGB,
+    # so blend in-place per-pixel via Image.eval which is fast enough at
+    # 240×240 for a one-shot mode transition (the render loop short-circuits
+    # on unchanged snapshots).
+    dimmed = Image.eval(image, lambda v: int(v * _CONFIRM_DIM_FACTOR))
+    image.paste(dimmed)
+    # Reset the draw cursor: PIL's ``ImageDraw.Draw`` holds a reference to
+    # the underlying ``Image`` buffer; ``paste`` mutates that buffer in
+    # place, so subsequent draw calls land on the dimmed canvas.
+
+    # 2. Card backdrop with rounded corners + 1 px border.
+    card_x1 = _CONFIRM_CARD_X + _CONFIRM_CARD_W
+    card_y1 = _CONFIRM_CARD_Y + _CONFIRM_CARD_H
+    draw.rounded_rectangle(
+        (_CONFIRM_CARD_X, _CONFIRM_CARD_Y, card_x1, card_y1),
+        radius=12,
+        fill=theme.surface,
+        outline=theme.separator,
+        width=1,
+    )
+
+    # 3. Title — translate at the render boundary and centre horizontally.
+    title_str = t(title, lang)
+    title_font = fonts["body"]
+    title_w = _text_width(draw, title_str, title_font)
+    title_x = _CONFIRM_CARD_X + (_CONFIRM_CARD_W - title_w) // 2
+    title_y = _CONFIRM_CARD_Y + 12
+    _text(draw, title_x, title_y, title_str, title_font, theme.label_primary)
+
+    # 4. Message — wrap to up to 3 lines.
+    message_str = t(message, lang)
+    message_font = fonts["small"]
+    message_max_w = _CONFIRM_CARD_W - 24
+    message_lines = _wrap_three_lines(draw, message_str, message_font, message_max_w)
+    message_top = title_y + _font_height(draw, title_str or "Hg", title_font) + 10
+    line_h = _font_height(draw, "Hg", message_font) + 2
+    for i, line in enumerate(message_lines):
+        line_w = _text_width(draw, line, message_font)
+        line_x = _CONFIRM_CARD_X + (_CONFIRM_CARD_W - line_w) // 2
+        _text(draw, line_x, message_top + i * line_h, line, message_font, theme.label_secondary)
+
+    # 5. Button row at the bottom of the card.
+    button_top = card_y1 - _CONFIRM_BUTTON_H
+    button_divider_x = _CONFIRM_CARD_X + _CONFIRM_CARD_W // 2
+    cancel_focused = focus == "cancel"
+    confirm_focused = focus == "confirm"
+
+    # Focus tints: a subtle 18 %-alpha overlay over the button cell. We
+    # approximate by mixing the accent with the surface fill since the
+    # frame is RGB-only.
+    confirm_accent = theme.accent_destructive if destructive else theme.accent_blue
+    if cancel_focused:
+        _draw_button_focus_fill(
+            draw,
+            _CONFIRM_CARD_X,
+            button_top,
+            button_divider_x,
+            card_y1,
+            theme.accent_blue,
+            theme,
+            corner="bottom_left",
+        )
+    if confirm_focused:
+        _draw_button_focus_fill(
+            draw,
+            button_divider_x,
+            button_top,
+            card_x1,
+            card_y1,
+            confirm_accent,
+            theme,
+            corner="bottom_right",
+        )
+
+    # Vertical divider between Cancel and Confirm.
+    draw.line(
+        (button_divider_x, button_top, button_divider_x, card_y1 - 1),
+        fill=theme.separator,
+        width=1,
+    )
+    # Horizontal hairline above the button row.
+    draw.line(
+        (_CONFIRM_CARD_X, button_top, card_x1, button_top),
+        fill=theme.separator,
+        width=1,
+    )
+
+    button_font = fonts["body"]
+    cancel_text = t("Cancel", lang)
+    cancel_w = _text_width(draw, cancel_text, button_font)
+    cancel_x = _CONFIRM_CARD_X + (_CONFIRM_CARD_W // 2 - cancel_w) // 2
+    button_label_h = _font_height(draw, cancel_text or "Hg", button_font)
+    cancel_y = button_top + (_CONFIRM_BUTTON_H - button_label_h) // 2
+    _text(draw, cancel_x, cancel_y, cancel_text, button_font, theme.label_primary)
+
+    confirm_text = t(confirm_label, lang)
+    confirm_w = _text_width(draw, confirm_text, button_font)
+    confirm_x = button_divider_x + (_CONFIRM_CARD_W // 2 - confirm_w) // 2
+    confirm_y = cancel_y
+    _text(draw, confirm_x, confirm_y, confirm_text, button_font, confirm_accent)
+
+    # Hint bar reuses the standard mode-hint dispatch; CONFIRMATION_DIALOG
+    # surfaces its own KEY1/KEY2 labels via ``_footer_label_lines``.
+    hints = _mode_hints(snapshot)
+    draw_hint_bar(draw, hints, fonts["hint"], theme)
+
+
+def _draw_button_focus_fill(
+    draw: ImageDraw.ImageDraw,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    accent: str,
+    theme: Theme,
+    *,
+    corner: str,
+) -> None:
+    """Paint the focused-button background tint inside the card.
+
+    The card has rounded bottom corners (radius 12); rounding the focus
+    fill the same way would require an alpha mask. Instead, we render a
+    rectangular tint and let the surrounding card outline mask the corner
+    bleed — the visible difference at 240×240 is one or two pixels and the
+    user never notices.
+    """
+
+    tint = _blend(accent, theme.surface, 0.18)
+    draw.rectangle((x0, y0, x1, y1), fill=tint)
+
+
+def _blend(fg: str, bg: str, alpha: float) -> str:
+    """Return ``fg`` over ``bg`` at ``alpha`` (0..1) as a hex colour."""
+
+    fr, fg_g, fb = int(fg[1:3], 16), int(fg[3:5], 16), int(fg[5:7], 16)
+    br, bg_g, bb = int(bg[1:3], 16), int(bg[3:5], 16), int(bg[5:7], 16)
+    r = round(alpha * fr + (1 - alpha) * br)
+    g = round(alpha * fg_g + (1 - alpha) * bg_g)
+    b = round(alpha * fb + (1 - alpha) * bb)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _wrap_three_lines(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: Font,
+    max_width: int,
+) -> list[str]:
+    """Wrap ``text`` to up to three lines fitting ``max_width``.
+
+    Stacks two passes of :func:`_wrap_two_lines`: wrap once to get line 1 +
+    remainder, then wrap the remainder again. Reusing the existing helper
+    keeps the CJK/word-boundary logic in one place and adds no new
+    measurement code paths.
+    """
+
+    if _text_width(draw, text, font) <= max_width:
+        return [text]
+    head_lines = _wrap_two_lines(draw, text, font, max_width)
+    if len(head_lines) < 2:
+        return head_lines
+    line1 = head_lines[0]
+    rest = text[len(line1) :].lstrip(" ")
+    if not rest or _text_width(draw, rest, font) <= max_width:
+        return [line1, rest] if rest else [line1]
+    tail_lines = _wrap_two_lines(draw, rest, font, max_width)
+    return [line1, *tail_lines[:2]]
+
+
+# ---------------------------------------------------------------------------
 # Hint data (replaces _footer / _footer_label_lines as the source of truth)
 # ---------------------------------------------------------------------------
 
@@ -2237,6 +2430,11 @@ def _mode_hints(snapshot: UiSnapshot) -> tuple[str, str, str]:
 def _footer_label_lines(snapshot: UiSnapshot) -> tuple[tuple[str, str, str], ...]:
     if snapshot.mode is UiMode.BOOTING:
         return (("", "Starting", ""),)
+    if snapshot.mode is UiMode.CONFIRMATION_DIALOG:
+        # Confirmation dialog (plan 040): LEFT/RIGHT toggle focus between
+        # Cancel and Confirm; KEY1 activates the focused button; KEY2 always
+        # cancels. The chip labels match those bindings exactly.
+        return (("Left/Right", "KEY1 OK", "KEY2 Cancel"),)
     if snapshot.mode is UiMode.ADJUSTMENT_EDIT:
         return (("KEY1 OK", "KEY2 Cancel", "KEY3 Help"),)
     if snapshot.mode is UiMode.SETTINGS:

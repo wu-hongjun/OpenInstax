@@ -267,13 +267,34 @@ _ZH_HANS: dict[str, str] = {
     "Preview failed": "预览失败",
     # Plan 037 polish #7: edit-preview tile placeholder when render crashes.
     "Preview unavailable": "预览不可用",
-    "Press K1 again to FORGET and re-pair": "再按 K1 忘记并重新配对",
-    "Press K1 again to FORGET printer": "再按 K1 忘记打印机",
-    "Press K1 again to RESET BLE link": "再按 K1 还原 BLE 连接",
     "Printer forgotten": "已忘记打印机",
+    # --- iOS-style confirmation dialog (plan 040) -----------------------
+    # Each destructive flow opens an overlay card with a title, message,
+    # and Cancel/<verb> buttons. zh-Hans mirrors Apple's wording: 取消 for
+    # the safe default, action verbs use 忘记/还原/删除/重新配对/存储/覆盖.
+    "Forget printer?": "忘记打印机？",
+    "The bridge will forget the paired printer. You'll need to re-pair to print.": (
+        "桥接将忘记已配对的打印机，下次打印前需要重新配对。"
+    ),
+    "Reset credentials?": "还原凭据？",
+    "Wi-Fi PIN and FTP password will be regenerated. Update the camera afterwards.": (
+        "Wi-Fi 密码与 FTP 密码将重新生成，请之后更新相机设置。"
+    ),
+    "Reset connection?": "还原连接？",
+    "Drop the current Bluetooth link to the printer and let it reconnect fresh.": (
+        "断开当前与打印机的蓝牙连接并重新建立。"
+    ),
+    "Reset": "还原",
+    "Re-pair printer?": "重新配对打印机？",
+    "The bridge will forget the saved printer and start a new scan.": (
+        "桥接将忘记已存储的打印机并重新扫描。"
+    ),
+    "Save preset?": "存储预设？",
+    "Save": "存储",
+    "Delete": "删除",
+    "Overwrite": "覆盖",
     "Refresh failed": "刷新失败",
     "Refreshing status": "正在刷新状态",
-    "Reset Wi-Fi/FTP creds? K1 confirm K2 cancel": "还原 Wi-Fi/FTP 凭据？K1 确认 K2 取消",
     "Resetting BLE link": "正在还原 BLE 连接",
     "Save failed": "存储失败",
     "Saved": "已存储",
@@ -425,19 +446,6 @@ _ZH_HANS: dict[str, str] = {
     "Save current": "另存当前",
     "6 custom slots full · K3 hold a slot to overwrite": "自定预设已满 · 长按 K3 覆盖已有预设",
     "Empty — use Save current to fill": "空白 — 请使用「另存当前」填入",
-    "Press KEY1 again to overwrite Custom1": "再次按 KEY1 以覆盖 Custom1",
-    "Press KEY1 again to overwrite Custom2": "再次按 KEY1 以覆盖 Custom2",
-    "Press KEY1 again to overwrite Custom3": "再次按 KEY1 以覆盖 Custom3",
-    "Press KEY1 again to overwrite Custom4": "再次按 KEY1 以覆盖 Custom4",
-    "Press KEY1 again to overwrite Custom5": "再次按 KEY1 以覆盖 Custom5",
-    "Press KEY1 again to overwrite Custom6": "再次按 KEY1 以覆盖 Custom6",
-    # Plan 037 polish #10: zh-Hans variants for the delete-confirm toast.
-    "Press KEY1 again to delete Custom1": "再次按 KEY1 以删除 Custom1",
-    "Press KEY1 again to delete Custom2": "再次按 KEY1 以删除 Custom2",
-    "Press KEY1 again to delete Custom3": "再次按 KEY1 以删除 Custom3",
-    "Press KEY1 again to delete Custom4": "再次按 KEY1 以删除 Custom4",
-    "Press KEY1 again to delete Custom5": "再次按 KEY1 以删除 Custom5",
-    "Press KEY1 again to delete Custom6": "再次按 KEY1 以删除 Custom6",
     "Custom1 (empty)": "自定 1（空）",
     "Custom2 (empty)": "自定 2（空）",
     "Custom3 (empty)": "自定 3（空）",

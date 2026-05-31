@@ -49,23 +49,33 @@ def test_translatable_strings_exposes_full_target_map() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Plan 037 polish #10: delete-Custom toast variants present in zh-Hans
+# Plan 040: iOS-style confirmation dialog strings translate to zh-Hans
 # ---------------------------------------------------------------------------
 
 
+# zh-Hans intentionally uses the full-width question mark — that is the
+# Apple iOS convention this i18n module mirrors. Each parametrised entry
+# carries an RUF001 inline suppression so ruff's ambiguous-glyph check
+# doesn't trip on the deliberate localisation choice.
 @pytest.mark.parametrize(
-    "slot",
-    ["Custom1", "Custom2", "Custom3", "Custom4", "Custom5", "Custom6"],
+    ("source", "expected"),
+    [
+        ("Forget printer?", "忘记打印机？"),  # noqa: RUF001
+        ("Reset credentials?", "还原凭据？"),  # noqa: RUF001
+        ("Reset connection?", "还原连接？"),  # noqa: RUF001
+        ("Re-pair printer?", "重新配对打印机？"),  # noqa: RUF001
+        ("Save preset?", "存储预设？"),  # noqa: RUF001
+        ("Cancel", "取消"),
+        ("Reset", "还原"),
+        ("Save", "存储"),
+        ("Delete", "删除"),
+        ("Overwrite", "覆盖"),
+    ],
 )
-def test_zh_hans_delete_custom_translations_present(slot: str) -> None:
-    """Plan 037 polish #10: the "delete CustomN" confirm toast must
-    translate to zh-Hans for all 6 slots. Composite f-strings in the
-    controller assemble ``f"Press KEY1 again to delete {slot}"`` so each
-    slot needs an explicit entry — sibling "overwrite" variants already
-    exist; this test guards the matching delete set."""
+def test_zh_hans_confirmation_dialog_strings(source: str, expected: str) -> None:
+    """The 7 dialog flows (plan 040) need both title + verb labels translated."""
 
-    source = f"Press KEY1 again to delete {slot}"
-    assert t(source, Language.ZH_HANS) == f"再次按 KEY1 以删除 {slot}"
+    assert t(source, Language.ZH_HANS) == expected
 
 
 # ---------------------------------------------------------------------------
