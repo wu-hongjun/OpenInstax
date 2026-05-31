@@ -110,6 +110,14 @@ LOGGER = logging.getLogger(__name__)
 RESTART_PRINTER_RETRY_S = 5.0
 PRINTER_STATUS_WARNING_INTERVAL_S = 30.0
 OFFLINE_MESSAGE_AFTER_MISSES = 3
+# Minimum gap between BLE scan attempts in the offline poll loop. The BLE
+# scan is a ~5s blocking call (btleplug); without a floor here the loop
+# would burn 100% CPU on one core when the printer is offline and the
+# configured search_interval_s equals the scan window — `period - elapsed`
+# rounds to ~0 and the UI render task starves. 2 seconds gives the asyncio
+# event loop room to service LCD render, FTP, and BLE callbacks without
+# noticeably delaying reconnect when the printer wakes up.
+MIN_OFFLINE_SEARCH_GAP_S = 2.0
 # Auto-rebond recovery: when a printer is power-cycled it clears its BLE pairing while the Pi
 # keeps the stale bond key. The connection comes up (late GATT stage) but the first encrypted
 # write fails. We detect that signature and automatically remove the BlueZ bond so the
@@ -3069,10 +3077,13 @@ class BridgeUi:
                 # measured from the start of each attempt. Subtract the time the attempt already
                 # consumed (its scan/connect) so the period holds whether the scan exited early on a
                 # match or ran the full window — and so a fast-failing connect does not hammer.
+                # A MIN_OFFLINE_SEARCH_GAP_S floor guarantees the asyncio event loop gets at least
+                # a couple of seconds to render the LCD and service other tasks even when the
+                # configured period equals the scan window (the default 5s case).
                 period = self._printer_status_retry_delay(online)
                 self._printer_was_online = online
                 elapsed = self._monotonic() - attempt_start
-                await asyncio.sleep(max(0.0, period - elapsed))
+                await asyncio.sleep(max(MIN_OFFLINE_SEARCH_GAP_S, period - elapsed))
         finally:
             await self._status_provider.close()
 

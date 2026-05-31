@@ -40,6 +40,7 @@ from instantlink_bridge.power.pisugar import BatteryState
 from instantlink_bridge.printing import PrintProgress, PrintStage
 from instantlink_bridge.system_info import SystemInfo
 from instantlink_bridge.ui.controller import (
+    MIN_OFFLINE_SEARCH_GAP_S,
     OFFLINE_MESSAGE_AFTER_MISSES,
     RENDER_TICK_S,
     RESTART_PRINTER_RETRY_S,
@@ -1198,6 +1199,24 @@ def test_offline_status_retry_delay_preserves_restart_special_case() -> None:
 
     # Restart-printer recovery copy keeps its dedicated cadence regardless of miss count.
     assert ui._printer_status_retry_delay(False) == RESTART_PRINTER_RETRY_S
+
+
+def test_min_offline_search_gap_guarantees_event_loop_breathing_room() -> None:
+    """When the BLE scan consumes the full configured `search_interval_s`, the
+    offline poll loop must still yield enough time for the asyncio event loop
+    to service the LCD render and other tasks.
+
+    Regression guard: a previous build used `max(0.0, period - elapsed)` in
+    the post-attempt sleep. With the default `search_interval_s == 5.0` and a
+    typical 5s BLE scan, that produced 0s sleeps and pegged one core at
+    ~88% CPU, starving the UI render and making the LCD look frozen. The
+    floor must be > 1s so each cycle yields visibly to other tasks.
+    """
+
+    assert MIN_OFFLINE_SEARCH_GAP_S >= 1.0
+    # Concretely 2.0 today; tightening this regression test if the value
+    # changes intentionally is a quick edit.
+    assert MIN_OFFLINE_SEARCH_GAP_S == 2.0
 
 
 @pytest.mark.asyncio
