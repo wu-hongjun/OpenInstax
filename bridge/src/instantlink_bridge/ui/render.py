@@ -2232,10 +2232,10 @@ def _confirmation_dialog(
     # 1. Dim overlay — darken every pixel by 40 % so the existing screen
     # contents read as ambient context, not interactive UI. PIL's plain
     # rectangle with an alpha tuple requires RGBA; the bridge frame is RGB,
-    # so blend in-place per-pixel via Image.eval which is fast enough at
-    # 240×240 for a one-shot mode transition (the render loop short-circuits
-    # on unchanged snapshots).
-    dimmed = Image.eval(image, lambda v: int(v * _CONFIRM_DIM_FACTOR))
+    # so blend in-place per-pixel via Image.point (the typed equivalent of
+    # Image.eval) which is fast enough at 240×240 for a one-shot mode
+    # transition (the render loop short-circuits on unchanged snapshots).
+    dimmed = image.point(lambda v: int(v * _CONFIRM_DIM_FACTOR))
     image.paste(dimmed)
     # Reset the draw cursor: PIL's ``ImageDraw.Draw`` holds a reference to
     # the underlying ``Image`` buffer; ``paste`` mutates that buffer in
