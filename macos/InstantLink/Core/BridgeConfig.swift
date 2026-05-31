@@ -194,18 +194,70 @@ struct BridgeFirmwareUpdateConfig: Codable, Equatable, Hashable, Sendable {
 }
 
 struct BridgeAdjustmentsConfig: Codable, Equatable, Hashable, Sendable {
-    var watermarkText: String
+    /// Active preset name. Must be one of the built-in names or a
+    /// ``CustomN`` slot. See ``BridgeAdjustmentsConfig/builtinPresetNames``
+    /// and ``BridgeAdjustmentsConfig/customPresetNames``.
+    var preset: String
+    /// Colour intensity. Integer in `[-100, +100]`. `0` is identity.
+    var saturation: Int
+    /// Brightness. Integer in `[-100, +100]`. `0` is identity.
+    var exposure: Int
+    /// Edge contrast. Integer in `[-100, +100]`. `0` is identity.
+    var sharpness: Int
+    /// Hue rotation. Integer in `[-100, +100]`. `0` is identity.
+    var hue: Int
+    /// Corner-darkening strength. Integer in `[0, 100]`. `0` disables.
+    var vignette: Int
+    /// Render EXIF date overlay when `true`.
+    var datestamp: Bool
     var datestampFormat: BridgeDatestampFormat
+    /// Render the watermark overlay when `true`.
+    var watermark: Bool
+    var watermarkText: String
 
     enum CodingKeys: String, CodingKey {
-        case watermarkText = "watermark_text"
+        case preset
+        case saturation
+        case exposure
+        case sharpness
+        case hue
+        case vignette
+        case datestamp
         case datestampFormat = "datestamp_format"
+        case watermark
+        case watermarkText = "watermark_text"
     }
 
     static let defaults = BridgeAdjustmentsConfig(
-        watermarkText: "",
-        datestampFormat: .quartzDate
+        preset: "Default",
+        saturation: 0,
+        exposure: 0,
+        sharpness: 0,
+        hue: 0,
+        vignette: 0,
+        datestamp: false,
+        datestampFormat: .quartzDate,
+        watermark: false,
+        watermarkText: ""
     )
+
+    /// Built-in preset names exposed on the bridge LCD. Order matches the
+    /// LCD picker.
+    static let builtinPresetNames: [String] = [
+        "Default",
+        "Vivid",
+        "Soft",
+        "Black & white",
+        "Instax Film",
+    ]
+
+    /// Six user-saveable preset slot names (``Custom1`` .. ``Custom6``).
+    static let customPresetNames: [String] = (1...6).map { "Custom\($0)" }
+
+    /// Full set of accepted preset names (built-ins + custom slots).
+    static var allPresetNames: [String] {
+        builtinPresetNames + customPresetNames
+    }
 }
 
 // MARK: - Enums (raw values mirror the bridge's StrEnum values exactly)
@@ -274,8 +326,16 @@ enum BridgeConfigField: String, CaseIterable, Hashable, Sendable {
     case uiFontSize = "ui.font_size"
     case uiLanguage = "ui.language"
 
-    case adjustmentsWatermarkText = "adjustments.watermark_text"
+    case adjustmentsPreset = "adjustments.preset"
+    case adjustmentsSaturation = "adjustments.saturation"
+    case adjustmentsExposure = "adjustments.exposure"
+    case adjustmentsSharpness = "adjustments.sharpness"
+    case adjustmentsHue = "adjustments.hue"
+    case adjustmentsVignette = "adjustments.vignette"
+    case adjustmentsDatestamp = "adjustments.datestamp"
     case adjustmentsDatestampFormat = "adjustments.datestamp_format"
+    case adjustmentsWatermark = "adjustments.watermark"
+    case adjustmentsWatermarkText = "adjustments.watermark_text"
 
     /// Section path used when building the PUT diff payload (e.g. "ftp").
     var section: String {

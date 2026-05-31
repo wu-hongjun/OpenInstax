@@ -45,6 +45,70 @@ final class BridgeConfigTests {
         }
     }
 
+    func testBridgeAdjustmentsConfigDecodesFullPayload() throws {
+        let json = """
+        {
+          "preset": "Vivid",
+          "saturation": 50,
+          "exposure": -25,
+          "sharpness": 10,
+          "hue": -40,
+          "vignette": 60,
+          "datestamp": true,
+          "datestamp_format": "modern",
+          "watermark": true,
+          "watermark_text": "InstantLink"
+        }
+        """
+        let adjustments = try JSONDecoder().decode(
+            BridgeAdjustmentsConfig.self,
+            from: Data(json.utf8)
+        )
+        try expectEqual(adjustments.preset, "Vivid")
+        try expectEqual(adjustments.saturation, 50)
+        try expectEqual(adjustments.exposure, -25)
+        try expectEqual(adjustments.sharpness, 10)
+        try expectEqual(adjustments.hue, -40)
+        try expectEqual(adjustments.vignette, 60)
+        try expectTrue(adjustments.datestamp)
+        try expectEqual(adjustments.datestampFormat, .modern)
+        try expectTrue(adjustments.watermark)
+        try expectEqual(adjustments.watermarkText, "InstantLink")
+    }
+
+    func testBridgeAdjustmentsConfigDefaultPresetIsDefault() throws {
+        try expectEqual(BridgeAdjustmentsConfig.defaults.preset, "Default")
+        try expectEqual(BridgeAdjustmentsConfig.defaults.saturation, 0)
+        try expectEqual(BridgeAdjustmentsConfig.defaults.exposure, 0)
+        try expectEqual(BridgeAdjustmentsConfig.defaults.sharpness, 0)
+        try expectEqual(BridgeAdjustmentsConfig.defaults.hue, 0)
+        try expectEqual(BridgeAdjustmentsConfig.defaults.vignette, 0)
+        try expectFalse(BridgeAdjustmentsConfig.defaults.datestamp)
+        try expectFalse(BridgeAdjustmentsConfig.defaults.watermark)
+        try expectEqual(BridgeAdjustmentsConfig.defaults.watermarkText, "")
+    }
+
+    func testBridgeAdjustmentsConfigEncodesAllFields() throws {
+        let original = BridgeAdjustmentsConfig(
+            preset: "Custom3",
+            saturation: -75,
+            exposure: 80,
+            sharpness: -100,
+            hue: 100,
+            vignette: 45,
+            datestamp: true,
+            datestampFormat: .labPrint,
+            watermark: true,
+            watermarkText: "Hello"
+        )
+        let encoded = try JSONEncoder().encode(original)
+        let roundTripped = try JSONDecoder().decode(
+            BridgeAdjustmentsConfig.self,
+            from: encoded
+        )
+        try expectEqual(roundTripped, original)
+    }
+
     func testUnknownEnumValueFailsGracefully() throws {
         let data = Data("\"neon\"".utf8)
         do {
@@ -88,8 +152,16 @@ final class BridgeConfigTests {
         "language": "zh-Hans"
       },
       "adjustments": {
-        "watermark_text": "hello",
-        "datestamp_format": "olympus"
+        "preset": "Vivid",
+        "saturation": 25,
+        "exposure": -10,
+        "sharpness": 5,
+        "hue": 0,
+        "vignette": 30,
+        "datestamp": true,
+        "datestamp_format": "olympus",
+        "watermark": false,
+        "watermark_text": "hello"
       }
     }
     """

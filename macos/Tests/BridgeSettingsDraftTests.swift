@@ -109,6 +109,74 @@ final class BridgeSettingsDraftTests {
         try expectEqual(draft.fieldErrors[.printerJPEGQuality], "JPEG quality must be 1..100.")
     }
 
+    func testAdjustmentsValidationRejectsSaturationOutOfRange() throws {
+        let draft = BridgeSettingsDraft()
+        draft.load(.defaults)
+        draft.draft?.adjustments.saturation = 200
+        try expectFalse(draft.validate())
+        try expectTrue(draft.fieldErrors[.adjustmentsSaturation] != nil)
+    }
+
+    func testAdjustmentsValidationRejectsVignetteOutOfRange() throws {
+        let draft = BridgeSettingsDraft()
+        draft.load(.defaults)
+        draft.draft?.adjustments.vignette = -10
+        try expectFalse(draft.validate())
+        try expectTrue(draft.fieldErrors[.adjustmentsVignette] != nil)
+    }
+
+    func testAdjustmentsValidationRejectsUnknownPreset() throws {
+        let draft = BridgeSettingsDraft()
+        draft.load(.defaults)
+        draft.draft?.adjustments.preset = "Bogus"
+        try expectFalse(draft.validate())
+        try expectTrue(draft.fieldErrors[.adjustmentsPreset] != nil)
+    }
+
+    func testAdjustmentsDirtyTrackingDetectsSliderChange() throws {
+        let draft = BridgeSettingsDraft()
+        draft.load(.defaults)
+        try expectFalse(draft.isDirty)
+        draft.draft?.adjustments.saturation = 50
+        try expectTrue(draft.isDirty)
+    }
+
+    func testAdjustmentsDiffIncludesChangedFieldsOnly() throws {
+        let draft = BridgeSettingsDraft()
+        draft.load(.defaults)
+        draft.draft?.adjustments.exposure = 25
+        let diff = draft.diff()
+        let adjustments = try unwrap(diff["adjustments"] as? [String: Any])
+        try expectEqual(adjustments["exposure"] as? Int, 25)
+        try expectFalse(adjustments.keys.contains("saturation"))
+        try expectFalse(adjustments.keys.contains("sharpness"))
+        try expectFalse(adjustments.keys.contains("hue"))
+        try expectFalse(adjustments.keys.contains("vignette"))
+        try expectFalse(adjustments.keys.contains("preset"))
+        try expectFalse(adjustments.keys.contains("datestamp"))
+        try expectFalse(adjustments.keys.contains("watermark"))
+        try expectFalse(adjustments.keys.contains("watermark_text"))
+        try expectFalse(adjustments.keys.contains("datestamp_format"))
+    }
+
+    func testAdjustmentsRevertResetsSliders() throws {
+        let draft = BridgeSettingsDraft()
+        draft.load(.defaults)
+        draft.draft?.adjustments.saturation = 40
+        draft.draft?.adjustments.exposure = -20
+        draft.draft?.adjustments.sharpness = 10
+        draft.draft?.adjustments.hue = -50
+        draft.draft?.adjustments.vignette = 70
+        try expectTrue(draft.isDirty)
+        draft.revert()
+        try expectFalse(draft.isDirty)
+        try expectEqual(draft.draft?.adjustments.saturation, 0)
+        try expectEqual(draft.draft?.adjustments.exposure, 0)
+        try expectEqual(draft.draft?.adjustments.sharpness, 0)
+        try expectEqual(draft.draft?.adjustments.hue, 0)
+        try expectEqual(draft.draft?.adjustments.vignette, 0)
+    }
+
     private func unwrap<T>(_ value: T?) throws -> T {
         guard let value else {
             throw MacTestFailure(file: #filePath, line: #line, message: "Unexpected nil")

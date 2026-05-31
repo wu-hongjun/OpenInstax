@@ -500,8 +500,16 @@ final class BridgeHTTPTransportTests {
           "language": "en"
         },
         "adjustments": {
-          "watermark_text": "",
-          "datestamp_format": "quartz_date"
+          "preset": "Default",
+          "saturation": 0,
+          "exposure": 0,
+          "sharpness": 0,
+          "hue": 0,
+          "vignette": 0,
+          "datestamp": false,
+          "datestamp_format": "quartz_date",
+          "watermark": false,
+          "watermark_text": ""
         }
       }
     }

@@ -115,6 +115,23 @@ final class BridgeSettingsDraft: ObservableObject {
         if draft.ftp.username.trimmingCharacters(in: .whitespaces).isEmpty {
             errors[.ftpUsername] = "FTP username is required."
         }
+        if !BridgeAdjustmentsConfig.allPresetNames.contains(draft.adjustments.preset) {
+            errors[.adjustmentsPreset] = "Unknown preset."
+        }
+        let signedAxes: [(BridgeConfigField, Int)] = [
+            (.adjustmentsSaturation, draft.adjustments.saturation),
+            (.adjustmentsExposure, draft.adjustments.exposure),
+            (.adjustmentsSharpness, draft.adjustments.sharpness),
+            (.adjustmentsHue, draft.adjustments.hue),
+        ]
+        for (field, value) in signedAxes {
+            if value < -100 || value > 100 {
+                errors[field] = "Must be between -100 and +100"
+            }
+        }
+        if draft.adjustments.vignette < 0 || draft.adjustments.vignette > 100 {
+            errors[.adjustmentsVignette] = "Must be between 0 and 100"
+        }
         fieldErrors = errors
         return errors.isEmpty
     }
@@ -204,11 +221,35 @@ final class BridgeSettingsDraft: ObservableObject {
         }
 
         var adjustments: [String: Any] = [:]
-        if loaded.adjustments.watermarkText != draft.adjustments.watermarkText {
-            adjustments["watermark_text"] = draft.adjustments.watermarkText
+        if loaded.adjustments.preset != draft.adjustments.preset {
+            adjustments["preset"] = draft.adjustments.preset
+        }
+        if loaded.adjustments.saturation != draft.adjustments.saturation {
+            adjustments["saturation"] = draft.adjustments.saturation
+        }
+        if loaded.adjustments.exposure != draft.adjustments.exposure {
+            adjustments["exposure"] = draft.adjustments.exposure
+        }
+        if loaded.adjustments.sharpness != draft.adjustments.sharpness {
+            adjustments["sharpness"] = draft.adjustments.sharpness
+        }
+        if loaded.adjustments.hue != draft.adjustments.hue {
+            adjustments["hue"] = draft.adjustments.hue
+        }
+        if loaded.adjustments.vignette != draft.adjustments.vignette {
+            adjustments["vignette"] = draft.adjustments.vignette
+        }
+        if loaded.adjustments.datestamp != draft.adjustments.datestamp {
+            adjustments["datestamp"] = draft.adjustments.datestamp
         }
         if loaded.adjustments.datestampFormat != draft.adjustments.datestampFormat {
             adjustments["datestamp_format"] = draft.adjustments.datestampFormat.rawValue
+        }
+        if loaded.adjustments.watermark != draft.adjustments.watermark {
+            adjustments["watermark"] = draft.adjustments.watermark
+        }
+        if loaded.adjustments.watermarkText != draft.adjustments.watermarkText {
+            adjustments["watermark_text"] = draft.adjustments.watermarkText
         }
         if !adjustments.isEmpty {
             payload["adjustments"] = adjustments

@@ -248,6 +248,15 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeConfigTests.testUnknownEnumValueFailsGracefully", {
                 try BridgeConfigTests().testUnknownEnumValueFailsGracefully()
             }),
+            ("BridgeConfigTests.testBridgeAdjustmentsConfigDecodesFullPayload", {
+                try BridgeConfigTests().testBridgeAdjustmentsConfigDecodesFullPayload()
+            }),
+            ("BridgeConfigTests.testBridgeAdjustmentsConfigDefaultPresetIsDefault", {
+                try BridgeConfigTests().testBridgeAdjustmentsConfigDefaultPresetIsDefault()
+            }),
+            ("BridgeConfigTests.testBridgeAdjustmentsConfigEncodesAllFields", {
+                try BridgeConfigTests().testBridgeAdjustmentsConfigEncodesAllFields()
+            }),
             ("BridgeSettingsDraftTests.testLoadSetsDraftEqualToCanonical", {
                 try BridgeSettingsDraftTests().testLoadSetsDraftEqualToCanonical()
             }),
@@ -277,6 +286,24 @@ struct InstantLinkMacOSTestRunner {
             }),
             ("BridgeSettingsDraftTests.testApplyStateTransitionsThroughFailure", {
                 try BridgeSettingsDraftTests().testApplyStateTransitionsThroughFailure()
+            }),
+            ("BridgeSettingsDraftTests.testAdjustmentsValidationRejectsSaturationOutOfRange", {
+                try BridgeSettingsDraftTests().testAdjustmentsValidationRejectsSaturationOutOfRange()
+            }),
+            ("BridgeSettingsDraftTests.testAdjustmentsValidationRejectsVignetteOutOfRange", {
+                try BridgeSettingsDraftTests().testAdjustmentsValidationRejectsVignetteOutOfRange()
+            }),
+            ("BridgeSettingsDraftTests.testAdjustmentsValidationRejectsUnknownPreset", {
+                try BridgeSettingsDraftTests().testAdjustmentsValidationRejectsUnknownPreset()
+            }),
+            ("BridgeSettingsDraftTests.testAdjustmentsDirtyTrackingDetectsSliderChange", {
+                try BridgeSettingsDraftTests().testAdjustmentsDirtyTrackingDetectsSliderChange()
+            }),
+            ("BridgeSettingsDraftTests.testAdjustmentsDiffIncludesChangedFieldsOnly", {
+                try BridgeSettingsDraftTests().testAdjustmentsDiffIncludesChangedFieldsOnly()
+            }),
+            ("BridgeSettingsDraftTests.testAdjustmentsRevertResetsSliders", {
+                try BridgeSettingsDraftTests().testAdjustmentsRevertResetsSliders()
             }),
             ("BridgeSettingsApplyFlowTests.testApplyHappyPath", {
                 try await BridgeSettingsApplyFlowTests().testApplyHappyPath()

@@ -476,11 +476,19 @@ actor InMemoryBridgeTransport: BridgeTransport {
             }
         }
         if let adj = diff["adjustments"] as? [String: Any] {
-            if let raw = adj["watermark_text"] as? String { config.adjustments.watermarkText = raw }
+            if let raw = adj["preset"] as? String { config.adjustments.preset = raw }
+            if let value = adj["saturation"] as? Int { config.adjustments.saturation = value }
+            if let value = adj["exposure"] as? Int { config.adjustments.exposure = value }
+            if let value = adj["sharpness"] as? Int { config.adjustments.sharpness = value }
+            if let value = adj["hue"] as? Int { config.adjustments.hue = value }
+            if let value = adj["vignette"] as? Int { config.adjustments.vignette = value }
+            if let value = adj["datestamp"] as? Bool { config.adjustments.datestamp = value }
             if let raw = adj["datestamp_format"] as? String,
                let value = BridgeDatestampFormat(rawValue: raw) {
                 config.adjustments.datestampFormat = value
             }
+            if let value = adj["watermark"] as? Bool { config.adjustments.watermark = value }
+            if let raw = adj["watermark_text"] as? String { config.adjustments.watermarkText = raw }
         }
     }
 

@@ -319,9 +319,51 @@ struct BridgeSettingsView: View {
     private var adjustmentsCard: some View {
         BridgeSettingsSection(title: L("Image adjustments")) {
             VStack(alignment: .leading, spacing: 10) {
-                textFieldRow(
-                    label: L("Watermark text"),
-                    text: binding(\.adjustments.watermarkText, default: "")
+                pickerRow(
+                    label: L("Preset"),
+                    selection: binding(\.adjustments.preset, default: "Default"),
+                    options: BridgeAdjustmentsConfig.allPresetNames.map { ($0, presetLabel($0)) }
+                )
+                sliderRow(
+                    label: L("Saturation"),
+                    value: bindingInt(\.adjustments.saturation, default: 0),
+                    in: -100...100,
+                    style: .signed
+                )
+                sliderRow(
+                    label: L("Exposure"),
+                    value: bindingInt(\.adjustments.exposure, default: 0),
+                    in: -100...100,
+                    style: .signed
+                )
+                sliderRow(
+                    label: L("Sharpness"),
+                    value: bindingInt(\.adjustments.sharpness, default: 0),
+                    in: -100...100,
+                    style: .signed
+                )
+                sliderRow(
+                    label: L("Hue"),
+                    value: bindingInt(\.adjustments.hue, default: 0),
+                    in: -100...100,
+                    style: .signed
+                )
+                sliderRow(
+                    label: L("Vignette"),
+                    value: bindingInt(\.adjustments.vignette, default: 0),
+                    in: 0...100,
+                    style: .unsigned
+                )
+                Toggle(
+                    L("Datestamp"),
+                    isOn: Binding(
+                        get: { draft.draft?.adjustments.datestamp ?? false },
+                        set: { newValue in
+                            updateDraft { config in
+                                config.adjustments.datestamp = newValue
+                            }
+                        }
+                    )
                 )
                 pickerRow(
                     label: L("Datestamp format"),
@@ -334,9 +376,88 @@ struct BridgeSettingsView: View {
                         (.labPrint, L("Lab Print")),
                     ]
                 )
+                .disabled(!(draft.draft?.adjustments.datestamp ?? false))
+                Toggle(
+                    L("Watermark"),
+                    isOn: Binding(
+                        get: { draft.draft?.adjustments.watermark ?? false },
+                        set: { newValue in
+                            updateDraft { config in
+                                config.adjustments.watermark = newValue
+                            }
+                        }
+                    )
+                )
+                textFieldRow(
+                    label: L("Watermark text"),
+                    text: binding(\.adjustments.watermarkText, default: "")
+                )
+                .disabled(!(draft.draft?.adjustments.watermark ?? false))
             }
         } footer: {
-            errorFooter(for: [.adjustmentsDatestampFormat])
+            errorFooter(for: [
+                .adjustmentsPreset,
+                .adjustmentsSaturation,
+                .adjustmentsExposure,
+                .adjustmentsSharpness,
+                .adjustmentsHue,
+                .adjustmentsVignette,
+                .adjustmentsDatestamp,
+                .adjustmentsDatestampFormat,
+                .adjustmentsWatermark,
+                .adjustmentsWatermarkText,
+            ])
+        }
+    }
+
+    /// Render label for a preset name. Built-ins pass through; ``CustomN``
+    /// slot names are localised as ``"Custom N"``.
+    private func presetLabel(_ name: String) -> String {
+        if name.hasPrefix("Custom"), let n = Int(name.dropFirst("Custom".count)) {
+            return "\(L("Custom")) \(n)"
+        }
+        return L(name)
+    }
+
+    private enum SliderValueStyle {
+        case signed
+        case unsigned
+    }
+
+    private func sliderRow(
+        label: String,
+        value: Binding<Int>,
+        in range: ClosedRange<Int>,
+        style: SliderValueStyle
+    ) -> some View {
+        let doubleBinding = Binding<Double>(
+            get: { Double(value.wrappedValue) },
+            set: { value.wrappedValue = Int($0.rounded()) }
+        )
+        let badge: String
+        switch style {
+        case .signed:
+            if value.wrappedValue > 0 {
+                badge = "+\(value.wrappedValue)"
+            } else {
+                badge = "\(value.wrappedValue)"
+            }
+        case .unsigned:
+            badge = "\(value.wrappedValue)"
+        }
+        return HStack(spacing: 10) {
+            Text(label)
+                .font(.callout)
+                .frame(width: 160, alignment: .leading)
+            Slider(
+                value: doubleBinding,
+                in: Double(range.lowerBound)...Double(range.upperBound),
+                step: 1
+            )
+            Text(badge)
+                .font(.callout.monospacedDigit())
+                .foregroundColor(.secondary)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 
@@ -672,11 +793,53 @@ struct BridgeSettingsView: View {
                 after: languageLabel(draft.ui.language)
             ))
         }
-        if loaded.adjustments.watermarkText != draft.adjustments.watermarkText {
+        if loaded.adjustments.preset != draft.adjustments.preset {
             rows.append(.init(
-                field: L("Watermark text"),
-                before: loaded.adjustments.watermarkText.isEmpty ? L("(empty)") : loaded.adjustments.watermarkText,
-                after: draft.adjustments.watermarkText.isEmpty ? L("(empty)") : draft.adjustments.watermarkText
+                field: L("Preset"),
+                before: presetLabel(loaded.adjustments.preset),
+                after: presetLabel(draft.adjustments.preset)
+            ))
+        }
+        if loaded.adjustments.saturation != draft.adjustments.saturation {
+            rows.append(.init(
+                field: L("Saturation"),
+                before: signedBadge(loaded.adjustments.saturation),
+                after: signedBadge(draft.adjustments.saturation)
+            ))
+        }
+        if loaded.adjustments.exposure != draft.adjustments.exposure {
+            rows.append(.init(
+                field: L("Exposure"),
+                before: signedBadge(loaded.adjustments.exposure),
+                after: signedBadge(draft.adjustments.exposure)
+            ))
+        }
+        if loaded.adjustments.sharpness != draft.adjustments.sharpness {
+            rows.append(.init(
+                field: L("Sharpness"),
+                before: signedBadge(loaded.adjustments.sharpness),
+                after: signedBadge(draft.adjustments.sharpness)
+            ))
+        }
+        if loaded.adjustments.hue != draft.adjustments.hue {
+            rows.append(.init(
+                field: L("Hue"),
+                before: signedBadge(loaded.adjustments.hue),
+                after: signedBadge(draft.adjustments.hue)
+            ))
+        }
+        if loaded.adjustments.vignette != draft.adjustments.vignette {
+            rows.append(.init(
+                field: L("Vignette"),
+                before: "\(loaded.adjustments.vignette)",
+                after: "\(draft.adjustments.vignette)"
+            ))
+        }
+        if loaded.adjustments.datestamp != draft.adjustments.datestamp {
+            rows.append(.init(
+                field: L("Datestamp"),
+                before: loaded.adjustments.datestamp ? L("On") : L("Off"),
+                after: draft.adjustments.datestamp ? L("On") : L("Off")
             ))
         }
         if loaded.adjustments.datestampFormat != draft.adjustments.datestampFormat {
@@ -686,7 +849,25 @@ struct BridgeSettingsView: View {
                 after: draft.adjustments.datestampFormat.rawValue
             ))
         }
+        if loaded.adjustments.watermark != draft.adjustments.watermark {
+            rows.append(.init(
+                field: L("Watermark"),
+                before: loaded.adjustments.watermark ? L("On") : L("Off"),
+                after: draft.adjustments.watermark ? L("On") : L("Off")
+            ))
+        }
+        if loaded.adjustments.watermarkText != draft.adjustments.watermarkText {
+            rows.append(.init(
+                field: L("Watermark text"),
+                before: loaded.adjustments.watermarkText.isEmpty ? L("(empty)") : loaded.adjustments.watermarkText,
+                after: draft.adjustments.watermarkText.isEmpty ? L("(empty)") : draft.adjustments.watermarkText
+            ))
+        }
         return rows
+    }
+
+    private func signedBadge(_ value: Int) -> String {
+        value > 0 ? "+\(value)" : "\(value)"
     }
 
     private func formatDelay(_ value: Double?) -> String {
