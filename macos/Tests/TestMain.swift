@@ -323,6 +323,30 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeUpdateCoordinatorTests.testCompareVersionsRanksNumericComponents", {
                 try await BridgeUpdateCoordinatorTests().testCompareVersionsRanksNumericComponents()
             }),
+            ("BridgeBackupCoordinatorTests.testCreateBackupHappyPathWritesFile", {
+                try await BridgeBackupCoordinatorTests().testCreateBackupHappyPathWritesFile()
+            }),
+            ("BridgeBackupCoordinatorTests.testCreateBackupFailureSurfacesError", {
+                try await BridgeBackupCoordinatorTests().testCreateBackupFailureSurfacesError()
+            }),
+            ("BridgeBackupCoordinatorTests.testCreateBackupOmitsResultOnCancellation", {
+                try await BridgeBackupCoordinatorTests().testCreateBackupOmitsResultOnCancellation()
+            }),
+            ("BridgeBackupCoordinatorTests.testRestoreBackupHappyPathTriggersReconnect", {
+                try await BridgeBackupCoordinatorTests().testRestoreBackupHappyPathTriggersReconnect()
+            }),
+            ("BridgeBackupCoordinatorTests.testRestoreBackupValidationErrorSurfacesField", {
+                try await BridgeBackupCoordinatorTests().testRestoreBackupValidationErrorSurfacesField()
+            }),
+            ("BridgeBackupCoordinatorTests.testRestoreBackupFromDifferentBridgeIDRequiresExtraConfirmation", {
+                try await BridgeBackupCoordinatorTests().testRestoreBackupFromDifferentBridgeIDRequiresExtraConfirmation()
+            }),
+            ("BridgeBackupCoordinatorTests.testClearLastResultClearsResult", {
+                try await BridgeBackupCoordinatorTests().testClearLastResultClearsResult()
+            }),
+            ("BridgeBackupCoordinatorTests.testBackupOperationProgressEmitted", {
+                try await BridgeBackupCoordinatorTests().testBackupOperationProgressEmitted()
+            }),
         ]
 
         var failures = 0

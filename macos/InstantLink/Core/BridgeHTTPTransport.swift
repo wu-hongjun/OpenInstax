@@ -25,6 +25,20 @@ final class BridgeHTTPTransport: BridgeTransport {
         }
     }
 
+    private struct BackupCreateRequest: Encodable {
+        var passphrase: String
+    }
+
+    private struct BackupRestoreWithPassphraseRequest: Encodable {
+        var backupID: String
+        var passphrase: String
+
+        enum CodingKeys: String, CodingKey {
+            case backupID = "backup_id"
+            case passphrase
+        }
+    }
+
     private let baseURL: URL
     private let session: URLSession
     private let keyStore: BridgeClientKeyStore
@@ -298,6 +312,36 @@ final class BridgeHTTPTransport: BridgeTransport {
                 method: "POST",
                 path: "/v1/backup/restore",
                 body: encoder.encode(BackupRestoreRequest(backupID: backupID)),
+                signedFor: device
+            )
+        )
+        return try envelope.requireBackupRestore()
+    }
+
+    func createBackup(device: BridgeDevice, passphrase: String) async throws -> BridgeBackupResult {
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/backup/create",
+                body: encoder.encode(BackupCreateRequest(passphrase: passphrase)),
+                signedFor: device
+            )
+        )
+        return try envelope.requireBackup()
+    }
+
+    func restoreBackup(
+        device: BridgeDevice,
+        backupID: String,
+        passphrase: String
+    ) async throws -> BridgeBackupRestoreResult {
+        let envelope = try await send(
+            try makeRequest(
+                method: "POST",
+                path: "/v1/backup/restore",
+                body: encoder.encode(
+                    BackupRestoreWithPassphraseRequest(backupID: backupID, passphrase: passphrase)
+                ),
                 signedFor: device
             )
         )

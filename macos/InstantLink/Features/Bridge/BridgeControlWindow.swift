@@ -121,7 +121,10 @@ struct BridgeControlWindow: View {
                 updateCoordinator: coordinator.updateCoordinator
             )
         case .backup:
-            placeholder(L("Coming soon"))
+            BridgeBackupView(
+                coordinator: coordinator,
+                backupCoordinator: coordinator.backupCoordinator
+            )
         case .diagnostics:
             placeholder(L("Coming soon"))
         }

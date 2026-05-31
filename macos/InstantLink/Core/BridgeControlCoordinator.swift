@@ -166,6 +166,10 @@ final class BridgeControlCoordinator: ObservableObject {
     /// reconnect, mark-good, rollback). Composed here so the Updates tab
     /// and the Overview rollback affordance share one source of truth.
     let updateCoordinator: BridgeUpdateCoordinator
+    /// Owns the Bridge backup + restore lifecycle. Composed here so the
+    /// Backup tab and any future Settings affordance share one source of
+    /// truth. Mirrors the `updateCoordinator` precedent from Phase C.
+    let backupCoordinator: BridgeBackupCoordinator
 
     private let clientStore: BridgeClientFileStore
     private let probe: BridgeDiscoveryProbe
@@ -192,7 +196,8 @@ final class BridgeControlCoordinator: ObservableObject {
             Host.current().localizedName ?? ProcessInfo.processInfo.hostName
         },
         now: @escaping () -> Date = Date.init,
-        updateCoordinator: BridgeUpdateCoordinator? = nil
+        updateCoordinator: BridgeUpdateCoordinator? = nil,
+        backupCoordinator: BridgeBackupCoordinator? = nil
     ) {
         self.transport = transport
         self.clientStore = clientStore
@@ -202,6 +207,7 @@ final class BridgeControlCoordinator: ObservableObject {
         self.now = now
         self.snapshot = .empty
         self.updateCoordinator = updateCoordinator ?? BridgeUpdateCoordinator(transport: transport)
+        self.backupCoordinator = backupCoordinator ?? BridgeBackupCoordinator(transport: transport)
     }
 
     deinit {

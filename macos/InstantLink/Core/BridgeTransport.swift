@@ -24,7 +24,35 @@ protocol BridgeTransport {
     func markUpdateGood(device: BridgeDevice) async throws -> BridgeUpdateState
     func rollbackUpdate(device: BridgeDevice, reason: String) async throws -> BridgeUpdateState
     func createBackup(device: BridgeDevice) async throws -> BridgeBackupResult
+    /// Phase D: create a backup with a user-supplied passphrase. The
+    /// passphrase is shipped in the `POST /v1/backup/create` body so the
+    /// bridge can encrypt the archive before returning a download URL. The
+    /// no-passphrase variant is kept as a default-implementation thunk for
+    /// callers that predate Phase D (e.g. the Updates flow's implicit
+    /// backup step, which uses server-side encryption-at-rest only).
+    func createBackup(device: BridgeDevice, passphrase: String) async throws -> BridgeBackupResult
     func restoreBackup(device: BridgeDevice, backupID: String) async throws -> BridgeBackupRestoreResult
+    /// Phase D: restore an uploaded backup using the same passphrase used at
+    /// create-time. Mirrors `createBackup(device:passphrase:)`.
+    func restoreBackup(
+        device: BridgeDevice,
+        backupID: String,
+        passphrase: String
+    ) async throws -> BridgeBackupRestoreResult
+}
+
+extension BridgeTransport {
+    func createBackup(device: BridgeDevice, passphrase: String) async throws -> BridgeBackupResult {
+        try await createBackup(device: device)
+    }
+
+    func restoreBackup(
+        device: BridgeDevice,
+        backupID: String,
+        passphrase _: String
+    ) async throws -> BridgeBackupRestoreResult {
+        try await restoreBackup(device: device, backupID: backupID)
+    }
 }
 
 enum BridgeTransportError: Error, Equatable {
@@ -56,6 +84,15 @@ actor InMemoryBridgeTransport: BridgeTransport {
     private var configs: [String: BridgeConfig]
     private var configValidationErrors: [String: [String: String]]
     private(set) var putConfigCalls: Int
+    // MARK: Phase D — backup / restore test scaffolding
+    private(set) var createBackupCalls: Int
+    private(set) var lastCreateBackupPassphrase: String?
+    private(set) var restoreBackupCalls: Int
+    private(set) var lastRestoreBackupPassphrase: String?
+    private(set) var lastRestoreBackupID: String?
+    private var createBackupShouldFailDeviceIDs: Set<String>
+    private var restoreBackupShouldFailDeviceIDs: Set<String>
+    private var backupSourceDeviceIDs: [String: String]
 
     init(
         devices: [BridgeDevice] = [],
@@ -76,6 +113,44 @@ actor InMemoryBridgeTransport: BridgeTransport {
         self.configs = [:]
         self.configValidationErrors = [:]
         self.putConfigCalls = 0
+        self.createBackupCalls = 0
+        self.lastCreateBackupPassphrase = nil
+        self.restoreBackupCalls = 0
+        self.lastRestoreBackupPassphrase = nil
+        self.lastRestoreBackupID = nil
+        self.createBackupShouldFailDeviceIDs = []
+        self.restoreBackupShouldFailDeviceIDs = []
+        self.backupSourceDeviceIDs = [:]
+    }
+
+    // MARK: Phase D — backup / restore test helpers
+
+    func setCreateBackupShouldFail(_ shouldFail: Bool, for deviceID: String) {
+        if shouldFail {
+            createBackupShouldFailDeviceIDs.insert(deviceID)
+        } else {
+            createBackupShouldFailDeviceIDs.remove(deviceID)
+        }
+    }
+
+    func setRestoreBackupShouldFail(_ shouldFail: Bool, for deviceID: String) {
+        if shouldFail {
+            restoreBackupShouldFailDeviceIDs.insert(deviceID)
+        } else {
+            restoreBackupShouldFailDeviceIDs.remove(deviceID)
+        }
+    }
+
+    /// When the coordinator calls `createBackup` against a device whose
+    /// source-id has been pinned here, the returned `backup_id` embeds the
+    /// pinned identifier so cross-bridge restore tests can verify the
+    /// extra-confirmation path. The default is the device's own deviceID.
+    func setBackupSourceDeviceID(_ sourceID: String, for deviceID: String) {
+        backupSourceDeviceIDs[deviceID] = sourceID
+    }
+
+    func backupSourceDeviceID(for deviceID: String) -> String {
+        backupSourceDeviceIDs[deviceID] ?? deviceID
     }
 
     func setConfig(_ config: BridgeConfig, for deviceID: String) {
@@ -448,8 +523,25 @@ actor InMemoryBridgeTransport: BridgeTransport {
     }
 
     func createBackup(device: BridgeDevice) async throws -> BridgeBackupResult {
+        try await createBackup(device: device, passphrase: "")
+    }
+
+    func createBackup(device: BridgeDevice, passphrase: String) async throws -> BridgeBackupResult {
         try requireAuthorized(device)
-        let backupID = "update-inmemory-\(nextOperationNumber)"
+        createBackupCalls += 1
+        lastCreateBackupPassphrase = passphrase
+        if createBackupShouldFailDeviceIDs.contains(device.deviceID) {
+            throw BridgeAPIError(
+                requestID: "in-memory-\(UUID().uuidString)",
+                code: "backup_failed",
+                payload: BridgeErrorPayload(
+                    message: "Bridge could not create the backup archive.",
+                    details: ["device_id": .string(device.deviceID)]
+                )
+            )
+        }
+        let sourceID = backupSourceDeviceIDs[device.deviceID] ?? device.deviceID
+        let backupID = "update-inmemory-\(sourceID)-\(nextOperationNumber)"
         nextOperationNumber += 1
         return BridgeBackupResult(
             backupID: backupID,
@@ -461,7 +553,28 @@ actor InMemoryBridgeTransport: BridgeTransport {
     }
 
     func restoreBackup(device: BridgeDevice, backupID: String) async throws -> BridgeBackupRestoreResult {
+        try await restoreBackup(device: device, backupID: backupID, passphrase: "")
+    }
+
+    func restoreBackup(
+        device: BridgeDevice,
+        backupID: String,
+        passphrase: String
+    ) async throws -> BridgeBackupRestoreResult {
         try requireAuthorized(device)
+        restoreBackupCalls += 1
+        lastRestoreBackupPassphrase = passphrase
+        lastRestoreBackupID = backupID
+        if restoreBackupShouldFailDeviceIDs.contains(device.deviceID) {
+            throw BridgeAPIError(
+                requestID: "in-memory-\(UUID().uuidString)",
+                code: "restore_failed",
+                payload: BridgeErrorPayload(
+                    message: "Bridge could not restore the backup archive.",
+                    details: ["device_id": .string(device.deviceID)]
+                )
+            )
+        }
         return BridgeBackupRestoreResult(
             backupID: backupID,
             restoredPaths: ["/etc/InstantLinkBridge/config.toml"],
