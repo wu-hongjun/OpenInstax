@@ -162,6 +162,10 @@ final class HTTPBridgeDiscoveryProbe: BridgeDiscoveryProbe {
 final class BridgeControlCoordinator: ObservableObject {
     @Published private(set) var snapshot: BridgeControlSnapshot
     private(set) var transport: BridgeTransport
+    /// Owns the Bridge update lifecycle (preflight, upload, install,
+    /// reconnect, mark-good, rollback). Composed here so the Updates tab
+    /// and the Overview rollback affordance share one source of truth.
+    let updateCoordinator: BridgeUpdateCoordinator
 
     private let clientStore: BridgeClientFileStore
     private let probe: BridgeDiscoveryProbe
@@ -187,7 +191,8 @@ final class BridgeControlCoordinator: ObservableObject {
         clientNameProvider: @escaping () -> String = {
             Host.current().localizedName ?? ProcessInfo.processInfo.hostName
         },
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        updateCoordinator: BridgeUpdateCoordinator? = nil
     ) {
         self.transport = transport
         self.clientStore = clientStore
@@ -196,6 +201,7 @@ final class BridgeControlCoordinator: ObservableObject {
         self.clientNameProvider = clientNameProvider
         self.now = now
         self.snapshot = .empty
+        self.updateCoordinator = updateCoordinator ?? BridgeUpdateCoordinator(transport: transport)
     }
 
     deinit {

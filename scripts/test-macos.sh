@@ -25,6 +25,7 @@ SOURCES=(
   "$REPO_ROOT/macos/InstantLink/Core/BridgeTransport.swift"
   "$REPO_ROOT/macos/InstantLink/Core/BridgeHTTPTransport.swift"
   "$REPO_ROOT/macos/InstantLink/Core/BridgeControlCoordinator.swift"
+  "$REPO_ROOT/macos/InstantLink/Core/BridgeUpdateCoordinator.swift"
   "$REPO_ROOT/macos/InstantLink/Core/BridgeSettingsDraft.swift"
   "$REPO_ROOT/macos/InstantLink/Core/AppRuntimeServices.swift"
   "$REPO_ROOT/macos/InstantLink/Core/QueueEditCoordinator.swift"
@@ -35,6 +36,9 @@ SOURCES=(
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgePairingView.swift"
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeSettingsSection.swift"
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeSettingsView.swift"
+  "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeUpdatePreflightView.swift"
+  "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeUpdateProgressView.swift"
+  "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeUpdateView.swift"
   "$REPO_ROOT/macos/InstantLink/Features/Bridge/BridgeControlWindow.swift"
 )
 
@@ -48,6 +52,7 @@ TESTS=(
   "$REPO_ROOT/macos/Tests/BridgeClientFileStoreTests.swift"
   "$REPO_ROOT/macos/Tests/BridgePairingViewModelTests.swift"
   "$REPO_ROOT/macos/Tests/BridgeControlCoordinatorTests.swift"
+  "$REPO_ROOT/macos/Tests/BridgeUpdateCoordinatorTests.swift"
   "$REPO_ROOT/macos/Tests/BridgeConfigTests.swift"
   "$REPO_ROOT/macos/Tests/BridgeSettingsDraftTests.swift"
   "$REPO_ROOT/macos/Tests/BridgeSettingsApplyFlowTests.swift"

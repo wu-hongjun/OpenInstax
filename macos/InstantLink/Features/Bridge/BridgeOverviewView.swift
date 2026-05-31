@@ -3,6 +3,7 @@ import SwiftUI
 struct BridgeOverviewView: View {
     @ObservedObject var coordinator: BridgeControlCoordinator
     @State private var showPairingSheet = false
+    @State private var showRollbackConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -24,6 +25,9 @@ struct BridgeOverviewView: View {
                     networkCard(status: status)
                     printerCard(printer: status.printer)
                     uploadsCard(status: status)
+                    if status.update?.previousVersion != nil {
+                        rollbackCard(previousVersion: status.update?.previousVersion ?? "")
+                    }
                 }
 
                 if let error = coordinator.snapshot.lastError {
@@ -36,6 +40,44 @@ struct BridgeOverviewView: View {
         }
         .sheet(isPresented: $showPairingSheet) {
             BridgePairingView(coordinator: coordinator, isPresented: $showPairingSheet)
+        }
+        .confirmationDialog(
+            L("Roll back the Bridge to the previous version?"),
+            isPresented: $showRollbackConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L("Roll back"), role: .destructive) {
+                Task { await runRollback() }
+            }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("The Bridge will restart. Active uploads may be interrupted."))
+        }
+    }
+
+    private func rollbackCard(previousVersion: String) -> some View {
+        BridgeCard(title: L("Rollback")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(format: L("Restore the previously installed version (v%@)."), previousVersion))
+                    .font(.callout)
+                    .foregroundColor(.secondary)
+                Button(L("Roll back to previous version")) {
+                    showRollbackConfirmation = true
+                }
+            }
+        }
+    }
+
+    private func runRollback() async {
+        guard let device = currentDevice() else { return }
+        await coordinator.updateCoordinator.rollback(device: device, reason: "user_initiated")
+    }
+
+    private func currentDevice() -> BridgeDevice? {
+        switch coordinator.snapshot.discovery {
+        case .found(let device, _): return device
+        case .lost(let device, _): return device
+        case .searching: return nil
         }
     }
 

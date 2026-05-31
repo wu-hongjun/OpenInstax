@@ -609,6 +609,12 @@ struct BridgeUpdateSummary: Codable, Equatable {
     var canUpdate: Bool
     var operationID: String?
     var phase: BridgeUpdatePhase?
+    /// Version the bridge would restore to if a rollback is requested. The
+    /// rollback affordance on the Mac is only shown when this is populated.
+    /// Decoded from the bridge's `previous_version` key on the update summary;
+    /// older bridges that do not emit the field decode as nil and the
+    /// rollback UI stays hidden.
+    var previousVersion: String?
 
     enum CodingKeys: String, CodingKey {
         case currentVersion = "current_version"
@@ -616,6 +622,7 @@ struct BridgeUpdateSummary: Codable, Equatable {
         case canUpdate = "can_update"
         case operationID = "operation_id"
         case phase
+        case previousVersion = "previous_version"
     }
 }
 

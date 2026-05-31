@@ -290,6 +290,39 @@ struct InstantLinkMacOSTestRunner {
             ("BridgeHTTPTransportTests.testPutConfigSurfacesValidationError", {
                 try await BridgeHTTPTransportTests().testPutConfigSurfacesValidationError()
             }),
+            ("BridgeUpdateCoordinatorTests.testLoadBundleEmitsUpToDateWhenVersionsMatch", {
+                try await BridgeUpdateCoordinatorTests().testLoadBundleEmitsUpToDateWhenVersionsMatch()
+            }),
+            ("BridgeUpdateCoordinatorTests.testLoadBundleEmitsUpdateAvailableWhenBundleIsNewer", {
+                try await BridgeUpdateCoordinatorTests().testLoadBundleEmitsUpdateAvailableWhenBundleIsNewer()
+            }),
+            ("BridgeUpdateCoordinatorTests.testLoadBundleEmitsNoBundleWhenFirmwareMissing", {
+                try await BridgeUpdateCoordinatorTests().testLoadBundleEmitsNoBundleWhenFirmwareMissing()
+            }),
+            ("BridgeUpdateCoordinatorTests.testRefreshPreflightPopulatesSnapshot", {
+                try await BridgeUpdateCoordinatorTests().testRefreshPreflightPopulatesSnapshot()
+            }),
+            ("BridgeUpdateCoordinatorTests.testRunUpdateProgressesThroughAllPhases", {
+                try await BridgeUpdateCoordinatorTests().testRunUpdateProgressesThroughAllPhases()
+            }),
+            ("BridgeUpdateCoordinatorTests.testRunUpdateSurfaceUploadErrorAsFailure", {
+                try await BridgeUpdateCoordinatorTests().testRunUpdateSurfaceUploadErrorAsFailure()
+            }),
+            ("BridgeUpdateCoordinatorTests.testRunUpdateSurfaceStartErrorAsFailure", {
+                try await BridgeUpdateCoordinatorTests().testRunUpdateSurfaceStartErrorAsFailure()
+            }),
+            ("BridgeUpdateCoordinatorTests.testReconnectTimeoutMarksFailure", {
+                try await BridgeUpdateCoordinatorTests().testReconnectTimeoutMarksFailure()
+            }),
+            ("BridgeUpdateCoordinatorTests.testReconnectSuccessMarksGood", {
+                try await BridgeUpdateCoordinatorTests().testReconnectSuccessMarksGood()
+            }),
+            ("BridgeUpdateCoordinatorTests.testRollbackEmitsRolledBackResult", {
+                try await BridgeUpdateCoordinatorTests().testRollbackEmitsRolledBackResult()
+            }),
+            ("BridgeUpdateCoordinatorTests.testCompareVersionsRanksNumericComponents", {
+                try await BridgeUpdateCoordinatorTests().testCompareVersionsRanksNumericComponents()
+            }),
         ]
 
         var failures = 0
