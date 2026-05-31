@@ -132,6 +132,12 @@ MIN_OFFLINE_SEARCH_GAP_S = 2.0
 # the cursor moves; without a cache that would hammer the filesystem readers
 # for no perceptible UX gain. 3s is short enough that CPU% feels live.
 SYSTEM_STATS_CACHE_S = 3.0
+# Cadence for the live-refresh loop that rebuilds the About page rows so the
+# user sees CPU/RAM/Storage/Temp tick in real time without having to scroll
+# (the settings_rows tuple is otherwise only rebuilt on navigation). Slightly
+# faster than SYSTEM_STATS_CACHE_S so the cached snapshot picks up a fresh
+# read between rebuilds rather than being served stale.
+ABOUT_PAGE_REFRESH_S = 2.5
 # Auto-rebond recovery: when a printer is power-cycled it clears its BLE pairing while the Pi
 # keeps the stale bond key. The connection comes up (late GATT stage) but the first encrypted
 # write fails. We detect that signature and automatically remove the BlueZ bond so the
@@ -356,6 +362,7 @@ class BridgeUi:
         self._status_generation = 0
         self._render_tick_task: asyncio.Task[None] | None = None
         self._network_task: asyncio.Task[None] | None = None
+        self._about_refresh_task: asyncio.Task[None] | None = None
         self._ftp_mode_task: asyncio.Task[None] | None = None
         self._image_reset_task: asyncio.Task[None] | None = None
         self._initial_status_task: asyncio.Task[None] | None = None
@@ -437,6 +444,7 @@ class BridgeUi:
         self._action_task = asyncio.create_task(self._run_actions())
         self._render_tick_task = asyncio.create_task(self._run_render_tick())
         self._network_task = asyncio.create_task(self._run_network_status())
+        self._about_refresh_task = asyncio.create_task(self._run_about_page_refresh())
         if self._config.ftp.mode is not FtpReceiveMode.AUTO:
             self._ftp_mode_task = asyncio.create_task(self._apply_configured_ftp_mode_at_start())
         await self._configure_printer_keepalive()
@@ -461,6 +469,7 @@ class BridgeUi:
             self._status_task,
             self._render_tick_task,
             self._network_task,
+            self._about_refresh_task,
             self._ftp_mode_task,
             self._image_reset_task,
             self._auto_rebond_task,
@@ -3724,6 +3733,30 @@ class BridgeUi:
         while True:
             await asyncio.sleep(USB_STATUS_POLL_S)
             await self._refresh_network_status()
+
+    async def _run_about_page_refresh(self) -> None:
+        """Rebuild the About page rows periodically so live stats tick.
+
+        ``settings_rows`` is only rebuilt on user navigation events; the
+        CPU/RAM/Storage/SoC-temp rows would otherwise stay frozen at
+        whatever values were sampled when the user first entered the
+        page. This loop walks the snapshot and refreshes only when the
+        user is actually looking at the About page so other pages don't
+        pay any cost. Cancelled by ``stop()`` via the standard task
+        cancellation chain.
+        """
+
+        while True:
+            await asyncio.sleep(ABOUT_PAGE_REFRESH_S)
+            if (
+                self._snapshot.mode is UiMode.SETTINGS
+                and self._settings_page is SettingsPage.ABOUT
+            ):
+                self._snapshot = replace(
+                    self._snapshot,
+                    settings_rows=self._settings_rows(),
+                )
+                self._render()
 
     async def _refresh_network_status(self) -> None:
         async with self._network_refresh_lock:

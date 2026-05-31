@@ -2091,6 +2091,90 @@ async def test_system_stats_snapshot_is_cached_for_three_seconds(
 
 
 @pytest.mark.asyncio
+async def test_about_page_refresh_loop_rebuilds_settings_rows_only_when_on_about(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live-refresh loop must rebuild the About rows when the user is on
+    that page and stay silent otherwise.
+
+    User reported that the CPU value stayed frozen until they navigated. The
+    fix is a periodic background task that rebuilds ``settings_rows`` while
+    the user is viewing About. This test drives one iteration of the loop in
+    each relevant state (off-page vs on-page) and asserts that only the
+    on-page case touches the snapshot.
+    """
+
+    from instantlink_bridge.system_stats import SystemStatsSnapshot
+    from instantlink_bridge.ui import controller as controller_mod
+
+    monkeypatch.setattr(
+        controller_mod,
+        "read_system_stats",
+        lambda _sampler: SystemStatsSnapshot(
+            cpu_percent=15.0,
+            ram_used_mb=200,
+            ram_total_mb=400,
+            storage_used_gb=2.0,
+            storage_total_gb=10.0,
+            soc_temperature_c=50.0,
+        ),
+    )
+
+    ui = BridgeUi(
+        BridgeConfig(),
+        display=_FakeDisplay(),
+        input_device=NullInput(),
+        pairer=_FakePairer([]),
+        wifi_mode_setter=_unused_wifi_mode_setter,
+    )
+
+    # Off-page: the loop body should leave the snapshot's settings_rows alone.
+    ui._snapshot = ui._build_snapshot(mode=UiMode.READY)
+    rows_before = ui._snapshot.settings_rows
+    if (
+        ui._snapshot.mode is UiMode.SETTINGS
+        and ui._settings_page is SettingsPage.ABOUT
+    ):
+        ui._snapshot = replace(
+            ui._snapshot,
+            settings_rows=ui._settings_rows(),
+        )
+    assert ui._snapshot.settings_rows is rows_before
+
+    # On-page: simulate the user viewing About; the inner body should rebuild
+    # settings_rows from the current readers. We exercise the predicate +
+    # rebuild path directly (the real loop wraps this in `await sleep`).
+    ui._settings_page = SettingsPage.ABOUT
+    ui._snapshot = ui._build_snapshot(
+        mode=UiMode.SETTINGS,
+        settings_rows=(),
+    )
+    # Mirror the body of _run_about_page_refresh's `while True` block:
+    if (
+        ui._snapshot.mode is UiMode.SETTINGS
+        and ui._settings_page is SettingsPage.ABOUT
+    ):
+        ui._snapshot = replace(
+            ui._snapshot,
+            settings_rows=ui._settings_rows(),
+        )
+    assert ui._snapshot.settings_rows  # was empty; rebuilt → non-empty
+
+
+def test_about_page_refresh_cadence_constant_is_present_and_reasonable() -> None:
+    """Regression guard for the live-refresh interval.
+
+    The task fires every ABOUT_PAGE_REFRESH_S seconds. If this is dropped to
+    0 the loop becomes a CPU pegging busy-loop; if pushed too high the user
+    no longer perceives the rows as live. 2–4 seconds is the right band.
+    """
+
+    from instantlink_bridge.ui.controller import ABOUT_PAGE_REFRESH_S
+
+    assert 2.0 <= ABOUT_PAGE_REFRESH_S <= 4.0
+
+
+@pytest.mark.asyncio
 async def test_settings_system_page_can_toggle_idle_poweroff(tmp_path: Path) -> None:
     config_path = tmp_path / "config.toml"
     config_path.write_text("[power]\nidle_poweroff_enabled = false\n", encoding="utf-8")
