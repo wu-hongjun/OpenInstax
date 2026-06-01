@@ -257,6 +257,32 @@ def _default_status_sink(kind: StatusSinkKind) -> StatusSink:
     return NullStatusSink()
 
 
+# Title shown on the help dialog when KEY3 is pressed in
+# ADJUSTMENT_EDIT mode. Kept in lockstep with the per-axis
+# ``SettingsRow.label`` values in ``_settings_row_for(key)`` so the
+# dialog header and the underlying settings row agree on naming.
+_ADJUSTMENT_AXIS_LABEL: dict[SettingKey, str] = {
+    SettingKey.ADJUST_SATURATION: "Saturation",
+    SettingKey.ADJUST_EXPOSURE: "Exposure",
+    SettingKey.ADJUST_SHARPNESS: "Sharpness",
+    SettingKey.ADJUST_HUE: "Hue",
+    SettingKey.ADJUST_VIGNETTE: "Vignette",
+    SettingKey.ADJUST_DATESTAMP: "Datestamp",
+    SettingKey.ADJUST_WATERMARK: "Watermark",
+}
+
+
+def _adjustment_axis_label(key: SettingKey) -> str:
+    """Return the user-facing label for an adjustment axis.
+
+    Falls back to a stringified key if a new axis is added without an
+    entry here; the help dialog body still renders correctly because
+    ``setting_help_text`` is the source of truth for the body copy.
+    """
+
+    return _ADJUSTMENT_AXIS_LABEL.get(key, key.value)
+
+
 class BridgeUi:
     """Own the LCD state, hardware input, and printer pairing actions."""
 
@@ -1087,6 +1113,9 @@ class BridgeUi:
         if self._snapshot.mode is UiMode.CONFIRMATION_DIALOG:
             await self._handle_confirmation_dialog_action(action)
             return
+        if self._snapshot.mode is UiMode.HELP_DIALOG:
+            self._handle_help_dialog_action(action)
+            return
         if self._snapshot.mode is UiMode.SETTINGS:
             await self._handle_settings_action(action)
             return
@@ -1307,6 +1336,54 @@ class BridgeUi:
             await self._dispatch_confirmed_action(action_key)
         else:
             self._render()
+
+    # ------------------------------------------------------------------
+    # Help-dialog overlay
+    # ------------------------------------------------------------------
+
+    def _show_help_dialog(self, *, title: str, body: str) -> None:
+        """Open the read-only help overlay.
+
+        The previous mode (and settings page) is captured so dismissal
+        restores the user where they were — KEY3 in ADJUSTMENT_EDIT
+        returns to ADJUSTMENT_EDIT with the working value preserved,
+        KEY3 on a settings row returns to that row.
+        """
+
+        self._previous_mode_before_dialog = self._snapshot.mode
+        self._previous_page_before_dialog = self._settings_page
+        self._snapshot = replace(
+            self._snapshot,
+            mode=UiMode.HELP_DIALOG,
+            help_dialog_title=title,
+            help_dialog_body=body,
+        )
+        self._render()
+
+    def _handle_help_dialog_action(self, action: UiAction) -> None:
+        """Any input dismisses the help dialog.
+
+        Differs from the confirmation dialog (which routes LEFT/RIGHT
+        to focus toggling and KEY2 to cancel): the help dialog is
+        purely informational and has no Cancel vs Confirm distinction.
+        """
+
+        del action
+        self._dismiss_help_dialog()
+
+    def _dismiss_help_dialog(self) -> None:
+        previous_mode = self._previous_mode_before_dialog or UiMode.SETTINGS
+        previous_page = self._previous_page_before_dialog or self._settings_page
+        self._snapshot = replace(
+            self._snapshot,
+            mode=previous_mode,
+            help_dialog_title=None,
+            help_dialog_body=None,
+        )
+        self._settings_page = previous_page
+        self._previous_mode_before_dialog = None
+        self._previous_page_before_dialog = None
+        self._render()
 
     async def _dispatch_confirmed_action(self, action_key: str) -> None:
         """Run the action registered when the dialog was opened.
@@ -1770,11 +1847,14 @@ class BridgeUi:
                 self._cancel_adjustment_edit()
                 return
             if action in {UiAction.HELP, UiAction.PAIR}:
-                self._snapshot = replace(
-                    self._snapshot,
-                    settings_message=setting_help_text(key),
+                # Open the help overlay instead of bottom-strip toast so
+                # the entire edit canvas stays uncrowded; dismissing
+                # restores ADJUSTMENT_EDIT with the working value
+                # preserved (the previous-mode snapshot captures it).
+                self._show_help_dialog(
+                    title=_adjustment_axis_label(key),
+                    body=setting_help_text(key),
                 )
-                self._render()
                 return
             return
         # UP/DOWN nudge the working value by the schema's step (±10),
@@ -1794,19 +1874,17 @@ class BridgeUi:
         elif action in {UiAction.BACK, UiAction.LEFT}:
             self._cancel_adjustment_edit()
         elif action in {UiAction.HELP, UiAction.PAIR}:
-            # Show help text for the axis being edited WITHOUT exiting edit
-            # mode. The previous implementation called `_show_settings(...)`
-            # which forces mode → SETTINGS and recomputes the snapshot's
-            # adjustments_profile from the COMMITTED config — silently
-            # discarding the user's working value with no warning (audit
-            # flagged this as a data-loss bug). Now we just stamp the help
-            # text into the existing edit-mode snapshot so the slider
-            # position, working value, and live preview all survive KEY3.
-            self._snapshot = replace(
-                self._snapshot,
-                settings_message=setting_help_text(key),
+            # Open the help dialog overlay; the previous-mode snapshot
+            # preserves the ADJUSTMENT_EDIT working value and live
+            # preview, restored on dismiss. (Earlier implementations
+            # routed through ``_show_settings`` which forced a SETTINGS
+            # transition and silently discarded the working value —
+            # see the audit note retained in test_adjustment_edit_help_
+            # preserves_working_value.)
+            self._show_help_dialog(
+                title=_adjustment_axis_label(key),
+                body=setting_help_text(key),
             )
-            self._render()
 
     async def _handle_setting_picker_action(self, action: UiAction) -> None:
         key = self._settings_picker_key

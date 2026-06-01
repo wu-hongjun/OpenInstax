@@ -3809,12 +3809,24 @@ async def test_adjustment_edit_help_preserves_working_value(tmp_path: Path) -> N
 
     await ui._handle_action(UiAction.HELP)
 
-    # KEY3 must NOT exit edit mode or revert the working value. The help
-    # text appears in the bottom strip via settings_message, but mode +
-    # value survive.
-    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    # KEY3 opens the read-only help dialog overlay. The working value
+    # must survive both the open and the subsequent dismiss so the
+    # user can read the help and resume tuning without re-doing the
+    # adjustment (regression: an earlier implementation routed help
+    # through ``_show_settings`` which silently discarded the working
+    # value — audit-flagged data-loss bug).
+    assert ui._snapshot.mode is UiMode.HELP_DIALOG
+    assert ui._snapshot.help_dialog_title == "Saturation"
+    assert ui._snapshot.help_dialog_body
     assert ui._adjustment_edit_value == 10
-    assert ui._snapshot.settings_message is not None
+
+    # Any key dismisses; verify with KEY2 (BACK) which would normally
+    # cancel inside ADJUSTMENT_EDIT but acts as a generic dismiss
+    # inside HELP_DIALOG. Mode + working value restored.
+    await ui._handle_action(UiAction.BACK)
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    assert ui._snapshot.help_dialog_title is None
+    assert ui._adjustment_edit_value == 10
 
     # A subsequent SELECT commits the working value, not the original 0.
     await ui._handle_action(UiAction.SELECT)
@@ -5066,33 +5078,51 @@ async def _enter_adjustments_edit_mode(ui: BridgeUi, key: SettingKey) -> None:
 
 
 @pytest.mark.asyncio
-async def test_toggle_edit_message_clears_on_up_down() -> None:
-    """Plan 037 polish #11: KEY3 help text shown in toggle-edit mode
-    clears as soon as UP/DOWN flips the toggle, so the user's live edit
-    isn't visually masked by a stale help overlay."""
+async def test_toggle_edit_help_dialog_dismisses_on_any_key() -> None:
+    """KEY3 in toggle-edit mode opens the help dialog overlay; any
+    subsequent key dismisses it back to ADJUSTMENT_EDIT with the
+    working value preserved.
+
+    Replaces the previous "settings_message clears on UP/DOWN" check
+    — help moved from the bottom-strip toast to a centered dialog
+    (the bottom strip would otherwise stay visible while editing,
+    masking the live preview)."""
 
     ui, _ = _make_settings_ui(BridgeConfig())
     await _enter_adjustments_edit_mode(ui, SettingKey.ADJUST_WATERMARK)
-    # Show KEY3 help (simulates the user pressing KEY3 in edit mode).
-    await ui._handle_adjustment_edit_action(UiAction.HELP)
-    assert ui._snapshot.settings_message is not None
-    # A UP press flips the toggle; the help message must clear at the
-    # same time so the live edit is visible.
-    await ui._handle_adjustment_edit_action(UiAction.UP)
-    assert ui._snapshot.settings_message is None
+
+    await ui._handle_action(UiAction.HELP)
+    assert ui._snapshot.mode is UiMode.HELP_DIALOG
+    assert ui._snapshot.help_dialog_title == "Watermark"
+    assert ui._snapshot.help_dialog_body
+
+    # Any key dismisses; UP returns to ADJUSTMENT_EDIT without
+    # flipping the toggle (the dispatcher routes to the dialog
+    # handler before ever reaching the edit handler).
+    await ui._handle_action(UiAction.UP)
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    assert ui._snapshot.help_dialog_title is None
 
 
 @pytest.mark.asyncio
-async def test_slider_edit_message_clears_on_up_down() -> None:
-    """Plan 037 polish #11 (sibling): KEY3 help text shown in slider-edit
-    mode clears when the user nudges the slider with UP/DOWN."""
+async def test_slider_edit_help_dialog_dismisses_on_any_key() -> None:
+    """KEY3 in slider-edit mode opens the help dialog; any key
+    dismisses back to ADJUSTMENT_EDIT with the slider value intact."""
 
     ui, _ = _make_settings_ui(BridgeConfig())
     await _enter_adjustments_edit_mode(ui, SettingKey.ADJUST_SATURATION)
-    await ui._handle_adjustment_edit_action(UiAction.HELP)
-    assert ui._snapshot.settings_message is not None
-    await ui._handle_adjustment_edit_action(UiAction.UP)
-    assert ui._snapshot.settings_message is None
+    starting_value = ui._adjustment_edit_value
+
+    await ui._handle_action(UiAction.HELP)
+    assert ui._snapshot.mode is UiMode.HELP_DIALOG
+    assert ui._snapshot.help_dialog_title == "Saturation"
+    assert ui._snapshot.help_dialog_body
+
+    await ui._handle_action(UiAction.UP)
+    assert ui._snapshot.mode is UiMode.ADJUSTMENT_EDIT
+    assert ui._snapshot.help_dialog_title is None
+    # The dialog-dismissing UP must not also nudge the slider.
+    assert ui._adjustment_edit_value == starting_value
 
 
 # ---------------------------------------------------------------------------

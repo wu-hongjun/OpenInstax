@@ -233,6 +233,8 @@ def render_snapshot(snapshot: UiSnapshot, now: float | None = None) -> Image.Ima
         _booting(draw, snapshot, fonts, theme)
     elif snapshot.mode is UiMode.CONFIRMATION_DIALOG:
         _confirmation_dialog(image, draw, snapshot, fonts, theme)
+    elif snapshot.mode is UiMode.HELP_DIALOG:
+        _help_dialog(image, draw, snapshot, fonts, theme)
     else:
         _needs_pairing(draw, snapshot, fonts, theme)
 
@@ -653,6 +655,19 @@ def status_bar_word(snapshot: UiSnapshot) -> str:
         # System, About, Accessibility). Fall back to "Settings" when absent
         # so the bare root-menu view still gets a readable pill (plan 034 item 1b).
         return snapshot.settings_title if snapshot.settings_title else "Settings"
+    if mode is UiMode.ADJUSTMENT_EDIT:
+        # Show the axis being edited at the top of the screen rather than
+        # the generic "Adjustments". Frees the card body for the preview
+        # tile + slider + value badge and matches the macOS sheet's
+        # title-at-top layout.
+        return _ADJUSTMENT_EDIT_KEY_TO_LABEL.get(
+            snapshot.adjustment_edit_key or "", "Adjustments"
+        )
+    if mode is UiMode.HELP_DIALOG:
+        # The dialog overlay carries its own title within the card body;
+        # the status bar reflects the underlying surface so the dim
+        # background still reads as Adjustments / Settings context.
+        return _MODE_STATUS_WORD.get(mode, "Help")
     if mode is UiMode.READY:
         return "Connected" if can_accept_images(snapshot) else "Waiting"
     if mode is UiMode.PRINTER_SEARCHING and _is_waiting_for_user_message(
@@ -660,6 +675,21 @@ def status_bar_word(snapshot: UiSnapshot) -> str:
     ):
         return "Disconnected"
     return _MODE_STATUS_WORD.get(mode, "")
+
+
+# Map adjustment-edit key (SettingKey.value) → canonical axis label
+# shown in the top status bar. Mirrored in
+# ``controller._ADJUSTMENT_AXIS_LABEL``; render.py keeps its own copy
+# because the renderer must not import from controller.
+_ADJUSTMENT_EDIT_KEY_TO_LABEL: dict[str, str] = {
+    "adjust_saturation": "Saturation",
+    "adjust_exposure": "Exposure",
+    "adjust_sharpness": "Sharpness",
+    "adjust_hue": "Hue",
+    "adjust_vignette": "Vignette",
+    "adjust_datestamp": "Datestamp",
+    "adjust_watermark": "Watermark",
+}
 
 
 # Lightweight mirror of status_indicator._WAITING_FOR_USER_MESSAGES so the
@@ -1985,32 +2015,22 @@ def _adjustment_edit(
         width=1,
     )
 
-    # --- Axis label + value -------------------------------------------------
+    # --- Value badge --------------------------------------------------------
+    # The axis name now lives in the top status bar (see ``status_bar_word``)
+    # so the body card is freed up for the preview + slider + value. Only
+    # the numeric value is rendered here for slider axes; toggles surface
+    # their On/Off state via the pills drawn below.
     edit_key = snapshot.adjustment_edit_key or ""
-    # Map SettingKey value → human label.
-    _KEY_TO_LABEL: dict[str, str] = {
-        "adjust_saturation": "Saturation",
-        "adjust_exposure": "Exposure",
-        "adjust_sharpness": "Sharpness",
-        "adjust_hue": "Hue",
-        "adjust_vignette": "Vignette",
-        "adjust_datestamp": "Datestamp",
-        "adjust_watermark": "Watermark",
-    }
-    axis_label = t(_KEY_TO_LABEL.get(edit_key, edit_key.replace("adjust_", "").capitalize()), lang)
     current_value = snapshot.adjustment_edit_value
     is_toggle = edit_key in _OVERLAY_TOGGLE_EDIT_KEYS
 
-    label_y = 155
-    _text(draw, 22, label_y, axis_label, font_body, theme.label_primary)
     if not is_toggle:
-        # Slider rows show a numeric value beside the axis label; toggles
-        # show their state via the Off/On pills below so the right-aligned
-        # number would be redundant.
+        value_y = 155
         symmetric = edit_key != "adjust_vignette"
         val_str = format_int_with_sign(current_value) if symmetric else str(current_value)
         val_w = _text_width(draw, val_str, font_body)
-        _text(draw, 222 - val_w, label_y, val_str, font_body, theme.accent_blue)
+        val_x = (240 - val_w) // 2
+        _text(draw, val_x, value_y, val_str, font_body, theme.accent_blue)
 
     if is_toggle:
         # --- Off / On pills -------------------------------------------------
@@ -2347,6 +2367,123 @@ def _confirmation_dialog(
     # surfaces its own KEY1/KEY2 labels via ``_footer_label_lines``.
     hints = _mode_hints(snapshot)
     draw_hint_bar(draw, hints, fonts["hint"], theme)
+
+
+def _help_dialog(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    snapshot: UiSnapshot,
+    fonts: dict[str, Font],
+    theme: Theme,
+) -> None:
+    """Render the read-only help overlay.
+
+    The card carries the row / axis label as a header and the
+    setting's help text as up to four wrapped body lines, with a
+    "Press any key" hint at the bottom. No buttons — every input
+    dismisses (see :py:meth:`BridgeUi._handle_help_dialog_action`),
+    matching the iOS info-popup convention.
+
+    Reuses the confirmation dialog's dim factor and card geometry so
+    a help overlay opened on top of an Adjustments preview looks
+    visually consistent with the confirm overlay used for destructive
+    flows on the same surfaces.
+    """
+
+    lang = snapshot.language
+    title = snapshot.help_dialog_title or ""
+    body = snapshot.help_dialog_body or ""
+
+    # 1. Dim the underlying mode's frame so the card reads as the
+    # active foreground without losing the context underneath.
+    dimmed = image.point(lambda v: int(v * _CONFIRM_DIM_FACTOR))
+    image.paste(dimmed)
+
+    # 2. Card backdrop — same geometry as the confirmation dialog.
+    card_x0 = _CONFIRM_CARD_X
+    card_y0 = _CONFIRM_CARD_Y
+    card_x1 = _CONFIRM_CARD_X + _CONFIRM_CARD_W
+    card_y1 = _CONFIRM_CARD_Y + _CONFIRM_CARD_H
+    draw.rounded_rectangle(
+        (card_x0, card_y0, card_x1, card_y1),
+        radius=12,
+        fill=theme.surface,
+        outline=theme.separator,
+        width=1,
+    )
+
+    # 3. Title (axis / row label) centred.
+    title_str = t(title, lang)
+    title_font = fonts["body"]
+    title_w = _text_width(draw, title_str, title_font)
+    title_x = card_x0 + (_CONFIRM_CARD_W - title_w) // 2
+    title_y = card_y0 + 12
+    _text(draw, title_x, title_y, title_str, title_font, theme.label_primary)
+
+    # 4. Body — wrap to up to four lines so longer help strings fit.
+    body_str = t(body, lang)
+    body_font = fonts["small"]
+    body_max_w = _CONFIRM_CARD_W - 24
+    body_lines = _wrap_lines(draw, body_str, body_font, body_max_w, max_lines=4)
+    body_top = title_y + _font_height(draw, title_str or "Hg", title_font) + 10
+    line_h = _font_height(draw, "Hg", body_font) + 2
+    for i, line in enumerate(body_lines):
+        line_w = _text_width(draw, line, body_font)
+        line_x = card_x0 + (_CONFIRM_CARD_W - line_w) // 2
+        _text(draw, line_x, body_top + i * line_h, line, body_font, theme.label_secondary)
+
+    # 5. Footer hint — "Press any key to close".
+    hint = t("Press any key", lang)
+    hint_font = fonts["small"]
+    hint_w = _text_width(draw, hint, hint_font)
+    hint_x = card_x0 + (_CONFIRM_CARD_W - hint_w) // 2
+    hint_y = card_y1 - 18
+    _text(draw, hint_x, hint_y, hint, hint_font, theme.label_secondary)
+
+    # No bottom hint bar — every input dismisses, so the standard
+    # KEY1/KEY2/KEY3 legend would be misleading.
+
+
+def _wrap_lines(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: Font,
+    max_width: int,
+    *,
+    max_lines: int,
+) -> list[str]:
+    """Greedy word-wrap helper used by the help dialog body.
+
+    A small superset of ``_wrap_three_lines`` — callers pick the line
+    cap. The last line is suffixed with "…" if the input exceeded the
+    budget so the truncation is visible.
+    """
+
+    words = text.split()
+    if not words:
+        return []
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = current + " " + word
+        if _text_width(draw, candidate, font) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+            if len(lines) == max_lines:
+                break
+    if len(lines) < max_lines:
+        lines.append(current)
+    # If we ran out of room mid-wrap, mark the truncation. ``current``
+    # holds the last accepted chunk; the loop above breaks before
+    # pushing it when at the cap.
+    if len(lines) == max_lines and current and lines[-1] != current:
+        last = lines[-1]
+        while last and _text_width(draw, last + "…", font) > max_width:
+            last = last[:-1]
+        lines[-1] = (last + "…") if last else "…"
+    return lines
 
 
 def _draw_button_focus_fill(

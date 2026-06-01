@@ -34,6 +34,12 @@ class UiMode(StrEnum):
     # two-press confirms; the controller stamps the action_key into the
     # snapshot and dispatches on confirm.
     CONFIRMATION_DIALOG = "confirmation_dialog"
+    # Read-only help overlay: KEY3 (HELP) anywhere in Settings opens a
+    # centered card carrying the row/axis help text. Any key dismisses
+    # back to the underlying mode. Replaces the previous
+    # settings_message bottom-strip toast pattern so the body content
+    # stays uncrowded and help is opt-in.
+    HELP_DIALOG = "help_dialog"
 
 
 class UiAction(StrEnum):
@@ -151,3 +157,10 @@ class UiSnapshot:
     confirmation_destructive: bool = False
     confirmation_focus: str = "cancel"  # "cancel" | "confirm"
     confirmation_action_key: str | None = None
+    # Read-only help dialog overlay. Populated only while
+    # ``mode is UiMode.HELP_DIALOG``; the title is typically the row /
+    # axis label and the body is the help text the bridge would have
+    # previously stamped into ``settings_message``. Any key dismisses
+    # back to the underlying mode.
+    help_dialog_title: str | None = None
+    help_dialog_body: str | None = None
