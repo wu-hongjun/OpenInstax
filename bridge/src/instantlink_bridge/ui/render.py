@@ -1833,71 +1833,46 @@ def _draw_adjustments_slider_row(
     marker_font: Font,
     theme: Theme,
 ) -> None:
-    """Render a full-width slider row on the Adjustments page.
+    """Render an Adjustments list row as label + value + chevron.
 
-    Layout (redesigned, plan 036 Option A):
-    - Label zone : x=18..100  (82 px) — no truncation for any axis name.
-    - Slider zone : x=104..184 (80 px).
-    - Value column: x=188..210 (right of slider, fits "+100"/"-100").
-    - Chevron "›"  : x=216, always visible — signals KEY1 opens edit mode.
+    Layout (matches ``_draw_adjustments_toggle_row``):
+    - Label zone : x=22..160 (138 px) — fits long axis names and CJK.
+    - Value column: right-justified to x=200, in label_secondary.
+    - Chevron "›" : x=216 — signals KEY1 opens edit mode.
 
-    Selected row highlights the label zone with accent_blue; the slider fill
-    communicates the current value so a full-row highlight would swamp it.
+    The full-width inline mini-slider that previously sat between label
+    and value was removed: when the user presses KEY1 the focused
+    ``ADJUSTMENT_EDIT`` mode draws a proper-sized slider + live preview
+    on its own surface, so duplicating a thumbnail slider in the row
+    just added visual noise without communicating the value better
+    than the numeric badge already does. ``label_key`` is kept on the
+    signature so the caller's tuple-unpacking site stays untouched
+    even though we no longer key the slider range off it.
     """
-
-    min_val, max_val = _SLIDER_RANGE.get(label_key, (-100, 100))
-    symmetric = min_val < 0
-
-    # Parse the numeric value from value_str (e.g. "+50", "-30", "40")
-    try:
-        numeric_value = int(value_str.lstrip("+"))
-    except ValueError:
-        numeric_value = 0
-
-    row_cy = y + row_height // 2
+    # ``label_key`` is unused but retained for caller compatibility —
+    # see the docstring above.
+    del label_key
 
     if selected:
-        # Highlight label zone only
+        # Full-width highlight, mirroring the toggle row treatment.
         draw.rounded_rectangle(
-            (14, y, 100, y + row_height - 1),
-            radius=8,
+            (14, y, 226, y + row_height - 1),
+            radius=10,
             fill=theme.accent_blue,
         )
-        label_fill = theme.label_inverse
-        chevron_fill = theme.label_inverse
+        label_fill: str = theme.label_inverse
+        value_fill: str = theme.label_inverse
+        chevron_fill: str = theme.label_inverse
     else:
         label_fill = theme.label_primary
+        value_fill = theme.label_secondary
         chevron_fill = theme.label_secondary
 
-    # Label (left zone, 82 px — fits "Saturation", "Sharpness", CJK variants)
-    label_max = 78  # x=18 to x=96
-    label_fitted = _fit_text_to_width(draw, label_str, font, label_max)
-    _text(draw, 18, y + 3, label_fitted, font, label_fill)
+    label_max = 138
+    _text(draw, 22, y + 3, _fit_text_to_width(draw, label_str, font, label_max), font, label_fill)
 
-    # Slider — centred vertically on the row
-    track_height = 6
-    slider_y = row_cy - track_height // 2
-    draw_slider(
-        draw,
-        _ADJ_SLIDER_X,
-        slider_y,
-        _ADJ_SLIDER_W,
-        numeric_value,
-        min_val,
-        max_val,
-        theme=theme,
-        track_height=track_height,
-        symmetric=symmetric,
-    )
-
-    # Value label to the right of the slider (right-justified in the value column)
-    if symmetric:
-        val_label = format_int_with_sign(numeric_value)
-    else:
-        val_label = str(numeric_value)
-    val_w = _text_width(draw, val_label, font)
-    val_x = _ADJ_VALUE_X + max(0, (22 - val_w))  # right-justify in 22 px column
-    _text(draw, val_x, y + 3, val_label, font, theme.label_secondary)
+    val_w = _text_width(draw, value_str, font)
+    _text(draw, 200 - val_w, y + 3, value_str, font, value_fill)
 
     # Chevron always visible — "KEY1 opens edit mode" affordance.
     # Must use marker_font (Latin-only): the CJK fonts loaded in zh-Hans
@@ -2108,7 +2083,7 @@ def _adjustment_edit(
         right_x = slider_x + slider_w - right_w
         _text(draw, right_x, range_y, right_label, font_small, theme.label_secondary)
 
-        help_strip = t("Up/Dn ±5 · Left/Right ±25", lang)
+        help_strip = t("Up/Dn ±10 · Left/Right ±20", lang)
 
     # --- Help strip ---------------------------------------------------------
     help_y = card_y1 + 3

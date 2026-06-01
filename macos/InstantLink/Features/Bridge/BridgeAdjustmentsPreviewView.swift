@@ -110,11 +110,27 @@ struct BridgeAdjustmentsPreviewView: View {
     private func loadBaseImageIfNeeded() {
         guard baseImage == nil else { return }
         guard let url = Bundle.main.url(forResource: "AdjustmentsPreview", withExtension: "jpg"),
-              let image = CIImage(contentsOf: url) else {
+              let raw = CIImage(contentsOf: url) else {
             baseImage = nil
             return
         }
-        baseImage = image
+        // The shared reference photo ships with heavy grain — intentional
+        // for the bridge's 88 × 88 LCD pipeline tests, where the noise
+        // reads as subtle film grain. At the Mac's 360 × 240+ display
+        // size the same speckle gets magnified ~4× and dominates the
+        // smooth color zones. Apply a single Gaussian once at load so
+        // the user-controlled pipeline operates on a clean canvas;
+        // cropping back to the source extent strips the blur's natural
+        // border bleed. The radius is small enough that the silhouettes
+        // (trees, color boundaries) still register, so sharpness still
+        // has edges to bite into.
+        let denoised = raw
+            .applyingFilter(
+                "CIGaussianBlur",
+                parameters: [kCIInputRadiusKey: 1.2]
+            )
+            .cropped(to: raw.extent)
+        baseImage = denoised
         scheduleRender()
     }
 
