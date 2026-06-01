@@ -2083,7 +2083,7 @@ def _adjustment_edit(
         right_x = slider_x + slider_w - right_w
         _text(draw, right_x, range_y, right_label, font_small, theme.label_secondary)
 
-        help_strip = t("Up/Dn ±10 · Left/Right ±20", lang)
+        help_strip = t("Up/Dn ±10 · K1 OK · K2/Left Cancel", lang)
 
     # --- Help strip ---------------------------------------------------------
     help_y = card_y1 + 3

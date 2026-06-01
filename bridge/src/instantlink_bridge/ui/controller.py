@@ -1777,22 +1777,21 @@ class BridgeUi:
                 self._render()
                 return
             return
-        # Joystick deltas were ±5 (fine) and ±25 (coarse). Reduced to
-        # ±10 / ±20 so the reachable ladder is {…, -20, -10, 0, 10, 20,
-        # …} on every axis — matching the Mac slider's ``step=10``
-        # quantization and giving smoother low-end tuning than the
-        # previous coarse jump.
+        # UP/DOWN nudge the working value by the schema's step (±10),
+        # matching the Mac slider's quantization. LEFT/RIGHT no longer
+        # adjust the value: every other LCD mode treats LEFT as "back"
+        # and RIGHT as "select/commit" (see _settings_page_action /
+        # _toggle_list_action), so binding them to coarse-step here
+        # collided with the user's muscle memory and let an accidental
+        # joystick swipe shove a value 20 points in either direction
+        # while attempting to back out of edit mode.
         if action is UiAction.UP:
             self._update_adjustment_edit_value(10)
         elif action is UiAction.DOWN:
             self._update_adjustment_edit_value(-10)
-        elif action is UiAction.LEFT:
-            self._update_adjustment_edit_value(-20)
-        elif action is UiAction.RIGHT:
-            self._update_adjustment_edit_value(20)
-        elif action in {UiAction.SELECT}:
+        elif action in {UiAction.SELECT, UiAction.RIGHT}:
             await self._commit_adjustment_edit()
-        elif action in {UiAction.BACK}:
+        elif action in {UiAction.BACK, UiAction.LEFT}:
             self._cancel_adjustment_edit()
         elif action in {UiAction.HELP, UiAction.PAIR}:
             # Show help text for the axis being edited WITHOUT exiting edit

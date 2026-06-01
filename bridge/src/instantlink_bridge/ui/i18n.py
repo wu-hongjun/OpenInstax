@@ -163,7 +163,7 @@ _ZH_HANS: dict[str, str] = {
     "Scanning": "扫描中",
     "Up/Dn": "上/下",
     "Up/Dn Edit": "上/下 编辑",
-    "Up/Dn ±10 · Left/Right ±20": "上下 ±10 · 左右 ±20",
+    "Up/Dn ±10 · K1 OK · K2/Left Cancel": "上下 ±10 · K1 确认 · K2/左 取消",
     "KEY1 commit · KEY2 cancel": "按键1 确认 · 按键2 取消",
     # --- Body action / status copy ---------------------------------------
     "Blocked": "已阻止",
