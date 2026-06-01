@@ -1288,17 +1288,20 @@ def _ready(
             # Split row: each cell takes a half-card with a vertical
             # hairline divider between them. Labels keep the trailing
             # ":" so the eye can still bind label↔value across the gap.
-            # Value is promoted to fonts["body"] (14 pt) so the hierarchy
-            # "small grey label → big black value" survives at LCD viewing
-            # distance — the colour delta alone collapses at 10 pt
-            # (plan 034 item 12).
-            font_body = fonts["body"]
+            # The plan-034 audit briefly promoted the value to
+            # fonts["body"] for a "small grey label → big black value"
+            # hierarchy, but on the live LCD that left the Film + Battery
+            # row visibly taller than the single-cell rows above and
+            # below — the size delta read as inconsistency rather than
+            # hierarchy. The colour delta (label_secondary → label_primary)
+            # alone is enough at LCD viewing distance, so the value
+            # now renders in ``font_small`` matching every other row.
             for cell_idx, (label, value) in enumerate(group):
                 cx = label_x_full + cell_idx * cell_w
                 prefix = f"{label}: "
                 lw = _text_width(draw, prefix, font_small)
                 _text(draw, cx, label_y, prefix, font_small, theme.label_secondary)
-                _text(draw, cx + lw, label_y, value, font_body, theme.label_primary)
+                _text(draw, cx + lw, label_y, value, font_small, theme.label_primary)
             # Vertical divider — 1 px hairline in the same secondary
             # tint as the row hairlines, inset from the row top/bottom
             # so it reads as a slim "·" between the cells, not a frame.
