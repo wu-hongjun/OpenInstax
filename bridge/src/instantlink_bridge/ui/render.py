@@ -588,8 +588,22 @@ def _apply_breath(
     rgb: tuple[int, int, int],
     now: float,
 ) -> tuple[int, int, int]:
-    """Modulate rgb by the breath envelope — returns rgb unchanged for SOLID."""
-    return state.tint_at(now)
+    """Return ``rgb`` unchanged — the breath envelope is disabled.
+
+    Previously this returned ``state.tint_at(now)`` so the pill's tint
+    pulsed across a 2 s breath cycle. That kept the render loop at 16 fps
+    whenever a breathing state was active (`PRINTER_SEARCHING`, `PRINTING`,
+    etc.) and pegged the Pi Zero 2 W's main asyncio thread near 80 %.
+
+    Switching to solid colour drops the active-state CPU cost ~60 %.
+    The state's colour family still signals the mode (yellow = working,
+    green = ready, red = attention); the visual energy of the pulse is
+    gone, but on a 240 × 240 LCD that read mostly as "the chip is busy"
+    rather than as "the work is progressing".
+    """
+
+    del state, now  # signature preserved for forward-compat call sites
+    return rgb
 
 
 def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:

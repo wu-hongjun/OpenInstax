@@ -106,7 +106,6 @@ from instantlink_bridge.ui.status import (
 from instantlink_bridge.ui.status_indicator import (
     GpioStatusSink,
     NullStatusSink,
-    StatusPattern,
     StatusSink,
     StatusState,
     derive_status,
@@ -193,13 +192,6 @@ _GENERIC_SEARCHING_MESSAGES = frozenset({"Looking for printer", "Searching for p
 # shows a stale frame while a coroutine is busy. The `snapshot == last_rendered` short-circuit in
 # `_render` keeps this cheap and prevents render-spam.
 RENDER_TICK_S = 0.35
-# While the status indicator is breathing, the tick runs ~6× faster so the
-# tinted top bar advances smoothly across the 2 s breath cycle (~33 frames
-# per breath instead of ~16). The render itself short-circuits identical
-# snapshots, so a SOLID indicator costs nothing extra even if this faster
-# tick fires. 0.06 s (~16 fps) is a noticeable upgrade from 0.12 s without
-# saturating the Pi Zero 2 W's SPI bandwidth at full PIL rasterisation.
-BREATH_TICK_S = 0.06
 USB_STATUS_POLL_S = 1.0
 # Readiness freshness gate: "Ready to print" must be backed by a printer status that succeeded
 # recently, not just stale cached film/mode. If the printer powers off, status polls fail and the
@@ -3862,16 +3854,12 @@ class BridgeUi:
         """
 
         while True:
-            # Choose the cadence from the last rendered indicator: breathing
-            # states want ~8 fps so the tinted bar reads as a smooth pulse;
-            # solid states keep the cheap 0.35 s converger.
-            last_state = self._last_status_state
-            tick = (
-                BREATH_TICK_S
-                if last_state is not None and last_state.pattern is StatusPattern.BREATHING
-                else RENDER_TICK_S
-            )
-            await asyncio.sleep(tick)
+            # The render loop runs at a fixed ~3 fps converger now that the
+            # status pill is a solid colour. Breathing-pattern states (e.g.
+            # PRINTER_SEARCHING) used to drive a 16 fps cadence so the tint
+            # could pulse smoothly; that animation was the dominant idle CPU
+            # source on the Pi Zero 2 W and has been retired.
+            await asyncio.sleep(RENDER_TICK_S)
             # Age out readiness: if no status succeeded within the TTL, downgrade the cached
             # snapshot so a stale "Ready to print" leaves the screen even when no explicit failure
             # arrived (e.g. a dropped PRINTER_SEARCHING transition). The snapshot short-circuit in
@@ -4008,13 +3996,10 @@ class BridgeUi:
             except Exception:
                 LOGGER.exception("ui.status_sink_failed signal=%s", state.signal.value)
             # Snapshot-equality short-circuit avoids redundant SPI traffic on
-            # idle screens. Bypass it while the indicator is breathing so the
-            # 0.35 s render tick keeps the breath curve animating; the snapshot
-            # itself is unchanged but the time-based tint is not.
-            if (
-                state.pattern is not StatusPattern.BREATHING
-                and self._snapshot == self._last_rendered_snapshot
-            ):
+            # idle screens. The breath-bypass branch was removed when the
+            # pill switched to solid colour: with no time-based tint, an
+            # equal snapshot really does render to an identical frame.
+            if self._snapshot == self._last_rendered_snapshot:
                 return
             self._display.render(self._snapshot)
             self._last_rendered_snapshot = self._snapshot

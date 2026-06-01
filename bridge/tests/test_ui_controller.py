@@ -1102,9 +1102,12 @@ async def test_render_tick_re_renders_latest_snapshot() -> None:
 
 
 @pytest.mark.asyncio
-async def test_render_tick_keeps_animating_breathing_indicator() -> None:
-    """When the status indicator is breathing, the tick must re-render so the
-    time-modulated tint advances even though the snapshot itself is identical."""
+async def test_render_tick_short_circuits_even_for_breathing_indicator() -> None:
+    """The status pill is now a solid colour — even ex-breathing modes
+    (PRINTER_SEARCHING, PRINTING) honour the snapshot-equality
+    short-circuit. The previous behaviour drove a 16 fps re-render while
+    the breath curve animated; that animation has been retired to save
+    CPU on the Pi Zero 2 W."""
 
     printer = PairedPrinter(address="AA:BB:CC:DD:EE:FF", name="INSTAX-12345678")
     display = _FakeDisplay()
@@ -1119,18 +1122,21 @@ async def test_render_tick_keeps_animating_breathing_indicator() -> None:
 
     tick_task = asyncio.create_task(ui._run_render_tick())
     try:
-        # PRINTER_SEARCHING resolves to a breathing yellow indicator.
+        # PRINTER_SEARCHING previously triggered the breathing indicator
+        # and a 16 fps render cadence. With solid colours the tick falls
+        # through the short-circuit on every iteration after the first.
         ui._snapshot = ui._build_snapshot(mode=UiMode.PRINTER_SEARCHING, paired_printer=printer)
         for _ in range(50):
             if display.snapshots and display.snapshots[-1].mode is UiMode.PRINTER_SEARCHING:
                 break
             await asyncio.sleep(0.01)
-        assert display.snapshots, "render tick never rendered the breathing state"
+        assert display.snapshots, "render tick never rendered the searching state"
         baseline = len(display.snapshots)
-        # Two more tick periods must produce at least one extra render — the breath
-        # curve advances even though the snapshot is bit-identical.
+        # Two more tick periods must NOT produce extra renders — solid
+        # colour means each subsequent frame is bit-identical and the
+        # short-circuit fires.
         await asyncio.sleep(RENDER_TICK_S * 3)
-        assert len(display.snapshots) > baseline
+        assert len(display.snapshots) == baseline
     finally:
         tick_task.cancel()
         with suppress(asyncio.CancelledError):
