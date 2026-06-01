@@ -2351,15 +2351,31 @@ def _draw_button_focus_fill(
 ) -> None:
     """Paint the focused-button background tint inside the card.
 
-    The card has rounded bottom corners (radius 12); rounding the focus
-    fill the same way would require an alpha mask. Instead, we render a
-    rectangular tint and let the surrounding card outline mask the corner
-    bleed — the visible difference at 240×240 is one or two pixels and the
-    user never notices.
+    The card has rounded bottom corners (radius 12). The Cancel button
+    sits in the bottom-left of the card so its tint must round only at
+    its outer bottom-left corner; Confirm mirrors this on the right.
+    The inside edges (where the buttons meet at the divider) and the top
+    edges (where the buttons meet the message area) stay square so the
+    tint fills the button cell cleanly with no corner bleed.
     """
 
     tint = _blend(accent, theme.surface, 0.18)
-    draw.rectangle((x0, y0, x1, y1), fill=tint)
+    # PIL ``rounded_rectangle.corners`` is (top_left, top_right,
+    # bottom_right, bottom_left) per the Pillow docs.
+    if corner == "bottom_left":
+        corners = (False, False, False, True)
+    elif corner == "bottom_right":
+        corners = (False, False, True, False)
+    else:
+        corners = (False, False, False, False)
+    draw.rounded_rectangle(
+        (x0, y0, x1, y1),
+        # Match the card's outer radius so the tint meets the card edge
+        # cleanly. See the card render above; both literals stay at 12.
+        radius=12,
+        fill=tint,
+        corners=corners,
+    )
 
 
 def _blend(fg: str, bg: str, alpha: float) -> str:
