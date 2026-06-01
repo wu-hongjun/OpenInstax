@@ -269,3 +269,28 @@
 "Printer" = "打印机";
 "Queue" = "队列";
 "failed_to_save_captured_image" = "保存拍摄图像失败：%@";
+
+/* Plan 040 polish — Bridge Adjustments section (schema-driven). The
+   labels and helps below are emitted by the bridge schema endpoint and
+   passed straight through to L(); without these entries they fall back
+   to English even inside a Chinese-localised UI. */
+"Image adjustments" = "图像调整";
+"Loading adjustments…" = "正在加载调整…";
+"Preset" = "预设";
+"Saturation" = "饱和度";
+"Sharpness" = "锐度";
+"Hue" = "色调";
+"Vignette" = "暗角";
+"Datestamp" = "日期戳";
+"Datestamp format" = "日期戳格式";
+"Watermark" = "水印";
+"Watermark text" = "水印文本";
+"Choose a preset or Custom slot" = "选择预设或自定义槽位";
+"Colour intensity. Negative dulls, positive boosts" = "色彩强度。负值降低，正值提升";
+"Brightness in EV stops. ±100 = ±1 EV" = "亮度（EV 档位）。±100 = ±1 EV";
+"Edge contrast. Negative softens, positive crisps" = "边缘对比度。负值柔化，正值锐化";
+"Tint. Left toward orange, right toward blue" = "色相偏移。左偏橙，右偏蓝";
+"Darken the corners to simulate Instax film" = "压暗四角以模拟 Instax 胶片";
+"Stamp the photo's date in the bottom-right corner" = "在右下角加印照片日期";
+"Date layout — borrows macOS preset names" = "日期布局 — 借用 macOS 预设名";
+"Render the watermark text in the bottom-left corner" = "在左下角渲染水印文本";

@@ -494,7 +494,7 @@ actor InMemoryBridgeTransport: BridgeTransport {
             .toggle(BridgeToggleField(
                 key: "watermark",
                 label: "Watermark",
-                help: "Render watermark_text in the bottom-left corner"
+                help: "Render the watermark text in the bottom-left corner"
             )),
             .text(BridgeTextField(
                 key: "watermark_text",

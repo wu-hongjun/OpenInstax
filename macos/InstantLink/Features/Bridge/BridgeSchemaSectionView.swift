@@ -16,8 +16,24 @@ struct BridgeSchemaSectionView: View {
     @ObservedObject var draft: BridgeSettingsDraft
     let schema: BridgeConfigSchema
 
+    /// Width of the labels column. All four control types
+    /// (picker / slider / toggle / text) anchor their control to the same
+    /// x-coordinate so the card reads as a single aligned grid rather than
+    /// per-row-improvised layouts.
+    private static let labelColumnWidth: CGFloat = 160
+    /// Standing horizontal pad between label column and the start of the
+    /// control. Kept in sync with the label width so the inline help
+    /// caption aligns under the control rather than under the label.
+    private static let labelToControlSpacing: CGFloat = 10
+    /// Opacity applied to a row when its ``depends_on`` parent disables
+    /// it. SwiftUI's ``.disabled(true)`` greys the picker chevron but
+    /// leaves the slider track, toggle switch chrome, and text field
+    /// background at full color, so we dim the whole row at the view
+    /// layer for a uniform "this is inactive" signal.
+    private static let disabledOpacity: Double = 0.55
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             ForEach(Array(schema.fields.enumerated()), id: \.offset) { _, field in
                 fieldView(field)
             }
@@ -31,21 +47,57 @@ struct BridgeSchemaSectionView: View {
         case .picker(let picker):
             pickerRow(picker)
                 .disabled(disabled)
-                .foregroundColor(disabled ? .secondary : .primary)
+                .opacity(disabled ? Self.disabledOpacity : 1.0)
         case .slider(let slider):
             sliderRow(slider)
                 .disabled(disabled)
-                .foregroundColor(disabled ? .secondary : .primary)
+                .opacity(disabled ? Self.disabledOpacity : 1.0)
         case .toggle(let toggle):
             toggleRow(toggle)
                 .disabled(disabled)
-                .foregroundColor(disabled ? .secondary : .primary)
+                .opacity(disabled ? Self.disabledOpacity : 1.0)
         case .text(let text):
             textRow(text)
                 .disabled(disabled)
-                .foregroundColor(disabled ? .secondary : .primary)
+                .opacity(disabled ? Self.disabledOpacity : 1.0)
         case .unknown(let key, let type):
             unknownRow(key: key, type: type)
+        }
+    }
+
+    // MARK: - Row chrome
+
+    /// Shared row scaffold: label column on the left, caller-supplied
+    /// control filling the remaining width, optional help caption indented
+    /// under the control. Every adjustments row is built from this so the
+    /// grid alignment, the row spacing, and the help styling stay
+    /// in lockstep across control types.
+    @ViewBuilder
+    private func labeledRow<Control: View>(
+        label: String,
+        help: String?,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Self.labelToControlSpacing) {
+                Text(L(label))
+                    .font(.callout)
+                    // ``lineLimit(2) + fixedSize`` lets long localized
+                    // labels (e.g. zh-Hans + future translations) wrap
+                    // gracefully instead of truncating with "…".
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: Self.labelColumnWidth, alignment: .leading)
+                control()
+            }
+            if let help, !help.isEmpty {
+                Text(L(help))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, Self.labelColumnWidth + Self.labelToControlSpacing)
+            }
         }
     }
 
@@ -63,10 +115,7 @@ struct BridgeSchemaSectionView: View {
                 draft.setAdjustmentsValue(newValue, forKey: field.key)
             }
         )
-        return HStack(spacing: 10) {
-            Text(L(field.label))
-                .font(.callout)
-                .frame(width: 160, alignment: .leading)
+        return labeledRow(label: field.label, help: field.help) {
             Picker("", selection: binding) {
                 ForEach(field.options, id: \.value) { option in
                     Text(L(option.label)).tag(option.value)
@@ -74,7 +123,7 @@ struct BridgeSchemaSectionView: View {
             }
             .labelsHidden()
             .pickerStyle(.menu)
-            Spacer()
+            Spacer(minLength: 0)
         }
     }
 
@@ -96,28 +145,33 @@ struct BridgeSchemaSectionView: View {
             get: { Double(intBinding.wrappedValue) },
             set: { intBinding.wrappedValue = Int($0.rounded()) }
         )
-        return HStack(spacing: 10) {
-            Text(L(field.label))
-                .font(.callout)
-                .frame(width: 160, alignment: .leading)
+        return labeledRow(label: field.label, help: field.help) {
             Slider(
                 value: doubleBinding,
                 in: field.range.min...field.range.max,
                 step: field.range.step
             )
+            .controlSize(.small)
             Text(formatSliderBadge(value: intBinding.wrappedValue, display: field.display))
                 .font(.callout.monospacedDigit())
                 .foregroundColor(.secondary)
-                .frame(width: 44, alignment: .trailing)
+                // Widened from 44 → 56 pt to fit the percent suffix
+                // ("+100 %" = 6 chars) at .callout monospaced-digit.
+                .frame(width: 56, alignment: .trailing)
         }
     }
 
     private func formatSliderBadge(value: Int, display: BridgeSliderDisplay) -> String {
         switch display {
         case .signedPercent:
-            if value > 0 { return "+\(value)" }
-            return "\(value)"
-        case .unsignedPercent, .integer:
+            // Polish #2: percent badges advertise the unit. Stepper
+            // rows in sibling cards (e.g. JPEG quality) already do this;
+            // matching the convention here keeps the card legible.
+            if value > 0 { return "+\(value) %" }
+            return "\(value) %"
+        case .unsignedPercent:
+            return "\(value) %"
+        case .integer:
             return "\(value)"
         }
     }
@@ -129,7 +183,17 @@ struct BridgeSchemaSectionView: View {
             get: { (draft.adjustmentsValue(forKey: field.key) as? Bool) ?? false },
             set: { newValue in draft.setAdjustmentsValue(newValue, forKey: field.key) }
         )
-        return Toggle(L(field.label), isOn: binding)
+        // Polish #1: toggles route through the same labeled-row scaffold
+        // as pickers / sliders / text so the on/off switch sits at the
+        // same x-coordinate as every other control in the card. Without
+        // this the toggle label ran the full row width and the switch
+        // anchored to the trailing edge, breaking the grid.
+        return labeledRow(label: field.label, help: field.help) {
+            Toggle("", isOn: binding)
+                .labelsHidden()
+                .toggleStyle(.switch)
+            Spacer(minLength: 0)
+        }
     }
 
     // MARK: - Text
@@ -139,13 +203,10 @@ struct BridgeSchemaSectionView: View {
             get: { (draft.adjustmentsValue(forKey: field.key) as? String) ?? "" },
             set: { newValue in draft.setAdjustmentsValue(newValue, forKey: field.key) }
         )
-        return HStack(spacing: 10) {
-            Text(L(field.label))
-                .font(.callout)
-                .frame(width: 160, alignment: .leading)
+        return labeledRow(label: field.label, help: field.help) {
             TextField("", text: binding)
                 .textFieldStyle(.roundedBorder)
-            Spacer()
+            Spacer(minLength: 0)
         }
     }
 

@@ -135,7 +135,10 @@ def build_adjustments_schema() -> JsonObject:
             "key": "watermark",
             "type": "toggle",
             "label": "Watermark",
-            "help": "Render watermark_text in the bottom-left corner",
+            # The previous help copy ("Render watermark_text …") leaked
+            # the JSON key into user-facing text; rephrased to reference
+            # the sibling field by its display label.
+            "help": "Render the watermark text in the bottom-left corner",
         },
         {
             "key": "watermark_text",
