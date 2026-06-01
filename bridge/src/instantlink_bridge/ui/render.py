@@ -2318,33 +2318,41 @@ def _confirmation_dialog(
         width=1,
     )
 
-    # Vertically center each label INSIDE its button cell. Centring math:
-    #   * `_font_height("Hg")` measures the font's full ascent-to-descender
-    #     box. That used to feed the y-offset, which left "Cancel" / "Forget"
-    #     (no descender) sitting visibly below the centre — PIL's default
-    #     anchor pins (x, y) at the top of the bbox, so a tall reference
-    #     glyph pushed shorter glyphs down.
-    #   * Now we measure the actual label with ``textbbox`` and offset by
-    #     ``-bbox[1]`` so the bbox top lands at the centred y. The result is
-    #     true vertical centring for any label, with or without descender.
+    # Vertically center each label INSIDE its button cell using PIL's
+    # ``anchor='mm'`` (middle-middle). The earlier textbbox math was
+    # fragile across PIL versions — different Pillows treat the default
+    # anchor differently, and using "Hg" as the reference height left
+    # descender-less labels like "Cancel" / "Forget" looking
+    # bottom-heavy. ``anchor='mm'`` centres both axes on the (x, y)
+    # point unambiguously, so we just pass the geometric centre of each
+    # button cell and PIL does the rest.
     button_font = fonts["body"]
+    button_cjk = _cjk_font_for(button_font)
     button_center_y = button_top + _CONFIRM_BUTTON_H // 2
+    cancel_center_x = _CONFIRM_CARD_X + (_CONFIRM_CARD_W // 4)
+    confirm_center_x = button_divider_x + (_CONFIRM_CARD_W // 4)
 
     cancel_text = t("Cancel", lang)
-    cancel_bbox = draw.textbbox((0, 0), cancel_text, font=button_font)
-    cancel_w = int(cancel_bbox[2] - cancel_bbox[0])
-    cancel_h = int(cancel_bbox[3] - cancel_bbox[1])
-    cancel_x = _CONFIRM_CARD_X + (_CONFIRM_CARD_W // 2 - cancel_w) // 2
-    cancel_y = button_center_y - cancel_h // 2 - int(cancel_bbox[1])
-    _text(draw, cancel_x, cancel_y, cancel_text, button_font, theme.label_primary)
+    cancel_font = button_cjk if button_cjk is not None and _has_cjk(cancel_text) else button_font
+    draw.text(
+        (cancel_center_x, button_center_y),
+        cancel_text,
+        font=cancel_font,
+        fill=theme.label_primary,
+        anchor="mm",
+    )
 
     confirm_text = t(confirm_label, lang)
-    confirm_bbox = draw.textbbox((0, 0), confirm_text, font=button_font)
-    confirm_w = int(confirm_bbox[2] - confirm_bbox[0])
-    confirm_h = int(confirm_bbox[3] - confirm_bbox[1])
-    confirm_x = button_divider_x + (_CONFIRM_CARD_W // 2 - confirm_w) // 2
-    confirm_y = button_center_y - confirm_h // 2 - int(confirm_bbox[1])
-    _text(draw, confirm_x, confirm_y, confirm_text, button_font, confirm_accent)
+    confirm_font = (
+        button_cjk if button_cjk is not None and _has_cjk(confirm_text) else button_font
+    )
+    draw.text(
+        (confirm_center_x, button_center_y),
+        confirm_text,
+        font=confirm_font,
+        fill=confirm_accent,
+        anchor="mm",
+    )
 
     # Hint bar reuses the standard mode-hint dispatch; CONFIRMATION_DIALOG
     # surfaces its own KEY1/KEY2 labels via ``_footer_label_lines``.
